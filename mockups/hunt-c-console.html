@@ -1,0 +1,1650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Quarry — Hunt</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ground: #10141A;
+  --surface: #171D26;
+  --rule: #27313F;
+  --text: #C3CCD8;
+  --signal: #5FB3A1;
+  --alert: #E0714F;
+
+  --surface-hi: #1D2531;
+  --rule-soft: #1E2733;
+  --rule-bright: #364354;
+  --text-mute: #9AA7B6;
+  --text-dim: #8B96A6;
+  --track-mp: #6A7789;
+  --track-exp: #46525F;
+  --alert-deep: #8A4433;
+  --alert-shade: #5E3025;
+
+  --tier-common: #808B99;
+  --tier-uncommon: #9AA7B6;
+  --tier-rare: #C3CCD8;
+  --tier-epic: #E6EDF6;
+  --tier-legendary: #E0714F;
+
+  --sans: 'Barlow', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --cond: 'Barlow Semi Condensed', 'Roboto Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, dl, dd, dt, ul, ol, li, table {
+  margin: 0;
+  padding: 0;
+}
+
+ul, ol { list-style: none; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.panel-title {
+  font-family: var(--cond);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+
+.bar {
+  display: block;
+  height: 4px;
+  background: var(--rule-soft);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  width: var(--fill, 0%);
+  background: var(--signal);
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+
+.topbar-primary,
+.topbar-secondary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
+.map-name {
+  font-size: 17px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.map-levels {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  color: var(--text-dim);
+}
+
+.hunt-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding-left: 24px;
+  border-left: 1px solid var(--rule);
+}
+
+.hunt-state-mark {
+  width: 4px;
+  height: 16px;
+  background: var(--alert);
+}
+
+.hunt-state-label {
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.attempts {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+  height: 32px;
+  padding-left: 24px;
+  border-left: 1px solid var(--rule);
+}
+
+.attempts-label {
+  grid-column: 1 / -1;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  color: var(--text-dim);
+}
+
+.attempts-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.attempts-pip {
+  width: 12px;
+  height: 4px;
+  background: var(--rule-bright);
+}
+
+.attempts-pip[data-spent="true"] {
+  background: var(--alert);
+}
+
+.attempts-count {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  color: var(--text-mute);
+}
+
+.wallet {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.wallet-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wallet-item[data-kind="bag"],
+.wallet-item[data-kind="premium"] {
+  padding-left: 24px;
+  border-left: 1px solid var(--rule);
+}
+
+.wallet-label {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.wallet-value {
+  font-size: 15px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.wallet-item[data-kind="premium"] .wallet-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-mute);
+}
+
+.stop-hunt {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--ground);
+  border: 1px solid var(--rule-bright);
+  border-bottom-color: var(--alert);
+}
+
+.stop-hunt:focus-visible,
+.preset:focus-visible {
+  outline: 1px solid var(--signal);
+  outline-offset: 4px;
+  background: var(--surface-hi);
+}
+
+.field {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stage {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ground);
+  perspective: 1400px;
+  perspective-origin: 50% 36%;
+}
+
+.ground {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ground-plane {
+  position: absolute;
+  left: -50%;
+  top: -40%;
+  width: 200%;
+  height: 200%;
+  opacity: 0.4;
+  transform: rotateX(46deg) rotate(45deg);
+  background-image:
+    repeating-linear-gradient(0deg, var(--rule) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 40px);
+}
+
+.board {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 560px;
+  height: 360px;
+  margin-left: -280px;
+  margin-top: -160px;
+  transform: rotateX(46deg);
+  transform-style: preserve-3d;
+}
+
+.board-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-top-color: var(--alert-shade);
+  border-bottom-color: var(--signal);
+  transform-style: preserve-3d;
+}
+
+.cell {
+  position: relative;
+  background: rgba(23, 29, 38, 0.72);
+  transform-style: preserve-3d;
+}
+
+.cell[data-lane="neutral"] {
+  background: rgba(10, 13, 17, 0.72);
+  border-top: 1px solid var(--rule-bright);
+  border-bottom: 1px solid var(--rule-bright);
+}
+
+.token {
+  position: absolute;
+  left: 50%;
+  bottom: 44%;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotateX(-46deg);
+}
+
+.token-body {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 20, 26, 0.92);
+}
+
+.token[data-side="party"] .token-body {
+  border: 1px solid var(--signal);
+}
+
+.token[data-side="enemy"] .token-body {
+  border: 1px solid var(--alert);
+  transform: rotate(45deg);
+}
+
+.token-mark {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--signal);
+}
+
+.token-glyph {
+  width: 16px;
+  height: 16px;
+  color: var(--alert);
+  transform: rotate(-45deg);
+}
+
+.token-name {
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  padding: 0 4px;
+  background: rgba(16, 20, 26, 0.88);
+}
+
+.token-hp {
+  width: 48px;
+  background: var(--rule-bright);
+}
+
+.token[data-side="enemy"] .bar-fill {
+  background: var(--alert);
+}
+
+.token[data-critical="true"] .token-body {
+  outline: 1px solid var(--alert);
+  outline-offset: 4px;
+}
+
+.token[data-critical="true"] .token-name {
+  color: var(--alert);
+}
+
+.telegraph {
+  position: absolute;
+  top: 0;
+  left: 40%;
+  width: 40%;
+  height: 40%;
+  border: 1px solid var(--alert);
+  background-color: rgba(224, 113, 79, 0.14);
+  transform-style: preserve-3d;
+  animation: telegraph-pulse 3200ms ease-in-out infinite;
+}
+
+.telegraph::before,
+.telegraph::after {
+  content: "";
+  position: absolute;
+  background: rgba(224, 113, 79, 0.5);
+}
+
+.telegraph::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+
+.telegraph::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.telegraph-name,
+.telegraph-source {
+  position: absolute;
+  left: 4px;
+  top: 0;
+  white-space: nowrap;
+  transform-origin: 0 0;
+}
+
+.telegraph-name {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--alert);
+  transform: rotateX(-46deg) translateY(-32px);
+}
+
+.telegraph-source {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  color: var(--text-mute);
+  transform: rotateX(-46deg) translateY(-16px);
+}
+
+@keyframes telegraph-pulse {
+  0%, 100% { background-color: rgba(224, 113, 79, 0.10); }
+  50% { background-color: rgba(224, 113, 79, 0.28); }
+}
+
+.encounter {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.encounter-count {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text-mute);
+}
+
+.encounter-mode {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-dim);
+  padding-left: 8px;
+  border-left: 1px solid var(--rule);
+}
+
+.metrics {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+}
+
+.metrics-list {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 16px;
+}
+
+.metric:nth-child(2n) {
+  padding-left: 16px;
+  padding-right: 0;
+  border-left: 1px solid var(--rule);
+}
+
+.metric:nth-child(n + 3) {
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.metric-label {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.metric-value {
+  font-size: 48px;
+  line-height: 48px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.metric[data-estimate="true"] {
+  border-left-style: dashed;
+}
+
+.metric[data-estimate="true"] .metric-value {
+  font-size: 32px;
+  line-height: 32px;
+  font-weight: 400;
+  color: var(--text-mute);
+}
+
+.metric-qualifier {
+  display: block;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--rule-bright);
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.loot {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+}
+
+.loot-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.loot-table th,
+.loot-table td {
+  text-align: left;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.loot-table thead th {
+  height: 20px;
+  font-family: var(--cond);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--rule);
+}
+
+.loot-col-item { padding-left: 16px; padding-right: 16px; }
+.loot-col-rarity { width: 96px; padding-right: 16px; }
+.loot-col-detail { width: 152px; padding-right: 16px; }
+.loot-col-time { width: 56px; text-align: right; }
+
+.loot-row th,
+.loot-row td {
+  height: 24px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.loot-item {
+  position: relative;
+  padding-left: 16px;
+  padding-right: 16px;
+  overflow: hidden;
+}
+
+.loot-mark {
+  position: absolute;
+  left: 0;
+  bottom: 4px;
+  width: 4px;
+  background: var(--tier-common);
+}
+
+.loot-name {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loot-rarity {
+  font-family: var(--cond);
+  font-size: 12px;
+  padding-right: 16px;
+  letter-spacing: 0.02em;
+  color: var(--tier-common);
+}
+
+.loot-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-right: 16px;
+  overflow: hidden;
+}
+
+.loot-bonuses {
+  font-size: 12px;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+
+.loot-ilvl {
+  font-family: var(--cond);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.loot-disposition {
+  font-family: var(--cond);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.loot-gold {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--signal);
+}
+
+.loot-time {
+  font-family: var(--cond);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.loot-row[data-rarity="common"] .loot-mark { height: 4px; background: var(--tier-common); }
+.loot-row[data-rarity="uncommon"] .loot-mark { height: 8px; background: var(--tier-uncommon); }
+.loot-row[data-rarity="rare"] .loot-mark { height: 12px; background: var(--tier-rare); }
+.loot-row[data-rarity="epic"] .loot-mark { height: 16px; background: var(--tier-epic); }
+.loot-row[data-rarity="legendary"] .loot-mark { height: 20px; background: var(--tier-legendary); }
+
+.loot-row[data-rarity="none"] .loot-mark {
+  width: 8px;
+  height: 1px;
+  bottom: 12px;
+  background: var(--rule-bright);
+}
+
+.loot-row[data-rarity="common"] .loot-rarity { color: var(--tier-common); }
+.loot-row[data-rarity="uncommon"] .loot-rarity { color: var(--tier-uncommon); }
+.loot-row[data-rarity="rare"] .loot-rarity { color: var(--tier-rare); font-weight: 500; }
+.loot-row[data-rarity="epic"] .loot-rarity { color: var(--tier-epic); font-weight: 600; }
+.loot-row[data-rarity="none"] .loot-rarity { color: var(--text-dim); }
+
+.loot-row[data-rarity="legendary"] .loot-rarity {
+  color: var(--tier-legendary);
+  font-weight: 600;
+}
+
+.loot-row[data-rarity="epic"] .loot-name { font-weight: 500; }
+
+.loot-row[data-rarity="legendary"] .loot-name {
+  color: #F2E8E3;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.loot-row[data-rarity="legendary"] th,
+.loot-row[data-rarity="legendary"] td {
+  border-bottom-color: var(--alert-shade);
+}
+
+.loot-row[data-disposition="auto-sold"] .loot-name {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--rule-bright);
+}
+
+.log {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 16px 0;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+}
+
+.log-lines {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.log-lines::before {
+  content: "";
+  position: absolute;
+  left: 40px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--rule);
+}
+
+.log-line {
+  position: relative;
+  height: 20px;
+  line-height: 20px;
+  padding-left: 56px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-line::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: calc(100% - 40px);
+  width: 4px;
+  height: 4px;
+  background: var(--rule-bright);
+}
+
+.log-value {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.log-skill,
+.log-drop {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.log-note {
+  font-family: var(--cond);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.log-line[data-kind="attack"]::before { width: 4px; background: var(--rule-bright); }
+.log-line[data-kind="skill"]::before { width: 4px; background: var(--rule-bright); }
+.log-line[data-kind="incoming"]::before { width: 8px; background: var(--alert-deep); }
+.log-line[data-kind="heal"]::before { width: 8px; background: var(--signal); }
+.log-line[data-kind="casting"]::before { width: 8px; background: var(--alert); }
+.log-line[data-kind="defeat"]::before { width: 12px; background: var(--text-mute); }
+.log-line[data-kind="drop"]::before { width: 12px; background: var(--signal); }
+.log-line[data-kind="crit"]::before { width: 16px; background: var(--alert); }
+.log-line[data-kind="levelup"]::before { width: 16px; background: var(--signal); }
+
+.log-line[data-kind="incoming"] .log-value { color: var(--alert); }
+.log-line[data-kind="heal"] .log-value { color: var(--signal); }
+
+.log-line[data-kind="crit"] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.log-line[data-kind="crit"] .log-value {
+  color: var(--alert);
+  font-weight: 700;
+}
+
+.log-line[data-kind="defeat"] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.log-line[data-kind="drop"] { color: var(--text-mute); }
+
+.log-line[data-kind="drop"] .log-drop {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.log-line[data-kind="levelup"] { color: var(--text); }
+
+.log-line[data-kind="levelup"] .log-value {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.log-line[data-kind="casting"] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.log-line[data-kind="casting"] .log-skill {
+  color: var(--alert);
+  font-weight: 600;
+}
+
+.rail {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border-left: 1px solid var(--rule);
+}
+
+.party {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-bright) transparent;
+}
+
+.party > .panel-title,
+.presets > .panel-title {
+  padding: 4px 16px;
+}
+
+.card {
+  padding: 8px 16px 4px;
+  border-top: 1px solid var(--rule);
+}
+
+.card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: baseline;
+}
+
+.char-name {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 15px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.char-level {
+  grid-column: 2;
+  grid-row: 1;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  text-align: right;
+}
+
+.char-class {
+  grid-column: 1;
+  grid-row: 2;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-dim);
+}
+
+.char-element {
+  grid-column: 2;
+  grid-row: 2;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.vitals {
+  margin-top: 8px;
+}
+
+.vital {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 68px;
+  column-gap: 8px;
+  align-items: center;
+  height: 16px;
+}
+
+.vital + .vital { margin-top: 4px; }
+
+.vital-label {
+  font-family: var(--cond);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.vital-value {
+  font-size: 12px;
+  color: var(--text-mute);
+  text-align: right;
+}
+
+.vital[data-vital="mp"] .bar-fill { background: var(--track-mp); }
+.vital[data-vital="exp"] .bar-fill { background: var(--track-exp); }
+
+.vital[data-low="true"] .vital-label { color: var(--alert); }
+.vital[data-low="true"] .bar { background: var(--alert-shade); }
+.vital[data-low="true"] .bar-fill { background: var(--alert); }
+
+.vital[data-low="true"] .vital-value {
+  color: var(--alert);
+  font-weight: 600;
+}
+
+.char-status {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.char-status-name {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text);
+}
+
+.char-status-timer {
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-dim);
+}
+
+.skills { margin-top: 4px; }
+
+.skill {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-rows: 16px 4px;
+  column-gap: 8px;
+  padding-left: 12px;
+}
+
+.skill + .skill { margin-top: 4px; }
+
+.skill::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 16px;
+  background: var(--rule-bright);
+}
+
+.skill-glyph {
+  grid-column: 1;
+  grid-row: 1;
+  width: 16px;
+  height: 16px;
+  color: var(--text-mute);
+}
+
+.skill-glyph svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+}
+
+.skill-name {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-state {
+  grid-column: 3;
+  grid-row: 1;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.skill-track {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: block;
+  height: 4px;
+  background: var(--rule-soft);
+  overflow: hidden;
+}
+
+.skill-track-fill {
+  display: block;
+  height: 100%;
+  width: var(--progress, 0%);
+  background: var(--text-mute);
+}
+
+.skill[data-state="ready"]::before { background: var(--signal); }
+.skill[data-state="ready"] .skill-glyph { color: var(--text); }
+
+.skill[data-state="ready"] .skill-track {
+  background: transparent;
+  border-bottom: 1px solid var(--rule);
+}
+
+.skill[data-state="ready"] .skill-track-fill { width: 0; }
+
+.skill[data-state="active"]::before {
+  width: 4px;
+  background: var(--signal);
+}
+
+.skill[data-state="active"] .skill-glyph { color: var(--signal); }
+.skill[data-state="active"] .skill-name { font-weight: 600; }
+.skill[data-state="active"] .skill-state { color: var(--signal); }
+
+.skill[data-state="active"] .skill-track {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.skill[data-state="active"] .skill-track-fill { background: var(--signal); }
+
+.skill[data-state="cooldown"]::before { background: var(--rule-bright); }
+.skill[data-state="cooldown"] .skill-glyph { color: var(--track-exp); }
+.skill[data-state="cooldown"] .skill-name { color: var(--text-dim); }
+.skill[data-state="cooldown"] .skill-state { color: var(--text-mute); }
+.skill[data-state="cooldown"] .skill-track-fill { background: var(--text-dim); }
+
+.skill[data-state="casting"]::before {
+  width: 4px;
+  background: var(--alert);
+}
+
+.skill[data-state="casting"] .skill-glyph { color: var(--alert); }
+.skill[data-state="casting"] .skill-name { font-weight: 600; }
+
+.skill[data-state="casting"] .skill-state {
+  color: var(--alert);
+  font-weight: 600;
+}
+
+.skill[data-state="casting"] .skill-track { background: var(--alert-shade); }
+.skill[data-state="casting"] .skill-track-fill { background: var(--alert); }
+
+.skill[data-state="unaffordable"]::before { background: var(--alert); }
+.skill[data-state="unaffordable"] .skill-glyph { color: var(--alert-deep); }
+.skill[data-state="unaffordable"] .skill-name { color: var(--text-dim); }
+
+.skill[data-state="unaffordable"] .skill-state {
+  color: var(--alert);
+  font-weight: 600;
+}
+
+.skill[data-state="unaffordable"] .skill-track {
+  background: transparent;
+  border-bottom: 1px solid var(--alert-shade);
+}
+
+.skill[data-state="unaffordable"] .skill-track-fill {
+  width: 23.4%;
+  background: var(--alert);
+}
+
+.skill[data-state="passive"] { padding-left: 0; }
+.skill[data-state="passive"]::before { display: none; }
+.skill[data-state="passive"] .skill-glyph { color: var(--track-exp); }
+
+.skill[data-state="passive"] .skill-name {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.skill[data-state="passive"] .skill-track { visibility: hidden; }
+
+.presets {
+  border-top: 1px solid var(--rule);
+}
+
+.preset {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 4px 16px;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.preset-label {
+  grid-column: 1;
+  grid-row: 1;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.preset-value {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.preset-edit {
+  grid-column: 2;
+  grid-row: 2;
+  font-family: var(--cond);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--signal);
+  border-bottom: 1px solid var(--signal);
+}
+
+@media (max-width: 1240px) {
+  .metric-value { font-size: 40px; line-height: 40px; }
+  .metric[data-estimate="true"] .metric-value { font-size: 28px; line-height: 28px; }
+  .loot-col-item { padding-left: 12px; padding-right: 12px; }
+  .loot-col-rarity { width: 80px; padding-right: 12px; }
+  .loot-col-detail { width: 124px; padding-right: 12px; }
+  .loot-col-time { width: 48px; }
+  .loot-item { padding-left: 12px; padding-right: 12px; }
+  .loot-rarity { padding-right: 12px; }
+  .loot-detail { padding-right: 12px; }
+  .board { width: 480px; margin-left: -240px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <header class="topbar">
+    <div class="topbar-primary">
+      <div class="map">
+        <h1 class="map-name">Ember Quarry</h1>
+        <p class="map-levels">Level 24 to 34</p>
+      </div>
+      <p class="hunt-state" data-state="fighting">
+        <span class="hunt-state-mark" aria-hidden="true"></span>
+        <span class="hunt-state-label">Fighting</span>
+      </p>
+      <div class="attempts">
+        <p class="attempts-label">Death attempts</p>
+        <ul class="attempts-pips">
+          <li class="attempts-pip" data-spent="true"></li>
+          <li class="attempts-pip" data-spent="true"></li>
+          <li class="attempts-pip"></li>
+          <li class="attempts-pip"></li>
+          <li class="attempts-pip"></li>
+        </ul>
+        <p class="attempts-count">2 of 5 used</p>
+      </div>
+    </div>
+
+    <div class="topbar-secondary">
+      <dl class="wallet">
+        <div class="wallet-item" data-kind="gold">
+          <dt class="wallet-label">Gold</dt>
+          <dd class="wallet-value">184,220</dd>
+        </div>
+        <div class="wallet-item" data-kind="bag">
+          <dt class="wallet-label">Bag</dt>
+          <dd class="wallet-value">47 / 100</dd>
+        </div>
+        <div class="wallet-item" data-kind="premium">
+          <dt class="wallet-label">Premium</dt>
+          <dd class="wallet-value">17h 42m offline cap left</dd>
+        </div>
+      </dl>
+      <button class="stop-hunt" type="button">Stop hunt</button>
+    </div>
+  </header>
+
+  <main class="field">
+
+    <section class="stage" aria-label="Battlefield">
+      <div class="ground" aria-hidden="true">
+        <div class="ground-plane"></div>
+      </div>
+
+      <div class="board">
+        <ul class="board-grid">
+          <li class="cell" data-row="1" data-col="1" data-lane="enemy-back"></li>
+          <li class="cell" data-row="1" data-col="2" data-lane="enemy-back">
+            <div class="token" data-side="enemy" data-unit="quarry-revenant">
+              <span class="token-body">
+                <svg class="token-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 12.5 8 8 14.5 3.5 8Z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 5.5v5" stroke="currentColor" stroke-width="1.4"/></svg>
+              </span>
+              <span class="token-name">Quarry Revenant</span>
+              <span class="token-hp bar" style="--fill:100%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="1" data-col="3" data-lane="enemy-back"></li>
+          <li class="cell" data-row="1" data-col="4" data-lane="enemy-back"></li>
+          <li class="cell" data-row="1" data-col="5" data-lane="enemy-back"></li>
+
+          <li class="cell" data-row="2" data-col="1" data-lane="enemy-front">
+            <div class="token" data-side="enemy" data-unit="cinder-grub">
+              <span class="token-body">
+                <svg class="token-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 10c1.6-3 3.3-3 4.9 0 1.6 3 3.3 3 4.9 0" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.8" cy="5.4" r="1.1" fill="currentColor"/></svg>
+              </span>
+              <span class="token-name">Cinder Grub</span>
+              <span class="token-hp bar" style="--fill:100%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="2" data-col="2" data-lane="enemy-front"></li>
+          <li class="cell" data-row="2" data-col="3" data-lane="enemy-front">
+            <div class="token" data-side="enemy" data-unit="slagjaw">
+              <span class="token-body">
+                <svg class="token-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5 5 9l2.5-3.5L10 9l2.5-3.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 12h10" stroke="currentColor" stroke-width="1.4"/></svg>
+              </span>
+              <span class="token-name">Slagjaw</span>
+              <span class="token-hp bar" style="--fill:44%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="2" data-col="4" data-lane="enemy-front">
+            <div class="token" data-side="enemy" data-unit="cinder-grub" data-critical="true">
+              <span class="token-body">
+                <svg class="token-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 10c1.6-3 3.3-3 4.9 0 1.6 3 3.3 3 4.9 0" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.8" cy="5.4" r="1.1" fill="currentColor"/></svg>
+              </span>
+              <span class="token-name">Cinder Grub</span>
+              <span class="token-hp bar" style="--fill:12%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="2" data-col="5" data-lane="enemy-front"></li>
+
+          <li class="cell" data-row="3" data-col="1" data-lane="neutral"></li>
+          <li class="cell" data-row="3" data-col="2" data-lane="neutral"></li>
+          <li class="cell" data-row="3" data-col="3" data-lane="neutral"></li>
+          <li class="cell" data-row="3" data-col="4" data-lane="neutral"></li>
+          <li class="cell" data-row="3" data-col="5" data-lane="neutral"></li>
+
+          <li class="cell" data-row="4" data-col="1" data-lane="party-front"></li>
+          <li class="cell" data-row="4" data-col="2" data-lane="party-front"></li>
+          <li class="cell" data-row="4" data-col="3" data-lane="party-front">
+            <div class="token" data-side="party" data-unit="bjorn">
+              <span class="token-body"><span class="token-mark">B</span></span>
+              <span class="token-name">Bjorn</span>
+              <span class="token-hp bar" style="--fill:61%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="4" data-col="4" data-lane="party-front"></li>
+          <li class="cell" data-row="4" data-col="5" data-lane="party-front"></li>
+
+          <li class="cell" data-row="5" data-col="1" data-lane="party-back"></li>
+          <li class="cell" data-row="5" data-col="2" data-lane="party-back">
+            <div class="token" data-side="party" data-unit="sigrun">
+              <span class="token-body"><span class="token-mark">S</span></span>
+              <span class="token-name">Sigrun</span>
+              <span class="token-hp bar" style="--fill:85%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="5" data-col="3" data-lane="party-back"></li>
+          <li class="cell" data-row="5" data-col="4" data-lane="party-back">
+            <div class="token" data-side="party" data-unit="kaio">
+              <span class="token-body"><span class="token-mark">K</span></span>
+              <span class="token-name">Kaio</span>
+              <span class="token-hp bar" style="--fill:90%"><span class="bar-fill"></span></span>
+            </div>
+          </li>
+          <li class="cell" data-row="5" data-col="5" data-lane="party-back"></li>
+        </ul>
+
+        <div class="telegraph">
+          <span class="telegraph-name">Arrow Rain</span>
+          <span class="telegraph-source">Kaio</span>
+        </div>
+      </div>
+
+      <p class="encounter">
+        <span class="encounter-count">Group 3</span>
+        <span class="encounter-mode">Endless run</span>
+      </p>
+    </section>
+
+    <section class="metrics" aria-label="Rates">
+      <h2 class="panel-title">Rates</h2>
+      <dl class="metrics-list">
+        <div class="metric">
+          <dt class="metric-label">Kills / hour</dt>
+          <dd class="metric-value">1,142</dd>
+        </div>
+        <div class="metric">
+          <dt class="metric-label">EXP / hour</dt>
+          <dd class="metric-value">84,300</dd>
+        </div>
+        <div class="metric">
+          <dt class="metric-label">Gold / hour</dt>
+          <dd class="metric-value">12,480</dd>
+        </div>
+        <div class="metric" data-estimate="true">
+          <dt class="metric-label">Time until death</dt>
+          <dd class="metric-value">~3h 20m<span class="metric-qualifier">estimated</span></dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="loot" aria-label="Loot">
+      <h2 class="panel-title">Loot</h2>
+      <table class="loot-table">
+        <thead>
+          <tr>
+            <th class="loot-col-item" scope="col">Item</th>
+            <th class="loot-col-rarity" scope="col">Rarity</th>
+            <th class="loot-col-detail" scope="col">Detail</th>
+            <th class="loot-col-time" scope="col">Dropped</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="loot-row" data-rarity="epic">
+            <th class="loot-item" scope="row"><span class="loot-mark" aria-hidden="true"></span><span class="loot-name">Emberforged Longbow</span></th>
+            <td class="loot-rarity">Epic</td>
+            <td class="loot-detail"><span class="loot-bonuses">3 bonuses</span><span class="loot-ilvl">Item level 31</span></td>
+            <td class="loot-time">4s ago</td>
+          </tr>
+          <tr class="loot-row" data-rarity="rare">
+            <th class="loot-item" scope="row"><span class="loot-mark" aria-hidden="true"></span><span class="loot-name">Warden&#39;s Ashen Cloak</span></th>
+            <td class="loot-rarity">Rare</td>
+            <td class="loot-detail"><span class="loot-bonuses">2 bonuses</span><span class="loot-ilvl">Item level 29</span></td>
+            <td class="loot-time">22s ago</td>
+          </tr>
+          <tr class="loot-row" data-rarity="none">
+            <th class="loot-item" scope="row"><span class="loot-mark" aria-hidden="true"></span><span class="loot-name">Small HP Potion &#215;3</span></th>
+            <td class="loot-rarity">Consumable</td>
+            <td class="loot-detail"><span class="loot-bonuses">Stacked in bag</span></td>
+            <td class="loot-time">51s ago</td>
+          </tr>
+          <tr class="loot-row" data-rarity="uncommon">
+            <th class="loot-item" scope="row"><span class="loot-mark" aria-hidden="true"></span><span class="loot-name">Ashplate Greaves</span></th>
+            <td class="loot-rarity">Uncommon</td>
+            <td class="loot-detail"><span class="loot-bonuses">1 bonus</span><span class="loot-ilvl">Item level 28</span></td>
+            <td class="loot-time">1m ago</td>
+          </tr>
+          <tr class="loot-row" data-rarity="common" data-disposition="auto-sold">
+            <th class="loot-item" scope="row"><span class="loot-mark" aria-hidden="true"></span><span class="loot-name">Cracked Ore Band</span></th>
+            <td class="loot-rarity">Common</td>
+            <td class="loot-detail"><span class="loot-disposition">Auto-sold</span><span class="loot-gold">+240g</span></td>
+            <td class="loot-time">2m ago</td>
+          </tr>
+          <tr class="loot-row" data-rarity="legendary">
+            <th class="loot-item" scope="row"><span class="loot-mark" aria-hidden="true"></span><span class="loot-name">Gjallarhorn Fragment</span></th>
+            <td class="loot-rarity">Legendary</td>
+            <td class="loot-detail"><span class="loot-bonuses">4 bonuses</span><span class="loot-ilvl">Item level 30</span></td>
+            <td class="loot-time">7m ago</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="log" aria-label="Event log">
+      <h2 class="panel-title">Event log</h2>
+      <ol class="log-lines">
+        <li class="log-line" data-kind="attack">Kaio hits Slagjaw for <span class="log-value">284</span></li>
+        <li class="log-line" data-kind="incoming">Cinder Grub hits Bjorn for <span class="log-value">96</span></li>
+        <li class="log-line" data-kind="skill">Bjorn casts <span class="log-skill">Shield Wall</span></li>
+        <li class="log-line" data-kind="incoming">Slagjaw hits Bjorn for <span class="log-value">311</span> <span class="log-note">blocked 88</span></li>
+        <li class="log-line" data-kind="heal">Sigrun heals Bjorn for <span class="log-value">142</span></li>
+        <li class="log-line" data-kind="crit">Kaio crits Cinder Grub for <span class="log-value">612</span></li>
+        <li class="log-line" data-kind="defeat">Cinder Grub is defeated</li>
+        <li class="log-line" data-kind="drop"><span class="log-drop">Warden&#39;s Ashen Cloak</span> dropped</li>
+        <li class="log-line" data-kind="levelup">Sigrun reaches level <span class="log-value">23</span></li>
+        <li class="log-line" data-kind="casting">Kaio is casting <span class="log-skill">Arrow Rain</span></li>
+      </ol>
+    </section>
+
+  </main>
+
+  <aside class="rail" aria-label="Party and presets">
+
+    <section class="party" aria-label="Party">
+      <h2 class="panel-title">Party</h2>
+
+      <article class="card" data-role="tank">
+        <header class="card-head">
+          <h3 class="char-name">Bjorn</h3>
+          <p class="char-class">Guardian</p>
+          <p class="char-level">Level 24</p>
+          <p class="char-element" data-element="neutral">Neutral</p>
+        </header>
+        <div class="vitals">
+          <div class="vital" data-vital="hp">
+            <span class="vital-label">HP</span>
+            <span class="bar" style="--fill:60.6%"><span class="bar-fill"></span></span>
+            <span class="vital-value">412 / 680</span>
+          </div>
+          <div class="vital" data-vital="mp">
+            <span class="vital-label">MP</span>
+            <span class="bar" style="--fill:62.9%"><span class="bar-fill"></span></span>
+            <span class="vital-value">88 / 140</span>
+          </div>
+          <div class="vital" data-vital="exp">
+            <span class="vital-label">EXP</span>
+            <span class="bar" style="--fill:61%"><span class="bar-fill"></span></span>
+            <span class="vital-value">61%</span>
+          </div>
+        </div>
+        <p class="char-status"><span class="char-status-name">Shield Wall</span><span class="char-status-timer">6s left</span></p>
+        <ul class="skills">
+          <li class="skill" data-state="ready">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 8c2-3 8-3 10 0" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 11.5c1.6-1.8 5.4-1.8 7 0" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="4" r="1.2" fill="currentColor"/></svg></span>
+            <span class="skill-name">Taunt</span>
+            <span class="skill-state">Ready</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="active" style="--progress:38%">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2 13 4v4.5c0 2.6-2.1 4.4-5 5.5-2.9-1.1-5-2.9-5-5.5V4Z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Shield Wall</span>
+            <span class="skill-state">Active, 6s</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="cooldown" style="--progress:40%">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 13.5 11 3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M9 2.5h4.5V7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Cleave</span>
+            <span class="skill-state">9s</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="passive">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 8h11M8 3.5v4.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Bulwark</span>
+            <span class="skill-state">Always on</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+        </ul>
+      </article>
+
+      <article class="card" data-role="healer">
+        <header class="card-head">
+          <h3 class="char-name">Sigrun</h3>
+          <p class="char-class">Cleric</p>
+          <p class="char-level">Level 23</p>
+          <p class="char-element" data-element="neutral">Neutral</p>
+        </header>
+        <div class="vitals">
+          <div class="vital" data-vital="hp">
+            <span class="vital-label">HP</span>
+            <span class="bar" style="--fill:85.3%"><span class="bar-fill"></span></span>
+            <span class="vital-value">290 / 340</span>
+          </div>
+          <div class="vital" data-vital="mp" data-low="true">
+            <span class="vital-label">MP</span>
+            <span class="bar" style="--fill:23.4%"><span class="bar-fill"></span></span>
+            <span class="vital-value">96 / 410</span>
+          </div>
+          <div class="vital" data-vital="exp">
+            <span class="vital-label">EXP</span>
+            <span class="bar" style="--fill:44%"><span class="bar-fill"></span></span>
+            <span class="vital-value">44%</span>
+          </div>
+        </div>
+        <p class="char-status"><span class="char-status-name">Blessing</span><span class="char-status-timer">94s left</span></p>
+        <ul class="skills">
+          <li class="skill" data-state="ready">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <span class="skill-name">Heal</span>
+            <span class="skill-state">Ready</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="unaffordable">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 5.2v5.6M5.2 8h5.6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Group Heal</span>
+            <span class="skill-state">Needs 180 MP</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="active" style="--progress:62%">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2.5 9.6 6.4 13.5 8 9.6 9.6 8 13.5 6.4 9.6 2.5 8 6.4 6.4Z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Blessing</span>
+            <span class="skill-state">Active, 94s</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="ready">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2v6.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 8.5h7L8 14Z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Smite</span>
+            <span class="skill-state">Ready</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+        </ul>
+      </article>
+
+      <article class="card" data-role="dps">
+        <header class="card-head">
+          <h3 class="char-name">Kaio</h3>
+          <p class="char-class">Ranger</p>
+          <p class="char-level">Level 25</p>
+          <p class="char-element" data-element="wind">Wind</p>
+        </header>
+        <div class="vitals">
+          <div class="vital" data-vital="hp">
+            <span class="vital-label">HP</span>
+            <span class="bar" style="--fill:89.9%"><span class="bar-fill"></span></span>
+            <span class="vital-value">355 / 395</span>
+          </div>
+          <div class="vital" data-vital="mp">
+            <span class="vital-label">MP</span>
+            <span class="bar" style="--fill:72.2%"><span class="bar-fill"></span></span>
+            <span class="vital-value">130 / 180</span>
+          </div>
+          <div class="vital" data-vital="exp">
+            <span class="vital-label">EXP</span>
+            <span class="bar" style="--fill:12%"><span class="bar-fill"></span></span>
+            <span class="vital-value">12%</span>
+          </div>
+        </div>
+        <p class="char-status"><span class="char-status-name">Focus</span><span class="char-status-timer">11s left</span></p>
+        <ul class="skills">
+          <li class="skill" data-state="ready">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 5h8M2.5 11h8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M9 2.5 13.5 5 9 7.5M9 8.5 13.5 11 9 13.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Double Shot</span>
+            <span class="skill-state">Ready</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="casting" style="--progress:72%">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 2v9M8 4v9M12 2v9" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 9 4 11.5 5.5 9M6.5 11 8 13.5 9.5 11M10.5 9 12 11.5 13.5 9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <span class="skill-name">Arrow Rain</span>
+            <span class="skill-state">Casting</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="active" style="--progress:24%">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg></span>
+            <span class="skill-name">Focus</span>
+            <span class="skill-state">Active, 11s</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+          <li class="skill" data-state="passive">
+            <span class="skill-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.8 8S4.5 4 8 4s6.2 4 6.2 4-2.7 4-6.2 4-6.2-4-6.2-4Z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg></span>
+            <span class="skill-name">Keen Eye</span>
+            <span class="skill-state">Always on</span>
+            <span class="skill-track" aria-hidden="true"><span class="skill-track-fill"></span></span>
+          </li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="presets" aria-label="Presets">
+      <h2 class="panel-title">Presets</h2>
+      <button class="preset" type="button" data-preset="strategy">
+        <span class="preset-label">Strategy</span>
+        <span class="preset-value">Sustain</span>
+        <span class="preset-edit">Edit</span>
+      </button>
+      <button class="preset" type="button" data-preset="loot-filter">
+        <span class="preset-label">Loot filter</span>
+        <span class="preset-value">Rare and up</span>
+        <span class="preset-edit">Edit</span>
+      </button>
+    </section>
+
+  </aside>
+
+</div>
+</body>
+</html>
