@@ -160,3 +160,84 @@ test('decodeSnapshot rejects a second current act entry sharing an actor token',
   const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
   expect(error.code).toBe('INVALID_STATE');
 });
+
+test('decodeSnapshot rejects a queue array that is not in canonical scheduled order', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const queue = raw.queue as Record<string, unknown>[];
+    // fightFixture's canonical order sorts act entries by actorId ascending, so
+    // swapping the first two (e0, e1) puts a larger actorId before a smaller one.
+    [queue[0], queue[1]] = [queue[1], queue[0]];
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('queue.1');
+});
+
+test('decodeSnapshot rejects a queue entry whose seq is not less than nextQueueSeq', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const queue = raw.queue as Record<string, unknown>[];
+    queue[0].seq = raw.nextQueueSeq;
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('queue.0.seq');
+});
+
+test('decodeSnapshot rejects duplicate seq values in the queue', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const queue = raw.queue as Record<string, unknown>[];
+    queue[1].seq = queue[0].seq;
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('queue.1.seq');
+});
+
+test('decodeSnapshot rejects "__proto__" as a queue actorId', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const queue = raw.queue as Record<string, unknown>[];
+    queue[0].actorId = '__proto__';
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('queue.0.actorId');
+});
+
+test('decodeSnapshot rejects "__proto__" as an actor currentTarget', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const actors = raw.actors as Record<string, Record<string, unknown>>;
+    actors.p0.currentTarget = '__proto__';
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('actors.p0.currentTarget');
+});
+
+test('decodeSnapshot rejects "__proto__" as a threat key', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const actors = raw.actors as Record<string, Record<string, unknown>>;
+    // Built via JSON.parse (not an object literal) so "__proto__" lands as a
+    // genuine own enumerable property, matching what a crafted snapshot's JSON
+    // parse would produce — an object literal's `{ __proto__: 5 }` would instead
+    // set the prototype (or, for a non-object value, silently do nothing).
+    actors.p0.threat = JSON.parse('{"__proto__": 5}');
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('actors.p0.threat.__proto__');
+});
+
+test('decodeSnapshot rejects "__proto__" as an actors record key', () => {
+  const text = mutate(fightFixture(), (raw) => {
+    const actors = raw.actors as Record<string, Record<string, unknown>>;
+    const proto = { ...actors.p0, id: '__proto__' };
+    // `actors.__proto__ = proto` (and an object-literal `{ __proto__: proto }`)
+    // would set the object's prototype instead of creating an own property —
+    // Object.defineProperty bypasses that special-casing, matching what
+    // JSON.parse produces for a literal `"__proto__"` key in crafted text.
+    Object.defineProperty(actors, '__proto__', { value: proto, enumerable: true, configurable: true, writable: true });
+  });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('INVALID_STATE');
+  expect(error.field).toBe('actors.__proto__');
+});

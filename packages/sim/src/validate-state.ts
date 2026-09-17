@@ -1,6 +1,6 @@
 import type { Attributes, Content, DamageKind, Element, Family, SkillId } from '@narok/data';
 import { SimError, type SimErrorCode } from './errors';
-import { isStale } from './scheduler';
+import { compareScheduled, isStale } from './scheduler';
 import { validateLabInput } from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
@@ -40,6 +40,24 @@ const POSITION_PATTERN = /^(\d+),(\d+)$/;
 
 function fail(code: SimErrorCode, field: string, message: string): never {
   throw new SimError(code, field, message);
+}
+
+/**
+ * The complete set of actor ids a decoded state may legally use as an `actors`
+ * key (or reference from `threat`/`metrics.actors`/queue `actorId`/etc): the
+ * current roster's `p0..p{n-1}` plus `e0..e{maxEnemies-1}` for the content's
+ * enemy cap. Building this whitelist up front means every place that later
+ * uses an attacker-controlled string as a property key (`actors[id] = ...`,
+ * `metricsActors[id] = ...`, a `threat` accumulator) can reject anything
+ * outside it *before* assigning — including `'__proto__'`, which would
+ * otherwise hit the inherited setter on a plain `{}` instead of creating an
+ * own property, and which `x in obj`-style existence checks always report as
+ * present regardless of the object's own keys.
+ */
+function buildAllowedActorIds(content: Content, rosterIds: readonly ActorId[]): ReadonlySet<string> {
+  const ids = new Set<string>(rosterIds);
+  for (let i = 0; i < content.grid.maxEnemies; i++) ids.add(`e${i}`);
+  return ids;
 }
 
 function requireRecord(value: unknown, field: string): Record<string, unknown> {
@@ -147,10 +165,15 @@ function validateCooldowns(value: unknown, field: string): Partial<Record<SkillI
   return result;
 }
 
-function validateThreat(value: unknown, field: string): Record<ActorId, number> {
+function validateThreat(
+  value: unknown,
+  field: string,
+  allowedActorIds: ReadonlySet<string>,
+): Record<ActorId, number> {
   const record = requireRecord(value, field);
   const result: Record<ActorId, number> = {};
   for (const key of Object.keys(record)) {
+    if (!allowedActorIds.has(key)) fail('INVALID_STATE', `${field}.${key}`, 'threat key is not an allowed actor id');
     result[key] = requireIntRange(record[key], `${field}.${key}`, 0, MAX_TIME);
   }
   return result;
@@ -187,15 +210,23 @@ function validatePendingCast(
   return { skillId: skillIdRaw as SkillId | 'basic', targets, startedAt, completesAt, token };
 }
 
-function validateActor(value: unknown, field: string, id: string, content: Content): Actor {
+function validateActor(
+  value: unknown,
+  field: string,
+  id: string,
+  content: Content,
+  allowedActorIds: ReadonlySet<string>,
+): Actor {
   const record = requireRecord(value, field);
   const declaredId = requireString(record.id, `${field}.id`);
   if (declaredId !== id) fail('INVALID_STATE', `${field}.id`, 'actor id must match its map key');
   const side = requireOneOf(record.side, `${field}.side`, SIDES);
   const definitionId = requireString(record.definitionId, `${field}.definitionId`);
   if (side === 'party') {
-    if (!(definitionId in content.classes)) fail('INVALID_STATE', `${field}.definitionId`, 'unknown class id');
-  } else if (!(definitionId in content.monsters)) {
+    if (!Object.hasOwn(content.classes, definitionId)) {
+      fail('INVALID_STATE', `${field}.definitionId`, 'unknown class id');
+    }
+  } else if (!Object.hasOwn(content.monsters, definitionId)) {
     fail('INVALID_STATE', `${field}.definitionId`, 'unknown monster id');
   }
   const level = requireIntRange(record.level, `${field}.level`, 1, 999);
@@ -221,7 +252,7 @@ function validateActor(value: unknown, field: string, id: string, content: Conte
   const cooldowns = validateCooldowns(record.cooldowns, `${field}.cooldowns`);
   const statusesRaw = requireArray(record.statuses, `${field}.statuses`);
   const statuses = statusesRaw.map((entry, index) => validateStatus(entry, `${field}.statuses.${index}`));
-  const threat = validateThreat(record.threat, `${field}.threat`);
+  const threat = validateThreat(record.threat, `${field}.threat`, allowedActorIds);
   const forcedTarget = validateForcedTarget(record.forcedTarget, `${field}.forcedTarget`);
   const currentTarget = record.currentTarget === null
     ? null
@@ -244,7 +275,7 @@ function validateQueueEntry(
   const kind = requireOneOf(record.kind, `${field}.kind`, QUEUE_KINDS);
   const at = requireIntRange(record.at, `${field}.at`, 0, MAX_TIME);
   const actorId = requireString(record.actorId, `${field}.actorId`);
-  if (actorId !== '' && !(actorId in actors)) {
+  if (actorId !== '' && !Object.hasOwn(actors, actorId)) {
     fail('INVALID_STATE', `${field}.actorId`, 'unknown actor id');
   }
   const epoch = record.epoch === null ? null : requireIntRange(record.epoch, `${field}.epoch`, 0, MAX_TIME);
@@ -263,13 +294,19 @@ function validateQueueEntry(
   return { at, kind, actorId, seq, epoch, token };
 }
 
-function validateMetrics(value: unknown, field: string, actors: Record<ActorId, Actor>): Metrics {
+function validateMetrics(
+  value: unknown,
+  field: string,
+  actors: Record<ActorId, Actor>,
+  allowedActorIds: ReadonlySet<string>,
+): Metrics {
   const record = requireRecord(value, field);
   const nonNegativeInt = (key: string) => requireIntRange(record[key], `${field}.${key}`, 0, MAX_TIME);
   const actorsRecord = requireRecord(record.actors, `${field}.actors`);
   const metricsActors: Metrics['actors'] = {};
   for (const id of Object.keys(actorsRecord)) {
-    if (!(id in actors)) fail('INVALID_STATE', `${field}.actors.${id}`, 'unknown actor id');
+    if (!allowedActorIds.has(id)) fail('INVALID_STATE', `${field}.actors.${id}`, 'actor id is not an allowed id');
+    if (!Object.hasOwn(actors, id)) fail('INVALID_STATE', `${field}.actors.${id}`, 'unknown actor id');
     const entry = requireRecord(actorsRecord[id], `${field}.actors.${id}`);
     metricsActors[id] = {
       damageDealt: requireIntRange(entry.damageDealt, `${field}.actors.${id}.damageDealt`, 0, MAX_TIME),
@@ -323,14 +360,16 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
 
   const input = validateLabInput(root.input, content, battlefield);
   const rosterIds = input.classes.map((_, index) => `p${index}`);
+  const allowedActorIds = buildAllowedActorIds(content, rosterIds);
 
   const actorsRecord = requireRecord(root.actors, 'actors');
   const actors: Record<ActorId, Actor> = {};
   for (const id of Object.keys(actorsRecord)) {
-    actors[id] = validateActor(actorsRecord[id], `actors.${id}`, id, content);
+    if (!allowedActorIds.has(id)) fail('INVALID_STATE', `actors.${id}`, 'actor id is not an allowed id');
+    actors[id] = validateActor(actorsRecord[id], `actors.${id}`, id, content, allowedActorIds);
   }
   for (const id of rosterIds) {
-    if (!(id in actors)) fail('INVALID_STATE', `actors.${id}`, 'missing party actor for roster id');
+    if (!Object.hasOwn(actors, id)) fail('INVALID_STATE', `actors.${id}`, 'missing party actor for roster id');
   }
 
   const seenPositions = new Map<string, string>();
@@ -344,24 +383,45 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   for (const [id, actor] of Object.entries(actors)) {
     if (actor.pendingCast) {
       actor.pendingCast.targets.forEach((targetId, index) => {
-        if (!(targetId in actors)) {
+        if (!Object.hasOwn(actors, targetId)) {
           fail('INVALID_STATE', `actors.${id}.pendingCast.targets.${index}`, 'unknown target actor');
         }
       });
     }
     for (const threatId of Object.keys(actor.threat)) {
-      if (!(threatId in actors)) fail('INVALID_STATE', `actors.${id}.threat.${threatId}`, 'unknown threat source');
+      if (!Object.hasOwn(actors, threatId)) {
+        fail('INVALID_STATE', `actors.${id}.threat.${threatId}`, 'unknown threat source');
+      }
     }
-    if (actor.forcedTarget && !(actor.forcedTarget.actorId in actors)) {
+    if (actor.forcedTarget && !Object.hasOwn(actors, actor.forcedTarget.actorId)) {
       fail('INVALID_STATE', `actors.${id}.forcedTarget.actorId`, 'unknown forced target actor');
     }
-    if (actor.currentTarget !== null && !(actor.currentTarget in actors)) {
+    if (actor.currentTarget !== null && !Object.hasOwn(actors, actor.currentTarget)) {
       fail('INVALID_STATE', `actors.${id}.currentTarget`, 'unknown current target actor');
     }
   }
 
   const queueRaw = requireArray(root.queue, 'queue');
   const queue: ScheduledEvent[] = queueRaw.map((raw, index) => validateQueueEntry(raw, `queue.${index}`, actors));
+
+  // `takeNext()`/`schedule()` rely entirely on `state.queue` staying in
+  // continuous canonical order (compareScheduled); encodeSnapshot always
+  // emits it that way, so a decoded queue that is out of order, or whose
+  // `seq` values are not all `< nextQueueSeq` and pairwise distinct (so a
+  // later `schedule()` call cannot collide with a decoded entry), is
+  // rejected outright rather than silently re-sorted.
+  const seenSeqs = new Set<number>();
+  queue.forEach((event, index) => {
+    const field = `queue.${index}`;
+    if (event.seq >= nextQueueSeq) {
+      fail('INVALID_STATE', `${field}.seq`, 'seq must be less than nextQueueSeq');
+    }
+    if (seenSeqs.has(event.seq)) fail('INVALID_STATE', `${field}.seq`, 'duplicate seq value');
+    seenSeqs.add(event.seq);
+    if (index > 0 && compareScheduled(queue[index - 1], event) > 0) {
+      fail('INVALID_STATE', field, 'queue is not in canonical scheduled order');
+    }
+  });
 
   const currentByActorToken = new Set<string>();
   for (const event of queue) {
@@ -374,7 +434,7 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
     currentByActorToken.add(key);
   }
 
-  const metrics = validateMetrics(root.metrics, 'metrics', actors);
+  const metrics = validateMetrics(root.metrics, 'metrics', actors, allowedActorIds);
 
   return {
     schemaVersion: 1,

@@ -155,7 +155,11 @@ export function validateLabInput(value: unknown, content: Content, battlefield: 
 
   const placementRecord = requireRecord(record.placement, 'input.placement');
   const placementKeys = Object.keys(placementRecord);
-  if (placementKeys.length !== rosterIds.length || !rosterIds.every((id) => id in placementRecord)) {
+  if (
+    placementKeys.length !== rosterIds.length ||
+    !rosterIds.every((id) => Object.hasOwn(placementRecord, id)) ||
+    !placementKeys.every((key) => rosterIds.includes(key))
+  ) {
     failInput('input.placement', 'placement keys must exactly match the roster ids');
   }
   const placement: Record<ActorId, PositionId> = {};
@@ -169,7 +173,11 @@ export function validateLabInput(value: unknown, content: Content, battlefield: 
 
   const strategiesRecord = requireRecord(record.strategies, 'input.strategies');
   const strategyKeys = Object.keys(strategiesRecord);
-  if (strategyKeys.length !== rosterIds.length || !rosterIds.every((id) => id in strategiesRecord)) {
+  if (
+    strategyKeys.length !== rosterIds.length ||
+    !rosterIds.every((id) => Object.hasOwn(strategiesRecord, id)) ||
+    !strategyKeys.every((key) => rosterIds.includes(key))
+  ) {
     failInput('input.strategies', 'strategies keys must exactly match the roster ids');
   }
   const strategies: Record<ActorId, Strategy> = {};
