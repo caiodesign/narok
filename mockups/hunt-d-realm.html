@@ -1,0 +1,1466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Quarry — Realm HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --iron-0: #0b0d10;
+  --iron-1: #171a1f;
+  --iron-2: #242930;
+  --iron-3: #343a43;
+  --steel: #9cc0dc;
+  --steel-dim: #5d7a93;
+  --bronze-dark: #4a3722;
+  --bronze: #8d6b41;
+  --bronze-lit: #dcb67c;
+  --ember: #ff8a3d;
+  --ember-hot: #ffc46b;
+  --ember-deep: #b5401a;
+  --vellum: #eee5d2;
+  --vellum-dim: #b9ae98;
+
+  --hp-ally: #62c26f;
+  --hp-foe: #d8483a;
+  --mp: #4f92e6;
+  --xp: #d2a849;
+  --warn: #ff6b57;
+
+  --r-common: #c2bbad;
+  --r-uncommon: #6fcca9;
+  --r-rare: #6db2f5;
+  --r-epic: #c793f5;
+  --r-legendary: #ffb53f;
+  --gold: #f0c35a;
+
+  --school-guard: #3f5d78;
+  --school-cleric: #8a7433;
+  --school-ranger: #3d6b4c;
+
+  --display: 'Alegreya SC', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --text: 'Alegreya Sans', 'Segoe UI', 'Gill Sans', 'Trebuchet MS', sans-serif;
+
+  --gutter: 16px;
+  --rail-w: clamp(252px, 20vw, 288px);
+  --chat-w: clamp(290px, 22vw, 340px);
+  --party-w: 276px;
+
+  --corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/svg%3E");
+  --corner-tr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 1 26 0)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-bl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(1 0 0 -1 0 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-br: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 -1 26 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --rune-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M7 1v12M7 4l4-3M7 8L3 11M3 4h1.5M9.5 10H11' fill='none' stroke='%23b8905a' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; overflow: hidden; }
+
+body {
+  background: var(--iron-0);
+  color: var(--vellum);
+  font-family: var(--text);
+  font-size: 14px;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  min-width: 1100px;
+}
+
+h1, h2, h3, p, ul, ol, li, dl, dd, dt { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.realm { position: fixed; inset: 0; overflow: hidden; }
+
+.world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.world .fog { animation: fog-drift 38s ease-in-out infinite alternate; }
+.world .fog-b { animation-duration: 52s; animation-direction: alternate-reverse; }
+.world .crack { animation: ember-flicker 3.4s ease-in-out infinite; }
+.world .crack-b { animation-delay: -1.7s; }
+.world .slag-glow { animation: ember-flicker 5s ease-in-out infinite; }
+.world .spark { animation: spark-rise 7s linear infinite; }
+
+@keyframes fog-drift { from { transform: translateX(-40px); } to { transform: translateX(60px); } }
+@keyframes ember-flicker { 0%, 100% { opacity: 1; } 45% { opacity: .62; } 60% { opacity: .9; } }
+@keyframes spark-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translate(24px, -170px); opacity: 0; }
+}
+
+.battlefield {
+  position: absolute;
+  left: 50%;
+  top: 124px;
+  width: min(58vw, 820px);
+  transform: translateX(-50%);
+  overflow: visible;
+}
+.battlefield text { font-family: var(--text); }
+.tok-name { font-size: 12px; font-weight: 700; fill: var(--vellum); paint-order: stroke; stroke: #0b0806; stroke-width: 3px; stroke-linejoin: round; }
+.tok-name-foe { fill: #ffd9c4; }
+.lane-label { font-size: 11px; font-style: italic; fill: #c9b9a2; letter-spacing: .02em; paint-order: stroke; stroke: #0b0806; stroke-width: 3px; }
+.rain-label { font-family: var(--display); font-size: 15px; font-weight: 700; fill: var(--ember-hot); paint-order: stroke; stroke: #2a0e04; stroke-width: 4px; stroke-linejoin: round; }
+.rain-timer { font-size: 12px; font-weight: 700; fill: #ffe6c2; paint-order: stroke; stroke: #2a0e04; stroke-width: 3px; }
+
+.rain-field { animation: rain-pulse 1.6s ease-in-out infinite; }
+.rain-edge { animation: rain-march 1.2s linear infinite; }
+.arrow-fall { animation: arrow-fall 1.1s cubic-bezier(.5, 0, 1, 1) infinite; }
+.arrow-fall:nth-child(2) { animation-delay: -.3s; }
+.arrow-fall:nth-child(3) { animation-delay: -.65s; }
+.arrow-fall:nth-child(4) { animation-delay: -.15s; }
+.arrow-fall:nth-child(5) { animation-delay: -.85s; }
+.arrow-fall:nth-child(6) { animation-delay: -.5s; }
+.arrow-fall:nth-child(7) { animation-delay: -.95s; }
+.impact { animation: impact 1.1s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.impact-b { animation-delay: -.55s; }
+.target-ring { animation: spin 9s linear infinite; transform-box: fill-box; transform-origin: center; }
+.pop { animation: pop-drift 2.8s ease-out infinite; }
+.pop-b { animation-delay: -1.1s; }
+.pop-c { animation-delay: -1.9s; }
+.cast-fill { animation: cast-fill 2.4s linear infinite; }
+.foe-low { animation: low-blink 1s steps(2, jump-none) infinite; }
+
+@keyframes rain-pulse { 0%, 100% { opacity: .78; } 50% { opacity: 1; } }
+@keyframes rain-march { to { stroke-dashoffset: -28; } }
+@keyframes arrow-fall {
+  0% { transform: translateY(-70px); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(0); opacity: .2; }
+}
+@keyframes impact { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(1.4); opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop-drift {
+  0% { transform: translateY(8px); opacity: 0; }
+  12% { transform: translateY(0); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateY(-26px); opacity: 0; }
+}
+@keyframes cast-fill { from { transform: scaleX(.05); } to { transform: scaleX(1); } }
+@keyframes low-blink { 0% { opacity: 1; } 100% { opacity: .45; } }
+
+.win {
+  position: absolute;
+  background:
+    linear-gradient(180deg, rgba(52, 58, 67, .9) 0, rgba(28, 32, 38, .93) 34px, rgba(18, 21, 25, .95) 100%);
+  border: 1px solid #5c4529;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 196, .12),
+    inset 0 0 0 1px rgba(0, 0, 0, .7),
+    inset 0 0 22px rgba(0, 0, 0, .55),
+    0 10px 26px rgba(0, 0, 0, .6),
+    0 0 0 1px rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.win::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background:
+    var(--corner-tl) top left / 26px 26px no-repeat,
+    var(--corner-tr) top right / 26px 26px no-repeat,
+    var(--corner-bl) bottom left / 26px 26px no-repeat,
+    var(--corner-br) bottom right / 26px 26px no-repeat;
+}
+
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 6px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .03em;
+  color: var(--bronze-lit);
+  text-shadow: 0 1px 0 #000;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--bronze) 18%, var(--bronze) 82%, transparent) 1;
+}
+.win-title::before, .win-title::after {
+  content: "";
+  width: 14px; height: 14px;
+  background: var(--rune-mark) center / contain no-repeat;
+  flex: none;
+}
+.win-title::after { transform: scaleX(-1); margin-left: auto; }
+
+/* ---------- Party unit frames ---------- */
+
+.leftcol {
+  position: absolute;
+  top: var(--gutter);
+  left: var(--gutter);
+  width: var(--party-w);
+  display: grid;
+  gap: 14px;
+}
+.party { display: grid; gap: 10px; }
+
+.unit {
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 0 10px;
+  padding: 8px 12px 8px 8px;
+  inset: auto;
+}
+.unit.win { position: relative; }
+.unit.is-selected { border-color: #a9844f; box-shadow: inset 0 1px 0 rgba(255, 234, 196, .12), inset 0 0 0 1px rgba(0,0,0,.7), inset 0 0 22px rgba(0,0,0,.55), 0 10px 26px rgba(0,0,0,.6), 0 0 0 1px rgba(220, 182, 124, .35), 0 0 16px rgba(220, 182, 124, .18); }
+
+.medal {
+  position: relative;
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, var(--medal-tint, #3f5d78) 0, #11151b 72%);
+  box-shadow:
+    0 0 0 2px #1a130b,
+    0 0 0 4px #9a7747,
+    0 0 0 5px #2b1f12,
+    inset 0 3px 8px rgba(255,255,255,.12),
+    inset 0 -6px 12px rgba(0,0,0,.6);
+  display: grid; place-items: center;
+  color: #eaf2f8;
+  margin: 4px 0 0 4px;
+}
+.medal svg { width: 30px; height: 30px; }
+.medal--cleric { --medal-tint: #7a6630; color: #fff4d6; }
+.medal--ranger { --medal-tint: #35644a; color: #e6fff0; }
+.lvl {
+  position: absolute;
+  bottom: -6px; left: 50%;
+  transform: translateX(-50%);
+  min-width: 26px;
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  color: #1b1208;
+  background: linear-gradient(180deg, #f1d49c, #b48a50);
+  border: 1px solid #2b1f12;
+  border-radius: 8px;
+}
+
+.unit-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
+.unit-name { font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1; color: var(--vellum); }
+.unit-class { font-size: 12.5px; color: var(--vellum-dim); }
+.element { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--vellum-dim); }
+.element svg { width: 13px; height: 13px; }
+.element--wind { color: #a9e3c4; }
+
+.bar {
+  position: relative;
+  height: 15px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #07080a, #15181c);
+  box-shadow: inset 0 0 0 1px #000, 0 1px 0 rgba(255,255,255,.06);
+  overflow: hidden;
+}
+.bar + .bar { margin-top: 3px; }
+.bar > i {
+  position: absolute; inset: 1px auto 1px 1px;
+  width: calc(var(--v) - 2px);
+  border-radius: 1px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 70%, #fff) 0, var(--c) 45%, color-mix(in srgb, var(--c) 62%, #000) 100%);
+}
+.bar > span {
+  position: relative;
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 1px #000, 0 0 3px #000;
+  font-variant-numeric: tabular-nums;
+}
+.bar--hp { --c: var(--hp-ally); }
+.bar--mp { --c: var(--mp); }
+.bar--mp-low { --c: #3a64a6; box-shadow: inset 0 0 0 1px #000, 0 0 0 1px rgba(255, 107, 87, .75); }
+.bar--mp-low > span { color: #ffd0c8; }
+.mp-warn {
+  position: absolute; right: 4px; top: 0;
+  font-size: 11px; font-weight: 800; line-height: 15px;
+  color: #ffb4a8;
+  text-shadow: 0 1px 1px #000;
+}
+
+.xp { position: relative; height: 4px; margin-top: 4px; background: #07080a; border-radius: 2px; box-shadow: inset 0 0 0 1px #000; }
+.xp > i { position: absolute; inset: 0 auto 0 0; width: var(--v); background: linear-gradient(90deg, #8a6a2a, var(--xp)); border-radius: 2px; }
+
+.buffs { grid-column: 2; display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+.buff {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--vellum-dim);
+}
+.buff-icon {
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, var(--bt, #3f5d78), #0e1116 90%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #7c6040;
+  color: #fff;
+}
+.buff-icon svg { width: 14px; height: 14px; }
+.buff time { font-weight: 700; color: var(--vellum); font-variant-numeric: tabular-nums; }
+.buff-name { color: var(--vellum-dim); }
+
+/* ---------- Session stats ---------- */
+
+.session.win { position: relative; }
+.session-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 10px 14px 12px; }
+.metric dt { font-size: 12.5px; color: var(--vellum-dim); }
+.metric dd { font-size: 19px; font-weight: 700; line-height: 1.15; color: var(--vellum); font-variant-numeric: tabular-nums lining-nums; }
+.metric--estimate dd { font-style: italic; font-weight: 500; color: #e3d2b2; }
+.metric--estimate dd span { border-bottom: 1px dashed #8d7b5d; }
+.metric--estimate dt small { font-size: 11.5px; font-style: italic; color: #a99c85; }
+
+/* ---------- Target frame ---------- */
+
+.target {
+  position: absolute;
+  top: var(--gutter);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 350px;
+  display: grid;
+  grid-template-columns: 1fr 64px;
+  gap: 0 12px;
+  padding: 9px 10px 10px 14px;
+}
+.target .medal {
+  grid-column: 2; grid-row: 1 / span 3;
+  width: 56px; height: 56px;
+  margin: 2px 2px 0 0;
+  --medal-tint: #7a2a17;
+  color: #ffd2b8;
+  box-shadow: 0 0 0 2px #1a0d07, 0 0 0 4px #b3542a, 0 0 0 5px #2b1208, 0 0 14px rgba(255, 110, 50, .35), inset 0 3px 8px rgba(255,255,255,.1), inset 0 -6px 12px rgba(0,0,0,.6);
+}
+.target .lvl { background: linear-gradient(180deg, #ffb58a, #b5401a); color: #1c0802; }
+.target-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.target-name { font-family: var(--display); font-size: 19px; font-weight: 800; line-height: 1; color: #ffe2cf; }
+.target-kind { font-size: 12.5px; color: #e0a88a; }
+.target-group { margin-left: auto; font-size: 12px; color: var(--vellum-dim); font-variant-numeric: tabular-nums; }
+.bar--foe { --c: var(--hp-foe); height: 17px; }
+.bar--foe > span { line-height: 17px; }
+.threat { display: flex; align-items: center; gap: 7px; margin-top: 6px; font-size: 12.5px; color: var(--vellum-dim); }
+.threat svg { width: 14px; height: 14px; color: var(--steel); flex: none; }
+.threat b { color: var(--steel); font-weight: 700; }
+.threat-meter { flex: 1; display: flex; gap: 2px; height: 5px; }
+.threat-meter i { flex: 1; background: #2a2f36; border-radius: 1px; }
+.threat-meter i.on { background: linear-gradient(90deg, #d8a24a, #ff7a3d); }
+
+/* ---------- Minimap + realm ledger ---------- */
+
+.rail {
+  position: absolute;
+  top: var(--gutter);
+  right: var(--gutter);
+  bottom: 24px;
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rail > .win { position: relative; }
+
+.compass { padding: 10px 12px 12px; }
+.minimap-wrap { position: relative; width: 176px; height: 176px; margin: 2px auto 0; }
+.minimap { width: 100%; height: 100%; display: block; }
+.hunt-state {
+  position: absolute; top: -2px; left: -38px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px 3px 4px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #4a1d0c, #230d05);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #b85a2c, 0 0 12px rgba(255, 110, 50, .45);
+  font-weight: 800; font-size: 13px;
+  color: #ffe0c6;
+}
+.hunt-state i {
+  width: 18px; height: 18px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ff9a4a, #9c2f0e);
+  animation: state-beat 1.4s ease-in-out infinite;
+}
+.hunt-state svg { width: 12px; height: 12px; color: #fff3e4; }
+@keyframes state-beat { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 61, .7); } 50% { box-shadow: 0 0 0 5px rgba(255, 138, 61, 0); } }
+
+.zone { text-align: center; margin-top: -14px; position: relative; }
+.zone-name {
+  display: inline-block;
+  padding: 4px 22px 3px;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 19px;
+  line-height: 1.05;
+  color: #ffe7c7;
+  background: linear-gradient(180deg, #3a2a1a, #1c140c);
+  clip-path: polygon(0 50%, 12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%);
+  text-shadow: 0 0 10px rgba(255, 138, 61, .45), 0 1px 0 #000;
+}
+.zone-range { display: block; margin-top: 3px; font-size: 12.5px; color: var(--vellum-dim); font-variant-numeric: tabular-nums; }
+
+.ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #3a2e20; }
+.ledger-item { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 0; }
+.ledger-item svg { width: 16px; height: 16px; flex: none; }
+.ledger-item small { display: block; font-size: 11.5px; font-weight: 400; color: var(--vellum-dim); line-height: 1.1; }
+.ledger-gold { color: var(--gold); }
+.ledger-bag { color: var(--vellum); }
+.ledger-premium { color: #d7c9ff; }
+.pips { display: flex; gap: 3px; }
+.pip { width: 10px; height: 12px; clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); background: #d8483a; box-shadow: inset 0 0 0 1px #000; }
+.pip.spent { background: #3b3f46; }
+
+/* ---------- Loot window ---------- */
+
+.loot { flex: 0 1 auto; min-height: 0; }
+.loot-list { padding: 6px 8px 8px; display: grid; gap: 3px; }
+.drop {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 2px 9px;
+  padding: 4px 6px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 14%, transparent), transparent 70%);
+}
+.drop-icon {
+  grid-row: span 2;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 35%, #111), #0c0e11 85%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--rc);
+  color: var(--rc);
+}
+.drop-icon svg { width: 18px; height: 18px; }
+.drop-name { font-weight: 700; font-size: 14px; color: var(--rc); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drop-note { grid-column: 2 / span 2; font-size: 12px; color: var(--vellum-dim); line-height: 1.15; }
+.drop-age { font-size: 11.5px; color: #a3988a; font-variant-numeric: tabular-nums; }
+.drop--common { --rc: var(--r-common); }
+.drop--uncommon { --rc: var(--r-uncommon); }
+.drop--rare { --rc: var(--r-rare); }
+.drop--epic { --rc: var(--r-epic); }
+.drop--legendary { --rc: var(--r-legendary); }
+.drop--plain { --rc: #d9d2c4; background: none; }
+.drop--plain .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px #5b544a; }
+
+.drop--new { box-shadow: inset 2px 0 0 var(--rc); }
+
+.drop--sold { background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .05) 0 6px, transparent 6px 12px); }
+.drop--sold .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px #6a5a3a; background: #14120e; color: var(--gold); }
+.drop--sold .drop-name { color: #a39c90; font-weight: 500; }
+.sold-value { font-weight: 800; font-size: 13.5px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.sold-tag { font-style: italic; color: #cdb98f; }
+
+.drop--legendary {
+  position: relative;
+  margin-top: 4px;
+  padding: 6px 6px;
+  background:
+    linear-gradient(90deg, rgba(255, 150, 40, .28), rgba(120, 40, 10, .18) 60%, rgba(0,0,0,0)),
+    #1a0f07;
+  box-shadow: inset 0 0 0 1px rgba(255, 181, 63, .55), 0 0 14px rgba(255, 140, 40, .22);
+  overflow: hidden;
+}
+.drop--legendary::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 228, 170, .22) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: sheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.drop--legendary .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--r-legendary), 0 0 10px rgba(255, 170, 60, .7); color: #ffd98a; }
+.drop--legendary .drop-name { white-space: normal; font-family: var(--display); font-size: 14.5px; font-weight: 800; color: #ffc35a; text-shadow: 0 0 8px rgba(255, 140, 40, .55), 0 1px 0 #000; }
+.drop--legendary .drop-note { color: #e7cfa6; }
+@keyframes sheen { 0%, 55% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+.older { font-size: 11.5px; font-style: italic; color: #a3988a; padding: 4px 6px 0; display: flex; align-items: center; gap: 8px; }
+.older::before, .older::after { content: ""; flex: 1; height: 1px; background: #3a2e20; }
+
+/* ---------- Orders ---------- */
+
+.orders { margin-top: auto; padding: 10px 10px 10px; display: grid; gap: 7px; }
+.preset {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 8px;
+  width: 100%;
+  padding: 6px 10px 6px 12px;
+  text-align: left;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+}
+.preset:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.preset-kind { font-size: 12px; color: var(--vellum-dim); }
+.preset-value { grid-column: 1; font-weight: 800; font-size: 15px; color: var(--vellum); display: flex; align-items: center; gap: 7px; }
+.preset-value small { font-size: 11.5px; font-weight: 400; color: #a99c85; }
+.preset-edit { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--bronze-lit); }
+.preset-edit svg { width: 15px; height: 15px; }
+.tiers { display: inline-flex; gap: 2px; }
+.tiers i { width: 7px; height: 10px; border-radius: 1px; background: var(--t); box-shadow: 0 0 0 1px #000; }
+.tiers i.off { background: #3a3d42; }
+
+.stop {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%;
+  margin-top: 3px;
+  padding: 8px 12px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  color: #f4d6cf;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #3a1c19, #1d0d0b);
+  box-shadow: inset 0 1px 0 rgba(255,210,200,.1), 0 0 0 1px #000, 0 0 0 2px #7e3a30;
+}
+.stop:hover { box-shadow: inset 0 1px 0 rgba(255,210,200,.14), 0 0 0 1px #000, 0 0 0 2px #b04f40; }
+.stop-seal { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, #a33a2c, #4c1510); box-shadow: 0 0 0 1px #000, 0 0 0 2px #c9a46a; }
+.stop-seal i { width: 7px; height: 7px; background: #f6e3d8; border-radius: 1px; }
+
+:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 3px; }
+
+/* ---------- Chat ---------- */
+
+.chat {
+  position: absolute;
+  left: var(--gutter);
+  bottom: 24px;
+  width: var(--chat-w);
+  height: 232px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(20, 23, 28, .86), rgba(12, 14, 17, .9));
+}
+.tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid #5c4529; }
+.tab {
+  padding: 4px 12px 3px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  color: #a99c85;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #23272d, #16191d);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px #0a0b0d;
+}
+.tab[aria-selected="true"] { color: var(--bronze-lit); background: linear-gradient(180deg, #3a3f47, #1e2227); box-shadow: inset 0 1px 0 rgba(255,236,200,.14), 0 0 0 1px #5c4529; position: relative; top: 1px; }
+.tab .count { font-family: var(--text); font-size: 11px; font-weight: 800; color: #1a1208; background: var(--bronze-lit); border-radius: 7px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+
+.log-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+.log {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 6px 8px 8px 12px;
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 18px;
+  color: #d8cfbd;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 22px);
+}
+.log li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log .ally { color: var(--steel); }
+.log .foe { color: #e8a58a; }
+.log b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
+.log .line-crit b { color: var(--ember-hot); font-size: 15px; text-shadow: 0 0 6px rgba(255, 140, 50, .6); }
+.log .crit-mark { color: var(--ember); font-weight: 800; font-style: italic; }
+.log .line-defeat { color: #a99c85; font-style: italic; }
+.log .line-defeat .foe { color: #c99c8a; }
+.log .line-drop .item { color: var(--r-rare); font-weight: 700; }
+.log .line-level { color: var(--xp); font-weight: 700; }
+.log .line-level svg { width: 11px; height: 11px; vertical-align: -1px; margin-right: 3px; }
+.log .line-cast { font-style: italic; }
+.log .line-cast .spell { color: var(--ember); font-style: normal; font-weight: 700; }
+.log .blocked { color: #a99c85; }
+.log .heal-amt { color: var(--hp-ally); }
+.scroll { width: 8px; margin: 6px 6px 8px 0; border-radius: 4px; background: #0a0b0d; box-shadow: inset 0 0 0 1px #2a241c; position: relative; }
+.scroll i { position: absolute; left: 1px; right: 1px; bottom: 1px; height: 34%; border-radius: 3px; background: linear-gradient(90deg, #6e5534, #a88457); }
+
+/* ---------- Action bar ---------- */
+
+.command {
+  position: absolute;
+  left: calc(var(--gutter) * 2 + var(--chat-w));
+  right: calc(var(--gutter) * 2 + var(--rail-w));
+  bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.castbar {
+  width: 300px;
+  padding: 3px;
+  border-radius: 3px;
+  background: #0b0906;
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #8a5a2c, 0 0 18px rgba(255, 120, 40, .3);
+  position: relative;
+}
+.castbar-track { position: relative; height: 18px; border-radius: 2px; background: #1a120b; overflow: hidden; }
+.castbar-track > i {
+  position: absolute; inset: 0 40% 0 0;
+  background: linear-gradient(180deg, #ffd38a, #ff8a3d 50%, #b5401a);
+  box-shadow: 0 0 10px rgba(255, 150, 60, .8);
+}
+.castbar-track > i::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: #fff3d6; box-shadow: 0 0 8px #fff; }
+.castbar-text { position: absolute; inset: 0 8px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 1px #000, 0 0 4px #000; }
+.castbar-text span:last-child { font-variant-numeric: tabular-nums; }
+
+.hotbar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 0;
+  padding: 8px 10px 9px;
+}
+.hotbar.win { position: relative; }
+
+.skillset { display: grid; gap: 4px; padding: 0 7px; position: relative; }
+.skillset + .skillset::before {
+  content: "";
+  position: absolute; left: -1px; top: 4px; bottom: 4px;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, #7a5c36 20%, #2b1f12 50%, #7a5c36 80%, transparent);
+}
+.skillset-owner { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 700; font-size: 13.5px; color: var(--vellum-dim); line-height: 1; padding-left: 2px; }
+.skillset-owner svg { width: 13px; height: 13px; color: var(--steel); }
+.skillset.is-selected .skillset-owner { color: var(--bronze-lit); }
+.skillset-owner .keys { margin-left: auto; font-family: var(--text); font-weight: 500; font-size: 11.5px; color: #a3988a; }
+
+.slots { display: grid; grid-template-columns: repeat(4, 55px); gap: 3px; }
+.skill { display: grid; justify-items: center; gap: 3px; }
+.skill-name { font-size: 11px; line-height: 1.1; color: #cfc4ae; white-space: nowrap; text-align: center; }
+
+.slot {
+  position: relative;
+  width: 46px; height: 46px;
+  border-radius: 3px;
+  background: radial-gradient(circle at 50% 32%, var(--school, #3f5d78) 0, #10141a 78%);
+  box-shadow:
+    inset 0 2px 5px rgba(255,255,255,.12),
+    inset 0 -4px 8px rgba(0,0,0,.55),
+    0 0 0 1px #000,
+    0 0 0 2px #7a5c36,
+    0 0 0 3px #1a130b;
+  display: grid; place-items: center;
+  color: #f5ecd9;
+  overflow: hidden;
+}
+.slot > svg { width: 28px; height: 28px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.8)); }
+.slot kbd {
+  position: absolute; top: 1px; left: 3px;
+  font-family: var(--text);
+  font-size: 11px; font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 1px 1px #000;
+  z-index: 3;
+}
+.slot .corner-text {
+  position: absolute; right: 3px; bottom: 1px;
+  font-size: 11.5px; font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 3px #000, 0 1px 1px #000;
+  z-index: 3;
+  font-variant-numeric: tabular-nums;
+}
+.school-guard { --school: var(--school-guard); }
+.school-cleric { --school: var(--school-cleric); }
+.school-ranger { --school: var(--school-ranger); }
+
+.slot--ready { box-shadow: inset 0 2px 5px rgba(255,255,255,.14), inset 0 -4px 8px rgba(0,0,0,.5), 0 0 0 1px #000, 0 0 0 2px #c29a60, 0 0 0 3px #1a130b; }
+
+.slot--active {
+  box-shadow: inset 0 0 0 1px rgba(200, 235, 255, .7), inset 0 0 12px rgba(140, 200, 255, .55), 0 0 0 1px #000, 0 0 0 2px #9cc0dc, 0 0 12px rgba(140, 200, 255, .75);
+  animation: active-glow 2s ease-in-out infinite;
+}
+.slot--active .corner-text { color: #d9efff; }
+@keyframes active-glow { 50% { box-shadow: inset 0 0 0 1px rgba(200, 235, 255, .9), inset 0 0 16px rgba(140, 200, 255, .7), 0 0 0 1px #000, 0 0 0 2px #cfe6f7, 0 0 18px rgba(140, 200, 255, .9); } }
+
+.slot--cooldown > svg { filter: grayscale(.6) brightness(.8); }
+.slot--cooldown::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: conic-gradient(from 0deg, transparent 0 144deg, rgba(4, 5, 7, .74) 144deg 360deg);
+  z-index: 1;
+}
+.slot--cooldown::before {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  width: 1.5px; height: 34px;
+  background: linear-gradient(0deg, rgba(255, 240, 200, 0), #ffe8b8);
+  transform-origin: 50% 0;
+  transform: rotate(324deg);
+  z-index: 2;
+}
+.slot--cooldown .cd {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 18px; font-weight: 800;
+  color: #ffe9bf;
+  text-shadow: 0 0 4px #000, 0 1px 1px #000;
+  z-index: 3;
+  font-variant-numeric: tabular-nums;
+}
+
+.slot--casting {
+  box-shadow: inset 0 0 14px rgba(255, 150, 60, .75), 0 0 0 1px #000, 0 0 0 2px #ffab5a, 0 0 16px rgba(255, 120, 40, .85);
+  color: #fff4e0;
+}
+.slot--casting .cast-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(0,0,0,.7); z-index: 2; }
+.slot--casting .cast-progress i { position: absolute; inset: 0 40% 0 0; background: linear-gradient(90deg, #ff8a3d, #ffe0a0); }
+.skill--casting .skill-name { color: var(--ember-hot); font-weight: 700; }
+
+.slot--starved > svg { filter: grayscale(1) brightness(.55); }
+.slot--starved::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(140, 20, 20, .25), rgba(120, 10, 10, .55)); z-index: 1; }
+.slot--starved { box-shadow: inset 0 -4px 8px rgba(0,0,0,.55), 0 0 0 1px #000, 0 0 0 2px #7a2c24, 0 0 0 3px #1a0b09; }
+.slot--starved .corner-text { color: #ffb0a4; font-size: 11px; }
+.skill--starved .skill-name { color: #e39a8e; }
+
+.slot--passive {
+  border-radius: 50%;
+  width: 42px; height: 42px;
+  margin-top: 2px;
+  background: radial-gradient(circle at 50% 40%, #2a2419 0, #0c0b09 70%);
+  box-shadow: inset 0 4px 10px rgba(0,0,0,.9), inset 0 0 0 3px #16110b, inset 0 0 0 4px #5c4529, 0 0 0 1px #000, 0 0 0 2px #3b2c1b;
+  color: var(--bronze-lit);
+}
+.slot--passive > svg { width: 22px; height: 22px; opacity: .92; }
+.slot--passive::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1px dashed rgba(220, 182, 124, .45); }
+.skill--passive .skill-name { font-style: italic; color: #b8a687; }
+
+.expline {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 9px;
+  background: #06070a;
+  box-shadow: inset 0 1px 0 #3a2e20, inset 0 -1px 0 #000;
+}
+.expline > i { position: absolute; left: 0; top: 2px; bottom: 2px; width: 12%; background: linear-gradient(180deg, #f2cf7a, #9c7424); box-shadow: 0 0 8px rgba(242, 207, 122, .5); }
+.expline::after { content: ""; position: absolute; inset: 2px 0; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(0,0,0,.9) calc(10% - 1px) 10%); }
+
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+  .castbar-track > i, .slot--casting .cast-progress i { inset: 0 40% 0 0; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="g-guardian" viewBox="0 0 24 24"><path d="M12 2.5 20 5.5V11c0 5.2-3.4 9-8 10.5C7.4 20 4 16.2 4 11V5.5Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 6v12M7.5 10h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-cleric" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22M4.9 4.9l2.5 2.5M16.6 16.6l2.5 2.5M4.9 19.1l2.5-2.5M16.6 7.4l2.5-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-ranger" viewBox="0 0 24 24"><path d="M5 19 18.5 5.5M18.5 5.5h-6M18.5 5.5v6M5 19l-1 2.5M5 19l-2.5 1M7 17l-2.2.3M7 17l-.3 2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.5C4.5 6 6.5 4 10 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="g-grub" viewBox="0 0 24 24"><path d="M3 15c0-3 2.4-5 5-5 1-3 4-4.5 7-3.5 3 1 5 3.8 5 7 0 3.5-3 5.5-6 5.5H7.5C5 19 3 17.5 3 15Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7"/><path d="M9 10.5v8M13.5 7v12M17.5 8.5v10" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="14.5" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="g-slagjaw" viewBox="0 0 24 24"><path d="M2.5 7h19l-2.5 5-2 6.5H7L5 12Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M5 12l2.2 2.5L9.4 12l2.6 3 2.6-3 2.2 2.5L19 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 4l1.5 3M16 4l-1.5 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="g-revenant" viewBox="0 0 24 24"><path d="M12 2.5c-4.8 0-7 4.2-7 9V21l2.4-1.8L9.7 21 12 19.2l2.3 1.8 2.3-1.8L19 21v-9.5c0-4.8-2.2-9-7-9Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.5 11l2.2 1.2M15.5 11l-2.2 1.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+
+    <symbol id="s-taunt" viewBox="0 0 24 24"><path d="M3 10h4l6-4.5v13L7 14H3Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 8.5c1.5 2 1.5 5 0 7M19 6c2.8 3.5 2.8 8.5 0 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="s-shieldwall" viewBox="0 0 24 24"><path d="M3 5h18v10c0 3-4 5.5-9 6.5C7 20.5 3 18 3 15Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 10.5h18M3 15.5h18M9 5v5.5M15 5v5.5M12 10.5v5M6 15.5v2.5M18 15.5v2.5" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="s-cleave" viewBox="0 0 24 24"><path d="M4 21 13.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 5.5c5-3 10 .5 10 6-2.5-2-5.5-2-8.5-1.5Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 12c1-4 4-7 7.5-8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2"/></symbol>
+    <symbol id="s-bulwark" viewBox="0 0 24 24"><path d="M5 21V10L3.5 8.5V3.5h3.5v2h2.5v-2h5v2h2.5v-2h3.5v5L19 10v11Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 21v-5a2 2 0 0 1 4 0v5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="s-heal" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="s-groupheal" viewBox="0 0 24 24"><path d="M12 3v6M9 6h6M5.5 12v6M2.5 15h6M18.5 12v6M15.5 15h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 9.5 5.5 11M16 9.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+    <symbol id="s-blessing" viewBox="0 0 24 24"><path d="M4 17c2.5-6 13.5-6 16 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="10" r="3" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2M6.5 5.5 8 7M17.5 5.5 16 7M3.5 20h17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="s-smite" viewBox="0 0 24 24"><path d="M13.5 2 5.5 13H11l-2 9 9.5-12.5H13Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="s-doubleshot" viewBox="0 0 24 24"><path d="M3 12 17 5M17 5l-5 .2M17 5l-2.3 4.4M5 20l14-7M19 13l-5 .2M19 13l-2.3 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="s-arrowrain" viewBox="0 0 24 24"><path d="M6 2.5v11M12 2.5v14M18 2.5v11M3.8 11.5 6 14.5l2.2-3M9.8 14l2.2 3 2.2-3M15.8 11.5l2.2 3 2.2-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 20.5c3-1.3 16-1.3 19 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="s-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="s-keeneye" viewBox="0 0 24 24"><path d="M2 12c4-7 16-7 20 0-4 7-16 7-20 0Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+
+    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-neutral" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-swords" viewBox="0 0 24 24"><path d="M4 4l11 11M20 4 9 15M13 17l4 4M11 17l-4 4M15 13l3 3M9 13l-3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="8" ry="4" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.7"/><path d="M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M8 7c0-2.5 1.8-4 4-4s4 1.5 4 4M5 8h14l-1 12.5H6Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9.5 18.5c1-1.3 4-1.3 5 0l.8 2H8.7Z" fill="currentColor"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 24 24"><path d="M12 3c-4.5 0-7.5 3-7.5 7 0 2.4 1.2 4 2.5 5v3.5h10V15c1.3-1 2.5-2.6 2.5-5 0-4-3-7-7.5-7Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="10.5" r="1.7" fill="currentColor"/><circle cx="15" cy="10.5" r="1.7" fill="currentColor"/><path d="M10 18.5V21M14 18.5V21" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-quill" viewBox="0 0 24 24"><path d="M20 3C12 4 7 9 5.5 17.5L4 21M20 3c-1 6-5 11-11.5 12.5M14 7.5l-3.5 1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 1.5 14.5 9.5 22.5 12 14.5 14.5 12 22.5 9.5 14.5 1.5 12 9.5 9.5Z" fill="currentColor"/></symbol>
+
+    <symbol id="it-bow" viewBox="0 0 24 24"><path d="M6 3c9 2 13 9 11.5 18M6 3l11.5 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 12h13M16 12l-3-2.5M16 12l-3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="it-cloak" viewBox="0 0 24 24"><path d="M9 3h6l1.5 3L20 21H4L7.5 6Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 6v15" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="it-potion" viewBox="0 0 24 24"><path d="M10 3h4M10.5 3v5.5L6 15a5.5 5.5 0 1 0 12 0l-4.5-6.5V3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 15.5h10a5 5 0 0 1-10 0Z" fill="#d8483a"/></symbol>
+    <symbol id="it-greaves" viewBox="0 0 24 24"><path d="M8 2.5h6v11l6 4.5v3.5H6.5L8 13Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 7h6M8 11h6" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="it-horn" viewBox="0 0 24 24"><path d="M3 5.5c4 0 6.5 2.5 8.5 6.5s4.5 7 9.5 7l-1-4c-3 0-4.5-2-6-5.5S10 3 3 2.5Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 3.5l-1 2.5M11 6l-1.5 2M14 10.5l-2 1" stroke="currentColor" stroke-width="1.3"/><path d="M17 20.5l2.5-3" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 1.5"/></symbol>
+
+    <symbol id="rune-a" viewBox="0 0 10 14"><path d="M5 1v12M5 4l3.5-3M5 8 1.5 11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="rune-b" viewBox="0 0 10 14"><path d="M2 1v12M2 3l6 3.5L2 10M8 10v3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="rune-c" viewBox="0 0 10 14"><path d="M5 1 1 7l4 6 4-6ZM5 4v6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="realm">
+
+  <svg class="world" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="w-sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0a0a0d"/>
+        <stop offset=".28" stop-color="#1a1411"/>
+        <stop offset="1" stop-color="#110c0a"/>
+      </linearGradient>
+      <linearGradient id="w-floor" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2d2119"/>
+        <stop offset=".5" stop-color="#271c15"/>
+        <stop offset="1" stop-color="#1a130f"/>
+      </linearGradient>
+      <linearGradient id="w-ledge" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#3d2e23"/>
+        <stop offset="1" stop-color="#2c2019"/>
+      </linearGradient>
+      <radialGradient id="w-slag" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#fff0b0"/>
+        <stop offset=".25" stop-color="#ffb54a"/>
+        <stop offset=".6" stop-color="#e5561a"/>
+        <stop offset=".9" stop-color="#6e1d06"/>
+        <stop offset="1" stop-color="#2a0e05"/>
+      </radialGradient>
+      <radialGradient id="w-glow" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#ff7a2a" stop-opacity=".55"/>
+        <stop offset=".5" stop-color="#ff5a1a" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-cool" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#6d8fb0" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#6d8fb0" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-vignette" cx=".5" cy=".5" r=".72">
+        <stop offset=".45" stop-color="#000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".82"/>
+      </radialGradient>
+      <radialGradient id="w-fog" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#c8b6a6" stop-opacity=".11"/>
+        <stop offset="1" stop-color="#c8b6a6" stop-opacity="0"/>
+      </radialGradient>
+      <pattern id="w-iso" width="124" height="62" patternUnits="userSpaceOnUse">
+        <path d="M0 31 62 0l62 31-62 31Z" fill="none" stroke="#f3c79a" stroke-opacity=".045" stroke-width="1"/>
+      </pattern>
+      <pattern id="w-strata" width="240" height="26" patternUnits="userSpaceOnUse">
+        <path d="M0 20c40-4 80 3 120-1s80-5 120 1" fill="none" stroke="#3a2a20" stroke-opacity=".7" stroke-width="1.2"/>
+      </pattern>
+      <filter id="w-bloom" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="w-soft"><feGaussianBlur stdDeviation="18"/></filter>
+      <filter id="w-grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/>
+        <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/>
+      </filter>
+      <g id="boulder">
+        <path d="M-20 2-11-15 5-20 21-8 17 7-2 12Z" fill="#3b2c22"/>
+        <path d="M-20 2-2 12 17 7 21-8 5-1-11-3Z" fill="#1f1611"/>
+        <path d="M-11-15 5-20 21-8 5-1Z" fill="#4d3a2c"/>
+      </g>
+      <g id="shard">
+        <path d="M-6 4 0-14 7 3 1 7Z" fill="#2a1f18"/>
+        <path d="M0-14 7 3 1 7Z" fill="#3f2f24"/>
+      </g>
+    </defs>
+
+    <rect width="1440" height="900" fill="url(#w-sky)"/>
+
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="#120d0b"/>
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="url(#w-strata)" opacity=".8"/>
+    <path d="M140 70 260 130 420 60 560 120 700 50 880 130 1010 70 1180 140 1300 80 1440 130" fill="none" stroke="#231914" stroke-width="3"/>
+    <path d="M0 150 180 190 330 140 520 200 700 150 900 210 1080 160 1260 210 1440 170" fill="none" stroke="#2a1e17" stroke-width="2"/>
+    <g class="crack crack-b" filter="url(#w-bloom)">
+      <path d="M612 36l14 22-8 20 16 26-6 24 12 30" fill="none" stroke="#ff7a2a" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M1098 90l-10 24 12 16-6 30 10 20" fill="none" stroke="#ff8f3a" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <ellipse cx="260" cy="90" rx="300" ry="140" fill="url(#w-cool)"/>
+
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-floor)"/>
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-iso)"/>
+
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-ledge)"/>
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-iso)"/>
+    <path d="M520 372 172 546V598L520 424Z" fill="#3b2419"/>
+    <path d="M172 546 0 460V512L172 598Z" fill="#150f0c"/>
+    <path d="M520 372 172 546" stroke="#6b4c35" stroke-width="1.5"/>
+    <path d="M520 424 172 598V606L520 432Z" fill="#000" opacity=".35"/>
+
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-ledge)"/>
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-iso)"/>
+    <path d="M934 369 1252 528V580L934 421Z" fill="#171009"/>
+    <path d="M1252 528 1440 434V486L1252 580Z" fill="#40271b"/>
+    <path d="M1252 528 1440 434" stroke="#6b4c35" stroke-width="1.5"/>
+
+    <g stroke="#5a4636" stroke-width="2.2">
+      <path d="M1440 310 1192 434M1440 330 1212 444" />
+    </g>
+    <g stroke="#3a2b20" stroke-width="3">
+      <path d="M1420 314l10 16M1380 334l10 16M1340 354l10 16M1300 374l10 16M1260 394l10 16M1220 414l10 16"/>
+    </g>
+    <g transform="translate(1175 432)">
+      <path d="M-26 4 0-9 30 6 4 19Z" fill="#4a3526"/>
+      <path d="M-26 4 4 19V33L-26 18Z" fill="#23180f"/>
+      <path d="M4 19 30 6V20L4 33Z" fill="#35251a"/>
+      <path d="M-20 3 0-6 22 5 4 14Z" fill="#6a3a1c"/>
+      <circle cx="-4" cy="4" r="4" fill="#ff9a45" filter="url(#w-bloom)" class="crack"/>
+    </g>
+
+    <path d="M880 900 1214 733 1440 846V900Z" fill="#0d0908"/>
+    <path d="M880 900 1214 733V780L974 900Z" fill="#2e1d14"/>
+    <path d="M1214 733 1440 846V890L1214 780Z" fill="#1d130d"/>
+    <path d="M880 900 1214 733 1440 846" fill="none" stroke="#7a5236" stroke-width="1.5"/>
+    <ellipse cx="1210" cy="850" rx="230" ry="90" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="1200" cy="860" rx="150" ry="52" fill="url(#w-slag)"/>
+    <ellipse cx="1180" cy="852" rx="60" ry="14" fill="#fff3c4" opacity=".35"/>
+
+    <ellipse cx="300" cy="400" rx="130" ry="70" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="300" cy="402" rx="62" ry="26" fill="url(#w-slag)"/>
+    <path d="M238 402c20-18 104-18 124 0" fill="none" stroke="#1a0f0a" stroke-width="3"/>
+
+    <ellipse cx="720" cy="520" rx="520" ry="260" fill="url(#w-glow)" opacity=".35"/>
+
+    <g class="crack" filter="url(#w-bloom)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M90 690l42-10 26 18 46-6 20 22 54-4 18 20" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M204 702l10 26 -14 22" stroke="#ff9a45" stroke-width="1.4"/>
+      <path d="M1120 610l-36 16-10 26-48 10-22 30" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M660 760l28 14 40-6 26 24 44 2" stroke="#ff8c3a" stroke-width="1.8"/>
+      <path d="M560 262l30 12 12 24 40 6" stroke="#ff8a3a" stroke-width="1.6"/>
+    </g>
+    <g class="crack crack-b" filter="url(#w-bloom)" fill="none" stroke-linecap="round">
+      <path d="M362 470l22 18 38 2 14 26" stroke="#ff7a2a" stroke-width="1.6"/>
+      <path d="M1000 420l24 20 -6 30 30 16" stroke="#ff9a45" stroke-width="1.6"/>
+      <path d="M40 330l40 16 30-6 26 20" stroke="#ff7a2a" stroke-width="1.5"/>
+    </g>
+
+    <use href="#boulder" transform="translate(120 330) scale(1.6)"/>
+    <use href="#boulder" transform="translate(178 352) scale(.9)"/>
+    <use href="#boulder" transform="translate(430 330) scale(1.1)"/>
+    <use href="#shard" transform="translate(452 350) scale(1.4)"/>
+    <use href="#boulder" transform="translate(1300 330) scale(1.4)"/>
+    <use href="#shard" transform="translate(1256 348) scale(1.6)"/>
+    <use href="#boulder" transform="translate(1030 330) scale(.8)"/>
+    <use href="#boulder" transform="translate(330 610) scale(1.2)"/>
+    <use href="#shard" transform="translate(360 626) scale(1.2)"/>
+    <use href="#boulder" transform="translate(1100 680) scale(1.5)"/>
+    <use href="#shard" transform="translate(1060 700) scale(1.3)"/>
+    <use href="#boulder" transform="translate(560 800) scale(1.3)"/>
+    <use href="#boulder" transform="translate(860 700) scale(.9)"/>
+    <use href="#shard" transform="translate(820 250) scale(1.5)"/>
+    <use href="#boulder" transform="translate(640 250) scale(1.2)"/>
+
+    <g fill="#ffb65a">
+      <circle class="spark" cx="300" cy="400" r="1.6" style="animation-delay:-1s"/>
+      <circle class="spark" cx="330" cy="396" r="1.2" style="animation-delay:-4s"/>
+      <circle class="spark" cx="270" cy="404" r="1.4" style="animation-delay:-2.6s"/>
+      <circle class="spark" cx="1180" cy="850" r="2" style="animation-delay:-.5s"/>
+      <circle class="spark" cx="1230" cy="846" r="1.5" style="animation-delay:-3.2s"/>
+      <circle class="spark" cx="1150" cy="858" r="1.4" style="animation-delay:-5.4s"/>
+      <circle class="spark" cx="1260" cy="862" r="1.8" style="animation-delay:-2s"/>
+      <circle class="spark" cx="210" cy="720" r="1.3" style="animation-delay:-6s"/>
+      <circle class="spark" cx="1050" cy="660" r="1.3" style="animation-delay:-1.8s"/>
+      <circle class="spark" cx="720" cy="780" r="1.2" style="animation-delay:-4.6s"/>
+    </g>
+
+    <g class="fog">
+      <ellipse cx="420" cy="620" rx="520" ry="110" fill="url(#w-fog)"/>
+      <ellipse cx="1100" cy="300" rx="480" ry="90" fill="url(#w-fog)"/>
+    </g>
+    <g class="fog fog-b">
+      <ellipse cx="820" cy="840" rx="620" ry="120" fill="url(#w-fog)"/>
+      <ellipse cx="200" cy="250" rx="400" ry="80" fill="url(#w-fog)"/>
+    </g>
+
+    <rect width="1440" height="900" filter="url(#w-grain)" opacity=".16"/>
+    <rect width="1440" height="900" fill="url(#w-vignette)"/>
+  </svg>
+
+  <svg class="battlefield" viewBox="0 0 760 460" role="img" aria-labelledby="bf-title">
+    <title id="bf-title">Battlefield: group 3, Kaio's Arrow Rain landing on Slagjaw and a Cinder Grub</title>
+    <defs>
+      <linearGradient id="b-tile" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#4a392c"/>
+        <stop offset="1" stop-color="#2e231b"/>
+      </linearGradient>
+      <linearGradient id="b-foe-half" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ff6a2a" stop-opacity=".12"/>
+        <stop offset="1" stop-color="#ff6a2a" stop-opacity=".02"/>
+      </linearGradient>
+      <linearGradient id="b-ally-half" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#8fb8dc" stop-opacity=".03"/>
+        <stop offset="1" stop-color="#8fb8dc" stop-opacity=".14"/>
+      </linearGradient>
+      <pattern id="b-hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-27)">
+        <path d="M0 5h10" stroke="#0d0906" stroke-width="3.2" stroke-opacity=".55"/>
+      </pattern>
+      <radialGradient id="b-rain" cx=".5" cy=".5" r=".6">
+        <stop offset="0" stop-color="#ffd27a" stop-opacity=".62"/>
+        <stop offset=".55" stop-color="#ff7a2a" stop-opacity=".42"/>
+        <stop offset="1" stop-color="#c2360e" stop-opacity=".3"/>
+      </radialGradient>
+      <linearGradient id="b-ally" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6d8fae"/>
+        <stop offset=".55" stop-color="#34495e"/>
+        <stop offset="1" stop-color="#1a2430"/>
+      </linearGradient>
+      <linearGradient id="b-foe" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#9a3a1c"/>
+        <stop offset=".6" stop-color="#4a170a"/>
+        <stop offset="1" stop-color="#230a04"/>
+      </linearGradient>
+      <filter id="b-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="4" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <clipPath id="b-rain-clip"><path d="M504 157 628 219 504 281 380 219Z"/></clipPath>
+      <path id="b-plate-ally" d="M-17-20H17V0c0 12-8 18.5-17 22.5C-9 18.5-17 12-17 0Z"/>
+      <path id="b-plate-foe" d="M0-23 18-9 13 13 0 23-13 13-18-9Z"/>
+    </defs>
+
+    <path d="M70 250 380 405V430L70 275Z" fill="#1d140e"/>
+    <path d="M380 405 690 250V275L380 430Z" fill="#3a261a"/>
+    <path d="M70 275 380 430 690 275" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="3"/>
+    <path d="M380 95 690 250 380 405 70 250Z" fill="url(#b-tile)"/>
+    <path d="M380 95 690 250 566 312 256 157Z" fill="url(#b-foe-half)"/>
+    <path d="M194 188 504 343 380 405 70 250Z" fill="url(#b-ally-half)"/>
+
+    <path d="M256 157 566 312 504 343 194 188Z" fill="#140e0a" fill-opacity=".7"/>
+    <path d="M256 157 566 312 504 343 194 188Z" fill="url(#b-hatch)"/>
+    <path d="M256 157 566 312M194 188 504 343" stroke="#c9a46a" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="6 5"/>
+
+    <g stroke="#0c0806" stroke-opacity=".75" stroke-width="2">
+      <path d="M442 126 132 281M504 157 194 312M566 188 256 343M628 219 318 374"/>
+      <path d="M318 126 628 281M256 157 566 312M194 188 504 343M132 219 442 374"/>
+    </g>
+    <g stroke="#e8c79a" stroke-opacity=".1" stroke-width="1">
+      <path d="M442 127 132 282M504 158 194 313M566 189 256 344M628 220 318 375"/>
+      <path d="M318 127 628 282M256 158 566 313M194 189 504 344M132 220 442 375"/>
+    </g>
+    <path d="M380 95 690 250 380 405 70 250Z" fill="none" stroke="#b8905a" stroke-width="2"/>
+    <path d="M380 101 678 250 380 399 82 250Z" fill="none" stroke="#b8905a" stroke-opacity=".25" stroke-width="1"/>
+
+    <g fill="#d9b47a">
+      <path d="M225 166l7 6-7 6-7-6Z"/>
+      <path d="M535 322l7 6-7 6-7-6Z"/>
+    </g>
+    <text class="lane-label" x="566" y="352" text-anchor="start">Neutral lane, no spawns</text>
+
+    <path d="M318 318C330 230 390 190 470 214" fill="none" stroke="#ffb66a" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="3 5"/>
+    <path d="M205 262C240 236 280 236 305 256" fill="none" stroke="#86e095" stroke-opacity=".6" stroke-width="1.6" stroke-dasharray="2 4"/>
+
+    <g>
+      <path class="rain-field" d="M504 157 628 219 504 281 380 219Z" fill="url(#b-rain)" filter="url(#b-glow)"/>
+      <path class="rain-edge" d="M504 157 628 219 504 281 380 219Z" fill="none" stroke="#ffd690" stroke-width="2.2" stroke-dasharray="10 4"/>
+      <path d="M504 172 598 219 504 266 410 219Z" fill="none" stroke="#fff0c4" stroke-opacity=".55" stroke-width="1"/>
+      <path d="M504 157 566 188 504 219 442 188Z M566 188 628 219 566 250 504 219Z" fill="none" stroke="#ffe0a8" stroke-opacity=".35" stroke-width="1"/>
+      <g fill="#ffe7b8">
+        <path d="M504 150l6 7-6 7-6-7Z"/><path d="M635 219l-7 6-7-6 7-6Z"/><path d="M504 288l-6-7 6-7 6 7Z"/><path d="M373 219l7-6 7 6-7 6Z"/>
+      </g>
+      <g clip-path="url(#b-rain-clip)" stroke="#fff4d8" stroke-width="2" stroke-linecap="round">
+        <g class="arrow-fall"><path d="M430 170v26M426 190l4 6 4-6"/></g>
+        <g class="arrow-fall"><path d="M470 184v24M466 202l4 6 4-6"/></g>
+        <g class="arrow-fall"><path d="M512 176v28M508 198l4 6 4-6"/></g>
+        <g class="arrow-fall"><path d="M552 196v26M548 216l4 6 4-6"/></g>
+        <g class="arrow-fall"><path d="M590 208v22M586 224l4 6 4-6"/></g>
+        <g class="arrow-fall"><path d="M488 220v28M484 242l4 6 4-6"/></g>
+        <g class="arrow-fall"><path d="M534 232v26M530 252l4 6 4-6"/></g>
+      </g>
+      <ellipse class="impact" cx="470" cy="210" rx="16" ry="7" fill="none" stroke="#fff0c4" stroke-width="1.5"/>
+      <ellipse class="impact impact-b" cx="548" cy="238" rx="16" ry="7" fill="none" stroke="#fff0c4" stroke-width="1.5"/>
+      <text class="rain-label" x="640" y="196">Arrow Rain</text>
+      <text class="rain-timer num" x="640" y="212">lands in 0.8s</text>
+    </g>
+
+    <g aria-label="Quarry Revenant, 100 percent health">
+      <ellipse cx="442" cy="157" rx="22" ry="9" fill="#000" fill-opacity=".55"/>
+      <ellipse cx="442" cy="157" rx="20" ry="8" fill="none" stroke="#e0673a" stroke-opacity=".75" stroke-width="1.5"/>
+      <g transform="translate(442 127) scale(1.05 1.2)"><use href="#b-plate-foe" fill="url(#b-foe)" stroke="#e8804a" stroke-width="1.6"/></g>
+      <use href="#g-revenant" x="432" y="116" width="20" height="20" color="#ffd9c4"/>
+      <rect x="421" y="94" width="42" height="5" rx="1" fill="#0a0605" stroke="#000"/>
+      <rect x="422" y="95" width="40" height="3" fill="#d8483a"/>
+      <text class="tok-name tok-name-foe" x="466" y="104">Quarry Revenant</text>
+    </g>
+
+    <g aria-label="Cinder Grub, 100 percent health">
+      <ellipse cx="318" cy="157" rx="20" ry="8" fill="#000" fill-opacity=".55"/>
+      <ellipse cx="318" cy="157" rx="18" ry="7" fill="none" stroke="#e0673a" stroke-opacity=".75" stroke-width="1.5"/>
+      <g transform="translate(318 136) scale(.85)"><use href="#b-plate-foe" fill="url(#b-foe)" stroke="#e8804a" stroke-width="1.8"/></g>
+      <use href="#g-grub" x="309" y="127" width="18" height="18" color="#ffd9c4"/>
+      <rect x="298" y="110" width="40" height="5" rx="1" fill="#0a0605" stroke="#000"/>
+      <rect x="299" y="111" width="38" height="3" fill="#d8483a"/>
+      <text class="tok-name tok-name-foe" x="262" y="118" text-anchor="end">Cinder Grub</text>
+    </g>
+
+    <g aria-label="Slagjaw, 44 percent health, current target">
+      <ellipse cx="442" cy="219" rx="28" ry="12" fill="#000" fill-opacity=".6"/>
+      <ellipse class="target-ring" cx="442" cy="219" rx="31" ry="14" fill="none" stroke="#ffd690" stroke-width="2" stroke-dasharray="7 5"/>
+      <g transform="translate(442 186) scale(1.3)"><use href="#b-plate-foe" fill="url(#b-foe)" stroke="#ff9a5a" stroke-width="1.5"/></g>
+      <use href="#g-slagjaw" x="429" y="173" width="26" height="26" color="#ffe2cf"/>
+      <path d="M436 142h12l-6 7Z" fill="#ffd690"/>
+      <rect x="418" y="152" width="48" height="6" rx="1" fill="#0a0605" stroke="#000"/>
+      <rect x="419" y="153" width="20.5" height="4" fill="#d8483a"/>
+      <text class="tok-name tok-name-foe" x="470" y="160">Slagjaw</text>
+    </g>
+
+    <g aria-label="Cinder Grub, 12 percent health">
+      <ellipse cx="504" cy="250" rx="20" ry="8" fill="#000" fill-opacity=".55"/>
+      <ellipse cx="504" cy="250" rx="18" ry="7" fill="none" stroke="#e0673a" stroke-opacity=".75" stroke-width="1.5"/>
+      <g transform="translate(504 229) scale(.85)"><use href="#b-plate-foe" fill="url(#b-foe)" stroke="#e8804a" stroke-width="1.8"/></g>
+      <use href="#g-grub" x="495" y="220" width="18" height="18" color="#ffd9c4"/>
+      <rect x="484" y="203" width="40" height="5" rx="1" fill="#0a0605" stroke="#000"/>
+      <rect class="foe-low" x="485" y="204" width="4.6" height="3" fill="#ff5a3a"/>
+      <text class="tok-name tok-name-foe" x="530" y="266">Cinder Grub</text>
+    </g>
+
+    <g aria-label="Bjorn, 61 percent health">
+      <ellipse cx="318" cy="281" rx="24" ry="10" fill="#000" fill-opacity=".55"/>
+      <ellipse cx="318" cy="281" rx="22" ry="9" fill="none" stroke="#9cc0dc" stroke-opacity=".8" stroke-width="1.5"/>
+      <ellipse cx="318" cy="262" rx="30" ry="30" fill="none" stroke="#bfe0ff" stroke-opacity=".35" stroke-width="2"/>
+      <g transform="translate(318 257) scale(1.05)"><use href="#b-plate-ally" fill="url(#b-ally)" stroke="#dcb67c" stroke-width="1.6"/></g>
+      <use href="#g-guardian" x="307" y="245" width="22" height="22" color="#eaf2f8"/>
+      <rect x="296" y="224" width="44" height="5" rx="1" fill="#050708" stroke="#000"/>
+      <rect x="297" y="225" width="25.8" height="3" fill="#62c26f"/>
+      <text class="tok-name" x="346" y="262">Bjorn</text>
+    </g>
+
+    <g aria-label="Sigrun, 85 percent health">
+      <ellipse cx="194" cy="281" rx="22" ry="9" fill="#000" fill-opacity=".55"/>
+      <ellipse cx="194" cy="281" rx="20" ry="8" fill="none" stroke="#9cc0dc" stroke-opacity=".8" stroke-width="1.5"/>
+      <g transform="translate(194 258)"><use href="#b-plate-ally" fill="url(#b-ally)" stroke="#dcb67c" stroke-width="1.6"/></g>
+      <use href="#g-cleric" x="184" y="247" width="20" height="20" color="#fff4d6"/>
+      <rect x="173" y="226" width="42" height="5" rx="1" fill="#050708" stroke="#000"/>
+      <rect x="174" y="227" width="34" height="3" fill="#62c26f"/>
+      <text class="tok-name" x="166" y="252" text-anchor="end">Sigrun</text>
+    </g>
+
+    <g aria-label="Kaio, 90 percent health, casting Arrow Rain">
+      <ellipse cx="318" cy="343" rx="22" ry="9" fill="#000" fill-opacity=".55"/>
+      <ellipse cx="318" cy="343" rx="20" ry="8" fill="none" stroke="#ffb66a" stroke-width="1.8" filter="url(#b-glow)"/>
+      <g transform="translate(318 320)"><use href="#b-plate-ally" fill="url(#b-ally)" stroke="#dcb67c" stroke-width="1.6"/></g>
+      <use href="#g-ranger" x="308" y="309" width="20" height="20" color="#e6fff0"/>
+      <rect x="297" y="288" width="42" height="5" rx="1" fill="#050708" stroke="#000"/>
+      <rect x="298" y="289" width="36" height="3" fill="#62c26f"/>
+      <text class="tok-name" x="346" y="324">Kaio</text>
+      <rect x="290" y="356" width="56" height="6" rx="1" fill="#120a05" stroke="#000"/>
+      <rect class="cast-fill" x="291" y="357" width="54" height="4" fill="#ff9a45" style="transform-box: fill-box; transform-origin: left center; transform: scaleX(.6)"/>
+    </g>
+
+    <g font-family="Alegreya Sans, sans-serif" font-weight="800" paint-order="stroke" stroke-linejoin="round">
+      <g class="pop">
+        <text x="566" y="200" font-size="30" fill="#ffc15a" stroke="#3a0f02" stroke-width="5" text-anchor="middle">612</text>
+        <text x="566" y="176" font-size="12" font-style="italic" fill="#ffe6c2" stroke="#3a0f02" stroke-width="3" text-anchor="middle">Critical</text>
+      </g>
+      <g class="pop pop-b">
+        <text x="398" y="186" font-size="19" fill="#fff6e8" stroke="#1a0c06" stroke-width="4" text-anchor="middle">284</text>
+      </g>
+      <g class="pop pop-c">
+        <text x="276" y="220" font-size="19" fill="#8ff0a0" stroke="#06200c" stroke-width="4" text-anchor="middle">+142</text>
+      </g>
+    </g>
+  </svg>
+
+  <section class="target win" aria-label="Current target">
+    <div class="medal"><svg aria-hidden="true"><use href="#g-slagjaw"/></svg><span class="lvl num">31</span></div>
+    <header class="target-head">
+      <h2 class="target-name">Slagjaw</h2>
+      <span class="target-kind">Elite</span>
+      <span class="target-group">Group 3</span>
+    </header>
+    <div class="bar bar--foe" role="meter" aria-label="Slagjaw health" aria-valuenow="44" aria-valuemin="0" aria-valuemax="100"><i style="--v:44%"></i><span>44%</span></div>
+    <p class="threat"><svg aria-hidden="true"><use href="#g-guardian"/></svg><span>Attacking <b>Bjorn</b></span><span class="threat-meter" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></p>
+  </section>
+
+  <div class="leftcol">
+  <section class="party" aria-label="Party">
+    <article class="unit win">
+      <div class="medal"><svg aria-hidden="true"><use href="#g-guardian"/></svg><span class="lvl num">24</span></div>
+      <div>
+        <header class="unit-head">
+          <h2 class="unit-name">Bjorn</h2>
+          <span class="unit-class">Guardian</span>
+          <span class="element" title="Element: neutral"><svg aria-hidden="true"><use href="#i-neutral"/></svg>Neutral</span>
+        </header>
+        <div class="bar bar--hp" role="meter" aria-label="Health" aria-valuenow="412" aria-valuemin="0" aria-valuemax="680"><i style="--v:61%"></i><span>412 / 680</span></div>
+        <div class="bar bar--mp" role="meter" aria-label="Mana" aria-valuenow="88" aria-valuemin="0" aria-valuemax="140"><i style="--v:63%"></i><span>88 / 140</span></div>
+        <div class="xp" title="61% to level 25"><i style="--v:61%"></i></div>
+      </div>
+      <ul class="buffs">
+        <li class="buff"><span class="buff-icon" style="--bt:#3f5d78"><svg aria-hidden="true"><use href="#s-shieldwall"/></svg></span><span class="buff-name">Shield Wall</span><time>6s</time></li>
+      </ul>
+    </article>
+
+    <article class="unit win">
+      <div class="medal medal--cleric"><svg aria-hidden="true"><use href="#g-cleric"/></svg><span class="lvl num">23</span></div>
+      <div>
+        <header class="unit-head">
+          <h2 class="unit-name">Sigrun</h2>
+          <span class="unit-class">Cleric</span>
+          <span class="element" title="Element: neutral"><svg aria-hidden="true"><use href="#i-neutral"/></svg>Neutral</span>
+        </header>
+        <div class="bar bar--hp" role="meter" aria-label="Health" aria-valuenow="290" aria-valuemin="0" aria-valuemax="340"><i style="--v:85%"></i><span>290 / 340</span></div>
+        <div class="bar bar--mp bar--mp-low" role="meter" aria-label="Mana, low" aria-valuenow="96" aria-valuemin="0" aria-valuemax="410"><i style="--v:23%"></i><span>96 / 410</span><em class="mp-warn">Low</em></div>
+        <div class="xp" title="44% to level 24"><i style="--v:44%"></i></div>
+      </div>
+      <ul class="buffs">
+        <li class="buff"><span class="buff-icon" style="--bt:#8a7433"><svg aria-hidden="true"><use href="#s-blessing"/></svg></span><span class="buff-name">Blessing</span><time>94s</time></li>
+      </ul>
+    </article>
+
+    <article class="unit win is-selected">
+      <div class="medal medal--ranger"><svg aria-hidden="true"><use href="#g-ranger"/></svg><span class="lvl num">25</span></div>
+      <div>
+        <header class="unit-head">
+          <h2 class="unit-name">Kaio</h2>
+          <span class="unit-class">Ranger</span>
+          <span class="element element--wind" title="Element: wind"><svg aria-hidden="true"><use href="#i-wind"/></svg>Wind</span>
+        </header>
+        <div class="bar bar--hp" role="meter" aria-label="Health" aria-valuenow="355" aria-valuemin="0" aria-valuemax="395"><i style="--v:90%"></i><span>355 / 395</span></div>
+        <div class="bar bar--mp" role="meter" aria-label="Mana" aria-valuenow="130" aria-valuemin="0" aria-valuemax="180"><i style="--v:72%"></i><span>130 / 180</span></div>
+        <div class="xp" title="12% to level 26"><i style="--v:12%"></i></div>
+      </div>
+      <ul class="buffs">
+        <li class="buff"><span class="buff-icon" style="--bt:#3d6b4c"><svg aria-hidden="true"><use href="#s-focus"/></svg></span><span class="buff-name">Focus</span><time>11s</time></li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="session win" aria-labelledby="session-title">
+    <h2 class="win-title" id="session-title">Session</h2>
+    <dl class="session-list">
+      <div class="metric"><dt>Kills per hour</dt><dd>1,142</dd></div>
+      <div class="metric"><dt>EXP per hour</dt><dd>84,300</dd></div>
+      <div class="metric"><dt>Gold per hour</dt><dd>12,480</dd></div>
+      <div class="metric metric--estimate"><dt>Time until death <small>est.</small></dt><dd><span>~3h 20m</span></dd></div>
+    </dl>
+  </section>
+
+  </div>
+
+  <aside class="rail" aria-label="Realm">
+    <section class="compass win" aria-label="Map and hunt status">
+      <div class="minimap-wrap">
+        <svg class="minimap" viewBox="0 0 200 200" role="img" aria-label="Minimap of Ember Quarry">
+          <defs>
+            <clipPath id="mm-clip"><circle cx="100" cy="100" r="80"/></clipPath>
+            <radialGradient id="mm-slag" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#ff6a1a"/><stop offset="1" stop-color="#ff6a1a" stop-opacity="0"/></radialGradient>
+            <radialGradient id="mm-shade" cx=".5" cy=".5" r=".5"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".7"/></radialGradient>
+          </defs>
+          <circle cx="100" cy="100" r="94" fill="#1a130b"/>
+          <circle cx="100" cy="100" r="92" fill="none" stroke="#9a7747" stroke-width="3"/>
+          <circle cx="100" cy="100" r="85" fill="none" stroke="#3a2a18" stroke-width="7"/>
+          <g color="#c9a46a">
+            <use href="#rune-a" x="96" y="13" width="8" height="10"/>
+            <use href="#rune-b" x="96" y="13" width="8" height="10" transform="rotate(45 100 100)"/>
+            <use href="#rune-c" x="96" y="13" width="8" height="10" transform="rotate(90 100 100)"/>
+            <use href="#rune-a" x="96" y="13" width="8" height="10" transform="rotate(135 100 100)"/>
+            <use href="#rune-b" x="96" y="13" width="8" height="10" transform="rotate(180 100 100)"/>
+            <use href="#rune-c" x="96" y="13" width="8" height="10" transform="rotate(225 100 100)"/>
+            <use href="#rune-a" x="96" y="13" width="8" height="10" transform="rotate(270 100 100)"/>
+            <use href="#rune-b" x="96" y="13" width="8" height="10" transform="rotate(315 100 100)"/>
+          </g>
+          <g clip-path="url(#mm-clip)">
+            <rect width="200" height="200" fill="#3a2b20"/>
+            <path d="M0 0H200V56L170 50 140 64 110 52 80 66 50 50 20 62 0 54Z" fill="#150f0b"/>
+            <path d="M20 70 70 70 90 96 40 122 20 110Z" fill="#4b392b" stroke="#6b5038" stroke-width="1"/>
+            <path d="M200 72H150L128 96 170 124 200 110Z" fill="#4b392b" stroke="#6b5038" stroke-width="1"/>
+            <path d="M120 200 160 150 200 170V200Z" fill="#1a110b"/>
+            <circle cx="160" cy="178" r="20" fill="url(#mm-slag)"/>
+            <circle cx="48" cy="96" r="10" fill="url(#mm-slag)"/>
+            <path d="M40 150l14-4 8 6 14-2M130 132l-10 6-4 8" fill="none" stroke="#ff8a3a" stroke-width="1.2"/>
+            <path d="M40 180C60 160 70 140 86 126S96 112 100 108" fill="none" stroke="#dcb67c" stroke-width="1.4" stroke-dasharray="2 3" stroke-opacity=".8"/>
+            <path d="M100 100 118 110 100 120 82 110Z" fill="none" stroke="#ffd690" stroke-width="1" stroke-opacity=".7"/>
+            <circle cx="104" cy="104" r="2.6" fill="#ff5a3a"/>
+            <circle cx="110" cy="107" r="3.4" fill="#ff5a3a" stroke="#ffd690" stroke-width="1"/>
+            <circle cx="98" cy="106" r="2.6" fill="#ff5a3a"/>
+            <circle cx="116" cy="110" r="2.2" fill="#ff5a3a"/>
+            <circle cx="150" cy="88" r="2.2" fill="#b0503a"/>
+            <circle cx="156" cy="92" r="2.2" fill="#b0503a"/>
+            <circle cx="60" cy="140" r="2.2" fill="#b0503a"/>
+            <circle cx="140" cy="150" r="2.2" fill="#b0503a"/>
+            <path d="M96 124l4-9 4 9-4-2.5Z" fill="#cfe6f7" stroke="#0b0d10" stroke-width=".8"/>
+            <rect width="200" height="200" fill="url(#mm-shade)"/>
+          </g>
+          <path d="M100 2 106 14H94Z" fill="#dcb67c" stroke="#1a130b"/>
+        </svg>
+        <p class="hunt-state"><i><svg aria-hidden="true"><use href="#i-swords"/></svg></i>Fighting</p>
+      </div>
+      <div class="zone">
+        <h1 class="zone-name">Ember Quarry</h1>
+        <span class="zone-range">Levels 24–34</span>
+      </div>
+      <div class="ledger">
+        <div class="ledger-item" aria-label="Death attempts: 2 of 5 used">
+          <svg aria-hidden="true" style="color:#c9b9a2"><use href="#i-skull"/></svg>
+          <div><span class="pips"><i class="pip spent"></i><i class="pip spent"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i></span><small>2 of 5 deaths used</small></div>
+        </div>
+        <div class="ledger-item ledger-premium">
+          <svg aria-hidden="true"><use href="#i-hourglass"/></svg>
+          <div>17h 42m<small>Premium offline</small></div>
+        </div>
+        <div class="ledger-item ledger-gold">
+          <svg aria-hidden="true"><use href="#i-coin"/></svg>
+          <div>184,220<small>Gold</small></div>
+        </div>
+        <div class="ledger-item ledger-bag">
+          <svg aria-hidden="true" style="color:#c9a46a"><use href="#i-bag"/></svg>
+          <div>47 / 100<small>Bag</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="loot win" aria-labelledby="loot-title">
+      <h2 class="win-title" id="loot-title">Loot</h2>
+      <ul class="loot-list">
+        <li class="drop drop--epic drop--new">
+          <span class="drop-icon"><svg aria-hidden="true"><use href="#it-bow"/></svg></span>
+          <span class="drop-name">Emberforged Longbow</span><span class="drop-age">now</span>
+          <span class="drop-note">Epic, 3 bonuses, item lv 31</span>
+        </li>
+        <li class="drop drop--rare">
+          <span class="drop-icon"><svg aria-hidden="true"><use href="#it-cloak"/></svg></span>
+          <span class="drop-name">Warden's Ashen Cloak</span><span class="drop-age">14s</span>
+          <span class="drop-note">Rare, 2 bonuses, item lv 29</span>
+        </li>
+        <li class="drop drop--plain">
+          <span class="drop-icon"><svg aria-hidden="true"><use href="#it-potion"/></svg></span>
+          <span class="drop-name">Small HP Potion ×3</span><span class="drop-age">38s</span>
+          <span class="drop-note">Consumable</span>
+        </li>
+        <li class="drop drop--uncommon">
+          <span class="drop-icon"><svg aria-hidden="true"><use href="#it-greaves"/></svg></span>
+          <span class="drop-name">Ashplate Greaves</span><span class="drop-age">1m</span>
+          <span class="drop-note">Uncommon, 1 bonus, item lv 28</span>
+        </li>
+        <li class="drop drop--common drop--sold">
+          <span class="drop-icon"><svg aria-hidden="true"><use href="#i-coin"/></svg></span>
+          <span class="drop-name">Cracked Ore Band</span><span class="sold-value">+240g</span>
+          <span class="drop-note"><span class="sold-tag">Auto-sold</span>, never reached the bag</span>
+        </li>
+        <li class="older">Earlier this session</li>
+        <li class="drop drop--legendary">
+          <span class="drop-icon"><svg aria-hidden="true"><use href="#it-horn"/></svg></span>
+          <span class="drop-name">Gjallarhorn Fragment</span><span class="drop-age">24m</span>
+          <span class="drop-note">Legendary, 4 bonuses, item lv 30</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="orders win" aria-label="Hunt orders">
+      <button class="preset" type="button">
+        <span class="preset-kind">Strategy</span>
+        <span class="preset-value">Sustain <small>1 of 3 saved</small></span>
+        <span class="preset-edit"><svg aria-hidden="true"><use href="#i-quill"/></svg>Edit</span>
+      </button>
+      <button class="preset" type="button">
+        <span class="preset-kind">Loot filter</span>
+        <span class="preset-value">Rare and up
+          <span class="tiers" aria-hidden="true"><i class="off"></i><i class="off"></i><i style="--t:var(--r-rare)"></i><i style="--t:var(--r-epic)"></i><i style="--t:var(--r-legendary)"></i></span>
+        </span>
+        <span class="preset-edit"><svg aria-hidden="true"><use href="#i-quill"/></svg>Edit</span>
+      </button>
+      <button class="stop" type="button"><span class="stop-seal" aria-hidden="true"><i></i></span>Stop hunt</button>
+    </section>
+  </aside>
+
+  <section class="chat win" aria-label="Chat">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" type="button">Combat</button>
+      <button class="tab" role="tab" aria-selected="false" type="button">Loot<span class="count num">2</span></button>
+      <button class="tab" role="tab" aria-selected="false" type="button">System</button>
+    </div>
+    <div class="log-wrap">
+      <ol class="log" id="combat-log" aria-live="polite">
+        <li><span class="ally">Kaio</span> hits <span class="foe">Slagjaw</span> for <b>284</b></li>
+        <li><span class="foe">Cinder Grub</span> hits <span class="ally">Bjorn</span> for <b>96</b></li>
+        <li><span class="ally">Bjorn</span> casts Shield Wall</li>
+        <li><span class="foe">Slagjaw</span> hits <span class="ally">Bjorn</span> for <b>311</b> <span class="blocked">(blocked 88)</span></li>
+        <li><span class="ally">Sigrun</span> heals <span class="ally">Bjorn</span> for <b class="heal-amt">142</b></li>
+        <li class="line-crit"><span class="ally">Kaio</span> <span class="crit-mark">crits</span> <span class="foe">Cinder Grub</span> for <b>612</b></li>
+        <li class="line-defeat"><span class="foe">Cinder Grub</span> is defeated</li>
+        <li class="line-drop"><span class="item">[Warden's Ashen Cloak]</span> dropped</li>
+        <li class="line-level"><svg aria-hidden="true"><use href="#i-star"/></svg>Sigrun reaches level 23</li>
+        <li class="line-cast"><span class="ally">Kaio</span> is casting <span class="spell">Arrow Rain</span></li>
+      </ol>
+      <div class="scroll" aria-hidden="true"><i></i></div>
+    </div>
+  </section>
+
+  <section class="command" aria-label="Skills">
+    <div class="castbar" role="progressbar" aria-label="Kaio casting Arrow Rain" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100">
+      <div class="castbar-track"><i></i><div class="castbar-text"><span>Kaio: Arrow Rain</span><span>1.2 / 2.0s</span></div></div>
+    </div>
+
+    <div class="hotbar win">
+      <div class="skillset" aria-label="Bjorn skills">
+        <p class="skillset-owner"><svg aria-hidden="true"><use href="#g-guardian"/></svg>Bjorn<span class="keys">1–3</span></p>
+        <ol class="slots">
+          <li class="skill"><span class="slot slot--ready school-guard"><kbd>1</kbd><svg aria-hidden="true"><use href="#s-taunt"/></svg></span><span class="skill-name">Taunt</span></li>
+          <li class="skill"><span class="slot slot--active school-guard"><kbd>2</kbd><svg aria-hidden="true"><use href="#s-shieldwall"/></svg><span class="corner-text">6s</span></span><span class="skill-name">Shield Wall</span></li>
+          <li class="skill"><span class="slot slot--cooldown school-guard"><kbd>3</kbd><svg aria-hidden="true"><use href="#s-cleave"/></svg><span class="cd">5</span></span><span class="skill-name">Cleave</span></li>
+          <li class="skill skill--passive"><span class="slot slot--passive" title="Passive, always on"><svg aria-hidden="true"><use href="#s-bulwark"/></svg></span><span class="skill-name">Bulwark</span></li>
+        </ol>
+      </div>
+
+      <div class="skillset" aria-label="Sigrun skills">
+        <p class="skillset-owner"><svg aria-hidden="true"><use href="#g-cleric"/></svg>Sigrun<span class="keys">4–7</span></p>
+        <ol class="slots">
+          <li class="skill"><span class="slot slot--ready school-cleric"><kbd>4</kbd><svg aria-hidden="true"><use href="#s-heal"/></svg></span><span class="skill-name">Heal</span></li>
+          <li class="skill skill--starved"><span class="slot slot--starved school-cleric" title="Needs 120 MP"><kbd>5</kbd><svg aria-hidden="true"><use href="#s-groupheal"/></svg><span class="corner-text">120</span></span><span class="skill-name">Group Heal</span></li>
+          <li class="skill"><span class="slot slot--active school-cleric"><kbd>6</kbd><svg aria-hidden="true"><use href="#s-blessing"/></svg><span class="corner-text">94s</span></span><span class="skill-name">Blessing</span></li>
+          <li class="skill"><span class="slot slot--ready school-cleric"><kbd>7</kbd><svg aria-hidden="true"><use href="#s-smite"/></svg></span><span class="skill-name">Smite</span></li>
+        </ol>
+      </div>
+
+      <div class="skillset is-selected" aria-label="Kaio skills">
+        <p class="skillset-owner"><svg aria-hidden="true"><use href="#g-ranger"/></svg>Kaio<span class="keys">8–0</span></p>
+        <ol class="slots">
+          <li class="skill"><span class="slot slot--ready school-ranger"><kbd>8</kbd><svg aria-hidden="true"><use href="#s-doubleshot"/></svg></span><span class="skill-name">Double Shot</span></li>
+          <li class="skill skill--casting"><span class="slot slot--casting school-ranger"><kbd>9</kbd><svg aria-hidden="true"><use href="#s-arrowrain"/></svg><span class="cast-progress"><i></i></span></span><span class="skill-name">Arrow Rain</span></li>
+          <li class="skill"><span class="slot slot--active school-ranger"><kbd>0</kbd><svg aria-hidden="true"><use href="#s-focus"/></svg><span class="corner-text">11s</span></span><span class="skill-name">Focus</span></li>
+          <li class="skill skill--passive"><span class="slot slot--passive" title="Passive, always on"><svg aria-hidden="true"><use href="#s-keeneye"/></svg></span><span class="skill-name">Keen Eye</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <div class="expline" role="progressbar" aria-label="Kaio experience to level 26" aria-valuenow="12" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+
+</div>
+
+<script>
+(function () {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var log = document.getElementById('combat-log');
+  if (!log) return;
+  var lines = [
+    '<span class="ally">Kaio</span> hits <span class="foe">Slagjaw</span> for <b>211</b>',
+    '<span class="foe">Quarry Revenant</span> hits <span class="ally">Bjorn</span> for <b>174</b> <span class="blocked">(blocked 52)</span>',
+    '<span class="ally">Bjorn</span> hits <span class="foe">Slagjaw</span> for <b>138</b>',
+    '<span class="ally">Sigrun</span> heals <span class="ally">Bjorn</span> for <b class="heal-amt">139</b>',
+    '<span class="ally">Kaio</span> hits <span class="foe">Cinder Grub</span> for <b>96</b>'
+  ];
+  var i = 0;
+  setInterval(function () {
+    var li = document.createElement('li');
+    li.innerHTML = lines[i++ % lines.length];
+    log.appendChild(li);
+    if (log.children.length > 10) log.removeChild(log.firstElementChild);
+  }, 3600);
+})();
+</script>
+</body>
+</html>
