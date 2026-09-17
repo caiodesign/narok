@@ -1,5 +1,5 @@
 import { shapeOffsets } from '@narok/data';
-import type { Content, GridConfig, ShapeId } from '@narok/data';
+import type { ClassId, Content, GridConfig, ShapeId } from '@narok/data';
 import { SimError } from '../errors';
 import type { Actor, ActorId, PositionId } from '../types';
 import type { Battlefield } from './types';
@@ -144,4 +144,34 @@ export function createGrid(config: GridConfig, shapes: Content['shapes'] = shape
   }
 
   return { distance, inRange, placementSlots, nextStep, canReach, affected, validatePlacement };
+}
+
+/**
+ * Default party placement per spec §8: the first Guardian (if any) takes `(2,3)`;
+ * every other roster member takes the next unoccupied cell from
+ * `(1,4),(3,4),(2,4)` in roster order. With no Guardian, all members draw from
+ * that same three-cell list. Actor ids follow roster order (`p0`, `p1`, ...).
+ */
+export function defaultPlacement(classes: ClassId[]): Record<ActorId, PositionId> {
+  const placement: Record<ActorId, PositionId> = {};
+  const occupied = new Set<PositionId>();
+  const guardianIndex = classes.indexOf('guardian');
+  if (guardianIndex !== -1) {
+    const position = gridPosition(2, 3);
+    placement[`p${guardianIndex}`] = position;
+    occupied.add(position);
+  }
+  const candidates = [gridPosition(1, 4), gridPosition(3, 4), gridPosition(2, 4)];
+  let candidateIndex = 0;
+  classes.forEach((_, index) => {
+    if (index === guardianIndex) return;
+    while (candidateIndex < candidates.length && occupied.has(candidates[candidateIndex])) {
+      candidateIndex++;
+    }
+    const position = candidates[candidateIndex];
+    placement[`p${index}`] = position;
+    occupied.add(position);
+    candidateIndex++;
+  });
+  return placement;
 }

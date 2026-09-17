@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { createGrid, gridPosition as pos } from '../src/battlefield/grid';
+import { createGrid, defaultPlacement, gridPosition as pos } from '../src/battlefield/grid';
 import { SimError } from '../src/errors';
 import { actor } from './fixtures';
 import type { GridConfig } from '@narok/data';
@@ -91,6 +91,29 @@ test('validatePlacement rejects an out-of-board position', () => {
   const grid = createGrid(defaultGrid);
   const error = expectSimError(() => grid.validatePlacement([pos(5,3)], 'party'));
   expect(error.code).toBe('INVALID_INPUT');
+});
+
+test('defaultPlacement seats the first Guardian at (2,3) and fills the rest in order', () => {
+  expect(defaultPlacement(['guardian', 'cleric', 'ranger'])).toEqual({
+    p0: pos(2, 3), p1: pos(1, 4), p2: pos(3, 4),
+  });
+});
+
+test('defaultPlacement without a Guardian uses the plain three-cell list in order', () => {
+  expect(defaultPlacement(['cleric', 'ranger', 'arcanist'])).toEqual({
+    p0: pos(1, 4), p1: pos(3, 4), p2: pos(2, 4),
+  });
+});
+
+test('defaultPlacement seats a later Guardian at (2,3) while others still use roster order', () => {
+  expect(defaultPlacement(['cleric', 'guardian'])).toEqual({
+    p0: pos(1, 4), p1: pos(2, 3),
+  });
+});
+
+test('defaultPlacement handles a single-member roster', () => {
+  expect(defaultPlacement(['guardian'])).toEqual({ p0: pos(2, 3) });
+  expect(defaultPlacement(['cleric'])).toEqual({ p0: pos(1, 4) });
 });
 
 test('supports the alternate 6x6 automated-test board', () => {

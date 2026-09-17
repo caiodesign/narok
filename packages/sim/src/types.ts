@@ -1,12 +1,14 @@
 import type {
   Attributes,
   ClassId,
+  Content,
   DamageKind,
   Element,
   Family,
   RecipeId,
   SkillId,
 } from '@narok/data';
+import type { Battlefield } from './battlefield/types';
 
 export type ActorId = string;
 export type PositionId = string & { readonly __position: unique symbol };
@@ -90,4 +92,9 @@ export interface Simulation {
   encode(state: SimState): string;
   decode(text: string): SimState;
   project(state: SimState): PublicState;
+}
+export interface Context {
+  content: Content;
+  battlefield: Battlefield;
+  emit(event: Omit<DomainEvent, 'seq'>): void;
 }
