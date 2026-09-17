@@ -1,0 +1,1412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy editor — Realm HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --iron-0: #0b0d10;
+  --iron-1: #171a1f;
+  --iron-2: #242930;
+  --iron-3: #343a43;
+  --steel: #9cc0dc;
+  --steel-dim: #5d7a93;
+  --bronze-dark: #4a3722;
+  --bronze: #8d6b41;
+  --bronze-lit: #dcb67c;
+  --ember: #ff8a3d;
+  --ember-hot: #ffc46b;
+  --ember-deep: #b5401a;
+  --vellum: #eee5d2;
+  --vellum-dim: #b9ae98;
+
+  --hp-ally: #62c26f;
+  --hp-foe: #d8483a;
+  --mp: #4f92e6;
+  --xp: #d2a849;
+  --warn: #ff6b57;
+
+  --r-common: #c2bbad;
+  --r-uncommon: #6fcca9;
+  --r-rare: #6db2f5;
+  --r-epic: #c793f5;
+  --r-legendary: #ffb53f;
+  --gold: #f0c35a;
+
+  --school-guard: #3f5d78;
+  --school-cleric: #8a7433;
+  --school-ranger: #3d6b4c;
+
+  --display: 'Alegreya SC', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --text: 'Alegreya Sans', 'Segoe UI', 'Gill Sans', 'Trebuchet MS', sans-serif;
+
+  --gutter: 16px;
+  --rail-w: clamp(252px, 20vw, 288px);
+  --chat-w: clamp(290px, 22vw, 340px);
+  --party-w: 276px;
+
+  --corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/svg%3E");
+  --corner-tr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 1 26 0)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-bl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(1 0 0 -1 0 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-br: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 -1 26 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --rune-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M7 1v12M7 4l4-3M7 8L3 11M3 4h1.5M9.5 10H11' fill='none' stroke='%23b8905a' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; overflow: hidden; }
+
+body {
+  background: var(--iron-0);
+  color: var(--vellum);
+  font-family: var(--text);
+  font-size: 14px;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  min-width: 1100px;
+}
+
+h1, h2, h3, p, ul, ol, li, dl, dd, dt { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.realm { position: fixed; inset: 0; overflow: hidden; }
+
+.world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.world .fog { animation: fog-drift 38s ease-in-out infinite alternate; }
+.world .fog-b { animation-duration: 52s; animation-direction: alternate-reverse; }
+.world .crack { animation: ember-flicker 3.4s ease-in-out infinite; }
+.world .crack-b { animation-delay: -1.7s; }
+.world .slag-glow { animation: ember-flicker 5s ease-in-out infinite; }
+.world .spark { animation: spark-rise 7s linear infinite; }
+
+@keyframes fog-drift { from { transform: translateX(-40px); } to { transform: translateX(60px); } }
+@keyframes ember-flicker { 0%, 100% { opacity: 1; } 45% { opacity: .62; } 60% { opacity: .9; } }
+@keyframes spark-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translate(24px, -170px); opacity: 0; }
+}
+
+.win {
+  position: absolute;
+  background:
+    linear-gradient(180deg, rgba(52, 58, 67, .9) 0, rgba(28, 32, 38, .93) 34px, rgba(18, 21, 25, .95) 100%);
+  border: 1px solid #5c4529;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 196, .12),
+    inset 0 0 0 1px rgba(0, 0, 0, .7),
+    inset 0 0 22px rgba(0, 0, 0, .55),
+    0 10px 26px rgba(0, 0, 0, .6),
+    0 0 0 1px rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.win::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background:
+    var(--corner-tl) top left / 26px 26px no-repeat,
+    var(--corner-tr) top right / 26px 26px no-repeat,
+    var(--corner-bl) bottom left / 26px 26px no-repeat,
+    var(--corner-br) bottom right / 26px 26px no-repeat;
+}
+
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 6px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .03em;
+  color: var(--bronze-lit);
+  text-shadow: 0 1px 0 #000;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--bronze) 18%, var(--bronze) 82%, transparent) 1;
+}
+.win-title::before, .win-title::after {
+  content: "";
+  width: 14px; height: 14px;
+  background: var(--rune-mark) center / contain no-repeat;
+  flex: none;
+}
+.win-title::after { transform: scaleX(-1); margin-left: auto; }
+
+.medal {
+  position: relative;
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, var(--medal-tint, #3f5d78) 0, #11151b 72%);
+  box-shadow:
+    0 0 0 2px #1a130b,
+    0 0 0 4px #9a7747,
+    0 0 0 5px #2b1f12,
+    inset 0 3px 8px rgba(255,255,255,.12),
+    inset 0 -6px 12px rgba(0,0,0,.6);
+  display: grid; place-items: center;
+  color: #eaf2f8;
+  margin: 4px 0 0 4px;
+}
+.medal svg { width: 30px; height: 30px; }
+.medal--cleric { --medal-tint: #7a6630; color: #fff4d6; }
+.medal--ranger { --medal-tint: #35644a; color: #e6fff0; }
+.lvl {
+  position: absolute;
+  bottom: -6px; left: 50%;
+  transform: translateX(-50%);
+  min-width: 26px;
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  color: #1b1208;
+  background: linear-gradient(180deg, #f1d49c, #b48a50);
+  border: 1px solid #2b1f12;
+  border-radius: 8px;
+}
+
+.metric dt { font-size: 12.5px; color: var(--vellum-dim); }
+.metric dd { font-size: 19px; font-weight: 700; line-height: 1.15; color: var(--vellum); font-variant-numeric: tabular-nums lining-nums; }
+.metric--estimate dd { font-style: italic; font-weight: 500; color: #e3d2b2; }
+.metric--estimate dd span { border-bottom: 1px dashed #8d7b5d; }
+.metric--estimate dt small { font-size: 11.5px; font-style: italic; color: #a99c85; }
+
+.hunt-state {
+  position: absolute; top: -2px; left: -38px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px 3px 4px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #4a1d0c, #230d05);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #b85a2c, 0 0 12px rgba(255, 110, 50, .45);
+  font-weight: 800; font-size: 13px;
+  color: #ffe0c6;
+}
+.hunt-state i {
+  width: 18px; height: 18px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ff9a4a, #9c2f0e);
+  animation: state-beat 1.4s ease-in-out infinite;
+}
+.hunt-state svg { width: 12px; height: 12px; color: #fff3e4; }
+@keyframes state-beat { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 61, .7); } 50% { box-shadow: 0 0 0 5px rgba(255, 138, 61, 0); } }
+
+.pips { display: flex; gap: 3px; }
+.pip { width: 10px; height: 12px; clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); background: #d8483a; box-shadow: inset 0 0 0 1px #000; }
+.pip.spent { background: #3b3f46; }
+
+:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 3px; }
+
+.tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid #5c4529; }
+.tab {
+  padding: 4px 12px 3px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  color: #a99c85;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #23272d, #16191d);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px #0a0b0d;
+}
+.tab[aria-selected="true"] { color: var(--bronze-lit); background: linear-gradient(180deg, #3a3f47, #1e2227); box-shadow: inset 0 1px 0 rgba(255,236,200,.14), 0 0 0 1px #5c4529; position: relative; top: 1px; }
+.tab .count { font-family: var(--text); font-size: 11px; font-weight: 800; color: #1a1208; background: var(--bronze-lit); border-radius: 7px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+
+.slots { display: grid; grid-template-columns: repeat(4, 55px); gap: 3px; }
+.skill { display: grid; justify-items: center; gap: 3px; }
+.skill-name { font-size: 11px; line-height: 1.1; color: #cfc4ae; white-space: nowrap; text-align: center; }
+
+.slot {
+  position: relative;
+  width: 46px; height: 46px;
+  border-radius: 3px;
+  background: radial-gradient(circle at 50% 32%, var(--school, #3f5d78) 0, #10141a 78%);
+  box-shadow:
+    inset 0 2px 5px rgba(255,255,255,.12),
+    inset 0 -4px 8px rgba(0,0,0,.55),
+    0 0 0 1px #000,
+    0 0 0 2px #7a5c36,
+    0 0 0 3px #1a130b;
+  display: grid; place-items: center;
+  color: #f5ecd9;
+  overflow: hidden;
+}
+.slot > svg { width: 28px; height: 28px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.8)); }
+.slot kbd {
+  position: absolute; top: 1px; left: 3px;
+  font-family: var(--text);
+  font-size: 11px; font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 1px 1px #000;
+  z-index: 3;
+}
+.slot .corner-text {
+  position: absolute; right: 3px; bottom: 1px;
+  font-size: 11.5px; font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 3px #000, 0 1px 1px #000;
+  z-index: 3;
+  font-variant-numeric: tabular-nums;
+}
+.school-guard { --school: var(--school-guard); }
+.school-cleric { --school: var(--school-cleric); }
+.school-ranger { --school: var(--school-ranger); }
+
+.slot--ready { box-shadow: inset 0 2px 5px rgba(255,255,255,.14), inset 0 -4px 8px rgba(0,0,0,.5), 0 0 0 1px #000, 0 0 0 2px #c29a60, 0 0 0 3px #1a130b; }
+
+.slot--active {
+  box-shadow: inset 0 0 0 1px rgba(200, 235, 255, .7), inset 0 0 12px rgba(140, 200, 255, .55), 0 0 0 1px #000, 0 0 0 2px #9cc0dc, 0 0 12px rgba(140, 200, 255, .75);
+  animation: active-glow 2s ease-in-out infinite;
+}
+.slot--active .corner-text { color: #d9efff; }
+@keyframes active-glow { 50% { box-shadow: inset 0 0 0 1px rgba(200, 235, 255, .9), inset 0 0 16px rgba(140, 200, 255, .7), 0 0 0 1px #000, 0 0 0 2px #cfe6f7, 0 0 18px rgba(140, 200, 255, .9); } }
+
+.slot--cooldown > svg { filter: grayscale(.6) brightness(.8); }
+.slot--cooldown::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: conic-gradient(from 0deg, transparent 0 144deg, rgba(4, 5, 7, .74) 144deg 360deg);
+  z-index: 1;
+}
+.slot--cooldown::before {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  width: 1.5px; height: 34px;
+  background: linear-gradient(0deg, rgba(255, 240, 200, 0), #ffe8b8);
+  transform-origin: 50% 0;
+  transform: rotate(324deg);
+  z-index: 2;
+}
+.slot--cooldown .cd {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 18px; font-weight: 800;
+  color: #ffe9bf;
+  text-shadow: 0 0 4px #000, 0 1px 1px #000;
+  z-index: 3;
+  font-variant-numeric: tabular-nums;
+}
+
+.slot--casting {
+  box-shadow: inset 0 0 14px rgba(255, 150, 60, .75), 0 0 0 1px #000, 0 0 0 2px #ffab5a, 0 0 16px rgba(255, 120, 40, .85);
+  color: #fff4e0;
+}
+.slot--casting .cast-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(0,0,0,.7); z-index: 2; }
+.slot--casting .cast-progress i { position: absolute; inset: 0 40% 0 0; background: linear-gradient(90deg, #ff8a3d, #ffe0a0); }
+.skill--casting .skill-name { color: var(--ember-hot); font-weight: 700; }
+
+.slot--starved > svg { filter: grayscale(1) brightness(.55); }
+.slot--starved::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(140, 20, 20, .25), rgba(120, 10, 10, .55)); z-index: 1; }
+.slot--starved { box-shadow: inset 0 -4px 8px rgba(0,0,0,.55), 0 0 0 1px #000, 0 0 0 2px #7a2c24, 0 0 0 3px #1a0b09; }
+.slot--starved .corner-text { color: #ffb0a4; font-size: 11px; }
+.skill--starved .skill-name { color: #e39a8e; }
+
+.slot--passive {
+  border-radius: 50%;
+  width: 42px; height: 42px;
+  margin-top: 2px;
+  background: radial-gradient(circle at 50% 40%, #2a2419 0, #0c0b09 70%);
+  box-shadow: inset 0 4px 10px rgba(0,0,0,.9), inset 0 0 0 3px #16110b, inset 0 0 0 4px #5c4529, 0 0 0 1px #000, 0 0 0 2px #3b2c1b;
+  color: var(--bronze-lit);
+}
+.slot--passive > svg { width: 22px; height: 22px; opacity: .92; }
+.slot--passive::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 1px dashed rgba(220, 182, 124, .45); }
+
+/* ---------- Strategy editor ---------- */
+
+.scrim {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(9, 10, 13, .62) 0, rgba(4, 5, 7, .72) 80%);
+}
+
+.editor {
+  top: 42px; bottom: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1320px, calc(100vw - 56px));
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(48, 54, 62, .97) 0, rgba(26, 30, 35, .98) 36px, rgba(15, 17, 21, .985) 100%);
+}
+
+.editor-head { position: relative; }
+.editor-head .win-title { font-size: 18px; padding: 8px 16px 7px; gap: 10px; }
+.editor-head .win-title small { font-family: var(--text); font-weight: 500; font-size: 13px; letter-spacing: 0; color: var(--vellum-dim); }
+.head-tools { position: absolute; right: 42px; top: 6px; display: flex; align-items: center; gap: 14px; }
+.head-tools .hunt-state { position: static; font-size: 12.5px; padding: 2px 9px 2px 3px; }
+.head-tools .hunt-state i { width: 16px; height: 16px; }
+.head-tools .hunt-state svg { width: 11px; height: 11px; }
+.close {
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 3px;
+  color: #d8cfbd;
+  background: linear-gradient(180deg, #3a1c19, #1d0d0b);
+  box-shadow: inset 0 1px 0 rgba(255,210,200,.1), 0 0 0 1px #000, 0 0 0 2px #7e3a30;
+}
+.close:hover { box-shadow: inset 0 1px 0 rgba(255,210,200,.14), 0 0 0 1px #000, 0 0 0 2px #b04f40; color: #fff; }
+.close svg { width: 13px; height: 13px; }
+
+.preset-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid #5c4529;
+}
+.preset-bar .tabs { border-bottom: 0; padding: 0; gap: 3px; }
+.preset-bar .tab { display: inline-flex; align-items: center; gap: 7px; padding: 6px 16px 5px; font-size: 15.5px; }
+.tab-order { font-family: var(--text); font-size: 11.5px; font-weight: 700; color: #8f8472; }
+.tab[aria-selected="true"] .tab-order { color: #b9a37e; }
+.unsaved {
+  width: 9px; height: 9px;
+  background: var(--ember);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px #2a0e04, 0 0 8px rgba(255, 138, 61, .8);
+  animation: ember-flicker 2.6s ease-in-out infinite;
+}
+.tab--locked { color: #b8aee0; background: repeating-linear-gradient(135deg, rgba(215, 201, 255, .05) 0 6px, transparent 6px 12px), linear-gradient(180deg, #221f2b, #15141b); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 0 1px #0a0b0d; cursor: not-allowed; }
+.tab--locked svg { width: 13px; height: 13px; }
+.tab--locked .premium-tag { font-family: var(--text); font-size: 11.5px; font-weight: 700; color: #d7c9ff; }
+
+.preset-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-bottom: 7px; }
+.dirty-note { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-style: italic; color: #e7cfa6; white-space: nowrap; }
+.dirty-note .unsaved { width: 7px; height: 7px; animation: none; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  font-weight: 700; font-size: 13.5px;
+  color: var(--vellum);
+  white-space: nowrap;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+}
+.btn:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.btn svg { width: 15px; height: 15px; color: var(--bronze-lit); }
+.btn--save {
+  font-family: var(--display);
+  font-size: 15px;
+  padding: 5px 16px;
+  color: #1b1208;
+  background: linear-gradient(180deg, #f1d49c, #c79c5c 55%, #8d6b41);
+  box-shadow: inset 0 1px 0 rgba(255, 246, 220, .6), 0 0 0 1px #000, 0 0 0 2px #dcb67c, 0 0 14px rgba(220, 182, 124, .3);
+  text-shadow: 0 1px 0 rgba(255, 240, 210, .4);
+}
+.btn--save:hover { box-shadow: inset 0 1px 0 rgba(255, 246, 220, .7), 0 0 0 1px #000, 0 0 0 2px #ffe0a8, 0 0 18px rgba(220, 182, 124, .45); }
+.btn--save svg { color: #3a2610; }
+.btn--small { padding: 3px 9px; font-size: 12.5px; font-weight: 700; }
+.btn--small svg { width: 13px; height: 13px; }
+
+.editor-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(300px, 29vw, 440px) minmax(0, 1fr) clamp(262px, 23vw, 340px);
+  gap: 16px;
+  padding: 14px 16px 16px;
+}
+.col { display: flex; flex-direction: column; gap: 14px; min-height: 0; min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #6e5534 #0a0b0d; }
+
+.pane {
+  position: relative;
+  background: linear-gradient(180deg, rgba(8, 10, 13, .55), rgba(8, 10, 13, .35));
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px #000, inset 0 0 18px rgba(0, 0, 0, .45), 0 0 0 1px #3d2f1f;
+}
+.pane > .win-title { font-size: 15px; }
+.pane-title-note { font-family: var(--text); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--vellum-dim); margin-left: 4px; }
+.pane-body { padding: 10px 14px 12px; }
+
+.hint { font-size: 12.5px; color: #b3a790; line-height: 1.35; }
+.hint b { color: var(--vellum); font-weight: 700; }
+
+.subhead {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 7px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--bronze-lit);
+}
+.subhead::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, #5c4529, transparent); }
+.subhead .aside { order: 2; font-family: var(--text); font-weight: 500; font-size: 12px; color: #a99c85; }
+.section + .section { margin-top: 13px; padding-top: 11px; border-top: 1px solid #2c241a; }
+
+/* formation */
+
+.board-wrap { position: relative; margin: 0 -6px; }
+.formation { display: block; width: 100%; height: auto; }
+.formation text { font-family: var(--text); }
+.formation .tok-name { font-size: 20px; font-weight: 700; fill: var(--vellum); paint-order: stroke; stroke: #0b0806; stroke-width: 4px; stroke-linejoin: round; }
+.formation .lane-label { font-size: 17px; font-style: italic; fill: #c9b9a2; paint-order: stroke; stroke: #0b0806; stroke-width: 4px; }
+.formation .side-label { font-family: var(--display); font-size: 17px; font-weight: 700; fill: #8a7a66; paint-order: stroke; stroke: #0b0806; stroke-width: 4px; }
+.formation .bad-label { font-size: 18px; font-weight: 800; fill: #ffb4a8; paint-order: stroke; stroke: #1a0503; stroke-width: 4px; stroke-linejoin: round; }
+.formation .drop-label { font-size: 19px; font-weight: 800; fill: #d9efff; paint-order: stroke; stroke: #06101a; stroke-width: 4px; stroke-linejoin: round; }
+.drop-ok { animation: drop-pulse 1.6s ease-in-out infinite; }
+.drag-lift { animation: lift-bob 1.8s ease-in-out infinite; }
+.drag-trail { animation: rain-march 1.2s linear infinite; }
+@keyframes drop-pulse { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+@keyframes lift-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes rain-march { to { stroke-dashoffset: -28; } }
+
+.legend { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 4px; font-size: 12.5px; color: var(--vellum-dim); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 16px; height: 10px; transform: skewX(-30deg); border-radius: 1px; }
+.lg-drop { background: rgba(156, 192, 220, .45); box-shadow: 0 0 0 1px #cfe6f7; }
+.lg-open { background: rgba(156, 192, 220, .12); box-shadow: 0 0 0 1px rgba(156, 192, 220, .6); }
+.lg-bad { background: rgba(216, 72, 58, .3); box-shadow: 0 0 0 1px #ff6b57; }
+.lg-foe { background: #2a1c14; box-shadow: 0 0 0 1px #4a3722; }
+
+.drag-status {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 9px;
+  padding: 6px 9px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(156, 192, 220, .12), transparent 80%);
+  box-shadow: inset 2px 0 0 var(--steel);
+  font-size: 13px;
+  color: #d8cfbd;
+}
+.drag-status svg { width: 16px; height: 16px; color: var(--steel); flex: none; }
+.drag-status b { color: #fff; }
+.formation-foot { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+.formation-foot .hint { flex: 1; }
+
+/* projection */
+
+.projection table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.projection th, .projection td { padding: 5px 0; text-align: right; border-bottom: 1px solid #2a221a; white-space: nowrap; }
+.projection tr:last-child th, .projection tr:last-child td { border-bottom: 0; }
+.projection thead th { padding: 0 0 4px; font-size: 11.5px; font-weight: 500; font-style: italic; color: #a99c85; border-bottom-color: #3a2e20; }
+.projection tbody th { text-align: left; font-weight: 500; color: var(--vellum-dim); }
+.proj-now { color: #b9ae98; font-variant-numeric: tabular-nums lining-nums; padding-right: 6px; }
+.proj-arrow { width: 22px; text-align: center; }
+.proj-arrow svg { width: 14px; height: 10px; color: #8d6b41; vertical-align: 1px; }
+.proj-next { font-size: 16px; font-style: italic; font-weight: 700; color: #e3d2b2; font-variant-numeric: tabular-nums lining-nums; }
+.proj-next span { border-bottom: 1px dashed #8d7b5d; }
+.delta { display: inline-block; min-width: 54px; margin-left: 10px; padding: 0 5px; font-size: 12px; font-weight: 800; line-height: 17px; text-align: center; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.delta--gain { color: #0e2412; background: linear-gradient(180deg, #9be3a4, #4f9e5a); }
+.delta--cost { color: #2a0e04; background: linear-gradient(180deg, #ffcf9a, #d57a3e); }
+.delta--flat { color: #1a1208; background: linear-gradient(180deg, #d9cfbc, #9a8f7c); }
+
+.tradeoff { margin-top: 10px; }
+.tradeoff-scale { position: relative; height: 10px; margin: 5px 0 3px; border-radius: 2px; background: linear-gradient(90deg, #4f9e5a, #3a3f46 50%, #d57a3e); box-shadow: inset 0 0 0 1px #000; }
+.tradeoff-scale .mark { position: absolute; top: -4px; width: 4px; height: 18px; margin-left: -2px; border-radius: 1px; box-shadow: 0 0 0 1px #000; }
+.tradeoff-scale .mark--was { left: 47%; background: #6f675b; }
+.tradeoff-scale .mark--now { left: 33%; background: linear-gradient(180deg, #f1d49c, #b48a50); box-shadow: 0 0 0 1px #000, 0 0 8px rgba(241, 212, 156, .6); }
+.tradeoff-ends { display: flex; justify-content: space-between; font-size: 12px; color: #a99c85; }
+.tradeoff-ends b { color: var(--vellum-dim); font-weight: 700; }
+
+/* character rules */
+
+.char-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px 14px 0; }
+.char-tab {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 0 9px;
+  padding: 5px 9px 5px 6px;
+  text-align: left;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #262a31, #16191d);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px #000, 0 0 0 2px #3d2f1f;
+  min-width: 0;
+}
+.char-tab:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #7a5c36; }
+.char-tab[aria-selected="true"] {
+  background: linear-gradient(180deg, #3a3f47, #1e2227);
+  box-shadow: inset 0 1px 0 rgba(255,236,200,.14), 0 0 0 1px #000, 0 0 0 2px #a9844f, 0 0 14px rgba(220, 182, 124, .2);
+}
+.char-tab .medal { width: 30px; height: 30px; margin: 0; grid-row: span 2; box-shadow: 0 0 0 1px #1a130b, 0 0 0 2px #9a7747, 0 0 0 3px #2b1f12, inset 0 2px 5px rgba(255,255,255,.12), inset 0 -4px 8px rgba(0,0,0,.6); }
+.char-tab .medal svg { width: 17px; height: 17px; }
+.char-tab-name { white-space: nowrap; font-family: var(--display); font-weight: 700; font-size: 15.5px; line-height: 1.05; color: var(--vellum-dim); }
+.char-tab[aria-selected="true"] .char-tab-name { color: var(--bronze-lit); }
+.char-tab-class { font-size: 12px; line-height: 1.1; color: #a99c85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.char-tab-name .unsaved { display: inline-block; width: 6px; height: 6px; margin: 0 2px 1px 5px; animation: none; vertical-align: middle; }
+
+.prio-list { display: grid; gap: 6px; counter-reset: prio; }
+.prio {
+  display: grid;
+  grid-template-columns: 16px 50px minmax(0, 1fr);
+  align-items: center;
+  gap: 0 10px;
+  padding: 7px 10px 8px 6px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(40, 45, 52, .55), rgba(22, 25, 30, .55));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 0 1px #000, 0 0 0 2px #2e251a;
+}
+.prio--changed { box-shadow: inset 2px 0 0 var(--ember), inset 0 1px 0 rgba(255,255,255,.04), 0 0 0 1px #000, 0 0 0 2px #2e251a; }
+.prio--fallback { grid-template-columns: 16px 50px minmax(0, 1fr); padding-top: 5px; padding-bottom: 5px; background: repeating-linear-gradient(135deg, rgba(255,255,255,.02) 0 6px, transparent 6px 12px); }
+.grip {
+  width: 16px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  color: #8d7b5d;
+  cursor: grab;
+}
+.grip:hover { color: var(--bronze-lit); background: rgba(220, 182, 124, .08); }
+.grip svg { width: 8px; height: 20px; }
+.grip--fixed { cursor: default; color: #5a5147; }
+.grip--fixed svg { width: 11px; height: 13px; }
+
+.prio .skill { position: relative; }
+.prio .slot kbd { color: #ffe9bf; }
+.prio-body { min-width: 0; }
+.prio-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; min-width: 0; }
+.prio-name { font-family: var(--display); font-weight: 700; font-size: 15.5px; line-height: 1.1; color: var(--vellum); white-space: nowrap; }
+.prio-head .toggle { margin-left: auto; flex: none; align-self: center; }
+.prio-head .hint { margin-left: auto; flex: none; }
+.prio-meta { font-size: 12px; color: #a99c85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prio-meta .mp { color: #8fb8f0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.prio--fallback .prio-name { font-size: 14.5px; color: var(--vellum-dim); }
+
+.rule { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; }
+.rule > .rule-label, .rule > .chips { grid-column: 1 / -1; }
+.rule + .rule { margin-top: 7px; }
+.rule-label { font-size: 13.5px; color: #d8cfbd; min-width: 0; }
+.rule-label b { color: var(--vellum); font-weight: 700; }
+.rule-val { display: inline-flex; align-items: center; gap: 7px; justify-self: end; }
+.val {
+  min-width: 46px;
+  padding: 0 6px;
+  font-size: 14px; font-weight: 800; line-height: 20px;
+  text-align: right;
+  color: #fff;
+  border-radius: 2px;
+  background: #07080a;
+  box-shadow: inset 0 0 0 1px #000, 0 0 0 1px #3d2f1f;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.was { font-size: 11.5px; font-style: italic; color: #e7b98a; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rule--changed .val { box-shadow: inset 0 0 0 1px #000, 0 0 0 1px var(--ember), 0 0 8px rgba(255, 138, 61, .35); }
+.rule .range { grid-column: 1; grid-row: 2; }
+.rule .rule-val { grid-column: 2; grid-row: 2; }
+
+.range { position: relative; --c: var(--bronze-lit); }
+.range--hp { --c: var(--hp-ally); }
+.range--mp { --c: var(--mp); }
+.range--foe { --c: #d87a4a; }
+.range .was-tick {
+  position: absolute;
+  top: 3px;
+  left: calc(7px + (100% - 14px) * var(--wp));
+  width: 2px; height: 14px;
+  margin-left: -1px;
+  background: var(--ember-hot);
+  box-shadow: 0 0 0 1px #2a0e04, 0 0 6px rgba(255, 196, 107, .7);
+  pointer-events: none;
+}
+.range .ticks {
+  position: absolute; left: 7px; right: 7px; top: 15px; height: 3px;
+  background: repeating-linear-gradient(90deg, rgba(220, 182, 124, .35) 0 1px, transparent 1px 10%);
+  pointer-events: none;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 9px;
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.28) 0, rgba(255,255,255,0) 45%, rgba(0,0,0,.35) 100%) 0 0 / calc(7px + (100% - 14px) * var(--p)) 100% no-repeat,
+    linear-gradient(90deg, var(--c) 0 calc(7px + (100% - 14px) * var(--p)), transparent 0),
+    linear-gradient(180deg, #07080a, #15181c);
+  box-shadow: inset 0 0 0 1px #000, 0 1px 0 rgba(255,255,255,.06);
+}
+input[type="range"]::-moz-range-track {
+  height: 9px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #07080a, #15181c);
+  box-shadow: inset 0 0 0 1px #000;
+}
+input[type="range"]::-moz-range-progress { height: 9px; border-radius: 2px; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 70%, #fff), var(--c) 45%, color-mix(in srgb, var(--c) 62%, #000)); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 20px;
+  margin-top: -5.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 6px, rgba(43, 31, 18, .75) 6px 8px, transparent 8px), linear-gradient(180deg, #f6ddaa, #c79c5c 55%, #8d6b41);
+  box-shadow: inset 0 1px 0 rgba(255,246,220,.6), 0 0 0 1px #1a130b, 0 2px 4px rgba(0,0,0,.7);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 20px;
+  border: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 6px, rgba(43, 31, 18, .75) 6px 8px, transparent 8px), linear-gradient(180deg, #f6ddaa, #c79c5c 55%, #8d6b41);
+  box-shadow: inset 0 1px 0 rgba(255,246,220,.6), 0 0 0 1px #1a130b, 0 2px 4px rgba(0,0,0,.7);
+}
+input[type="range"]:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 2px; border-radius: 2px; }
+
+.toggle {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 38px; height: 20px;
+  margin: 0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #07080a, #15181c);
+  box-shadow: inset 0 0 0 1px #000, 0 0 0 1px #4a3722;
+  cursor: pointer;
+  justify-self: end;
+}
+.toggle::before {
+  content: "";
+  position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #8a8f96, #3a3f46);
+  box-shadow: 0 0 0 1px #000;
+}
+.toggle:checked {
+  background: linear-gradient(180deg, #2c4c66, #16283a);
+  box-shadow: inset 0 0 0 1px #000, 0 0 0 1px #9cc0dc, 0 0 9px rgba(140, 200, 255, .35);
+}
+.toggle:checked::before { left: 21px; background: radial-gradient(circle at 40% 35%, #f6ddaa, #b48a50); box-shadow: 0 0 0 1px #1a130b, 0 0 5px rgba(255, 230, 180, .5); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.chips legend { float: left; width: 100%; margin-bottom: 5px; padding: 0; font-size: 13.5px; color: #d8cfbd; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.chip span {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px;
+  font-size: 13px; font-weight: 700;
+  color: var(--vellum-dim);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #262a31, #16191d);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px #000, 0 0 0 2px #3d2f1f;
+  white-space: nowrap;
+}
+.chip span svg { width: 13px; height: 13px; }
+.chip input:checked + span {
+  color: #1b1208;
+  background: linear-gradient(180deg, #f1d49c, #b48a50);
+  box-shadow: inset 0 1px 0 rgba(255,246,220,.55), 0 0 0 1px #000, 0 0 0 2px #dcb67c;
+}
+.chip input:focus-visible + span { outline: 2px solid var(--ember-hot); outline-offset: 3px; }
+.chip:hover input:not(:checked) + span { color: var(--vellum); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #7a5c36; }
+.chips--grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.chips--grid legend { grid-column: 1 / -1; float: none; }
+.chips--grid .chip span { display: flex; justify-content: center; }
+.chips--inline { align-items: center; gap: 5px 6px; }
+.chips--inline .chip span { padding: 2px 9px; }
+.chips--inline legend { float: none; width: auto; margin: 0 6px 0 0; }
+
+.inline-rule { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.inline-rule + .inline-rule { margin-top: 8px; }
+
+.reserve-meter { position: relative; height: 6px; margin-top: 6px; border-radius: 2px; background: linear-gradient(180deg, #07080a, #15181c); box-shadow: inset 0 0 0 1px #000; }
+.reserve-meter i { position: absolute; top: 1px; bottom: 1px; left: 1px; width: calc(20% - 1px); background: repeating-linear-gradient(135deg, #4f92e6 0 4px, #2c5890 4px 8px); border-radius: 1px; }
+.reserve-meter b { position: absolute; top: 1px; bottom: 1px; left: 20%; width: calc(23.4% - 20%); background: rgba(79, 146, 230, .35); }
+
+.item-rule { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 0 9px; align-items: start; }
+.item-rule + .item-rule { margin-top: 8px; }
+.potion {
+  width: 30px; height: 30px; margin-top: 2px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, #3a3530, #0c0e11 85%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #5b544a;
+  color: #d9d2c4;
+}
+.potion svg { width: 18px; height: 18px; }
+.potion--mp svg path:last-child { fill: #4f92e6; }
+.stock { font-size: 12px; font-weight: 500; color: #a99c85; margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+.attempts { display: flex; align-items: center; gap: 12px; }
+.attempt-pips { display: flex; gap: 4px; border: 0; margin: 0; padding: 0; }
+.attempt-pips label { position: relative; display: block; }
+.attempt-pips input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.attempt-pips .pip { display: grid; place-items: center; width: 20px; height: 23px; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 1px #000; font-variant-numeric: tabular-nums; cursor: pointer; }
+.attempt-pips .pip.off { background: #3b3f46; color: #8f8a80; }
+.attempt-pips input:focus-visible + .pip { outline: 2px solid var(--ember-hot); outline-offset: 2px; }
+.attempts .val { min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="g-guardian" viewBox="0 0 24 24"><path d="M12 2.5 20 5.5V11c0 5.2-3.4 9-8 10.5C7.4 20 4 16.2 4 11V5.5Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 6v12M7.5 10h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-cleric" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22M4.9 4.9l2.5 2.5M16.6 16.6l2.5 2.5M4.9 19.1l2.5-2.5M16.6 7.4l2.5-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-ranger" viewBox="0 0 24 24"><path d="M5 19 18.5 5.5M18.5 5.5h-6M18.5 5.5v6M5 19l-1 2.5M5 19l-2.5 1M7 17l-2.2.3M7 17l-.3 2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.5C4.5 6 6.5 4 10 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="g-grub" viewBox="0 0 24 24"><path d="M3 15c0-3 2.4-5 5-5 1-3 4-4.5 7-3.5 3 1 5 3.8 5 7 0 3.5-3 5.5-6 5.5H7.5C5 19 3 17.5 3 15Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7"/><path d="M9 10.5v8M13.5 7v12M17.5 8.5v10" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="14.5" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="g-slagjaw" viewBox="0 0 24 24"><path d="M2.5 7h19l-2.5 5-2 6.5H7L5 12Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M5 12l2.2 2.5L9.4 12l2.6 3 2.6-3 2.2 2.5L19 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 4l1.5 3M16 4l-1.5 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="g-revenant" viewBox="0 0 24 24"><path d="M12 2.5c-4.8 0-7 4.2-7 9V21l2.4-1.8L9.7 21 12 19.2l2.3 1.8 2.3-1.8L19 21v-9.5c0-4.8-2.2-9-7-9Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.5 11l2.2 1.2M15.5 11l-2.2 1.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+
+    <symbol id="s-taunt" viewBox="0 0 24 24"><path d="M3 10h4l6-4.5v13L7 14H3Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 8.5c1.5 2 1.5 5 0 7M19 6c2.8 3.5 2.8 8.5 0 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="s-shieldwall" viewBox="0 0 24 24"><path d="M3 5h18v10c0 3-4 5.5-9 6.5C7 20.5 3 18 3 15Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 10.5h18M3 15.5h18M9 5v5.5M15 5v5.5M12 10.5v5M6 15.5v2.5M18 15.5v2.5" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="s-cleave" viewBox="0 0 24 24"><path d="M4 21 13.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 5.5c5-3 10 .5 10 6-2.5-2-5.5-2-8.5-1.5Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 12c1-4 4-7 7.5-8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2"/></symbol>
+    <symbol id="s-bulwark" viewBox="0 0 24 24"><path d="M5 21V10L3.5 8.5V3.5h3.5v2h2.5v-2h5v2h2.5v-2h3.5v5L19 10v11Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 21v-5a2 2 0 0 1 4 0v5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="s-heal" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="s-groupheal" viewBox="0 0 24 24"><path d="M12 3v6M9 6h6M5.5 12v6M2.5 15h6M18.5 12v6M15.5 15h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 9.5 5.5 11M16 9.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+    <symbol id="s-blessing" viewBox="0 0 24 24"><path d="M4 17c2.5-6 13.5-6 16 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="10" r="3" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2M6.5 5.5 8 7M17.5 5.5 16 7M3.5 20h17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="s-smite" viewBox="0 0 24 24"><path d="M13.5 2 5.5 13H11l-2 9 9.5-12.5H13Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="s-doubleshot" viewBox="0 0 24 24"><path d="M3 12 17 5M17 5l-5 .2M17 5l-2.3 4.4M5 20l14-7M19 13l-5 .2M19 13l-2.3 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="s-arrowrain" viewBox="0 0 24 24"><path d="M6 2.5v11M12 2.5v14M18 2.5v11M3.8 11.5 6 14.5l2.2-3M9.8 14l2.2 3 2.2-3M15.8 11.5l2.2 3 2.2-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 20.5c3-1.3 16-1.3 19 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="s-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="s-keeneye" viewBox="0 0 24 24"><path d="M2 12c4-7 16-7 20 0-4 7-16 7-20 0Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+
+    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-neutral" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-swords" viewBox="0 0 24 24"><path d="M4 4l11 11M20 4 9 15M13 17l4 4M11 17l-4 4M15 13l3 3M9 13l-3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="8" ry="4" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.7"/><path d="M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M8 7c0-2.5 1.8-4 4-4s4 1.5 4 4M5 8h14l-1 12.5H6Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9.5 18.5c1-1.3 4-1.3 5 0l.8 2H8.7Z" fill="currentColor"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 24 24"><path d="M12 3c-4.5 0-7.5 3-7.5 7 0 2.4 1.2 4 2.5 5v3.5h10V15c1.3-1 2.5-2.6 2.5-5 0-4-3-7-7.5-7Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="10.5" r="1.7" fill="currentColor"/><circle cx="15" cy="10.5" r="1.7" fill="currentColor"/><path d="M10 18.5V21M14 18.5V21" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-quill" viewBox="0 0 24 24"><path d="M20 3C12 4 7 9 5.5 17.5L4 21M20 3c-1 6-5 11-11.5 12.5M14 7.5l-3.5 1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 1.5 14.5 9.5 22.5 12 14.5 14.5 12 22.5 9.5 14.5 1.5 12 9.5 9.5Z" fill="currentColor"/></symbol>
+
+    <symbol id="it-bow" viewBox="0 0 24 24"><path d="M6 3c9 2 13 9 11.5 18M6 3l11.5 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 12h13M16 12l-3-2.5M16 12l-3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="it-cloak" viewBox="0 0 24 24"><path d="M9 3h6l1.5 3L20 21H4L7.5 6Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 6v15" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="it-potion" viewBox="0 0 24 24"><path d="M10 3h4M10.5 3v5.5L6 15a5.5 5.5 0 1 0 12 0l-4.5-6.5V3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 15.5h10a5 5 0 0 1-10 0Z" fill="#d8483a"/></symbol>
+    <symbol id="it-greaves" viewBox="0 0 24 24"><path d="M8 2.5h6v11l6 4.5v3.5H6.5L8 13Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 7h6M8 11h6" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="it-horn" viewBox="0 0 24 24"><path d="M3 5.5c4 0 6.5 2.5 8.5 6.5s4.5 7 9.5 7l-1-4c-3 0-4.5-2-6-5.5S10 3 3 2.5Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 3.5l-1 2.5M11 6l-1.5 2M14 10.5l-2 1" stroke="currentColor" stroke-width="1.3"/><path d="M17 20.5l2.5-3" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 1.5"/></symbol>
+
+    <symbol id="rune-a" viewBox="0 0 10 14"><path d="M5 1v12M5 4l3.5-3M5 8 1.5 11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="rune-b" viewBox="0 0 10 14"><path d="M2 1v12M2 3l6 3.5L2 10M8 10v3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="rune-c" viewBox="0 0 10 14"><path d="M5 1 1 7l4 6 4-6ZM5 4v6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  </defs>
+    <symbol id="i-grip" viewBox="0 0 8 20"><g fill="currentColor"><circle cx="2" cy="3" r="1.4"/><circle cx="6" cy="3" r="1.4"/><circle cx="2" cy="8" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="2" cy="13" r="1.4"/><circle cx="6" cy="13" r="1.4"/><circle cx="2" cy="18" r="1.4"/><circle cx="6" cy="18" r="1.4"/></g></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="1.5" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 14.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-revert" viewBox="0 0 24 24"><path d="M4 5v5h5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 10A8 8 0 1 1 6 16.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12.5" height="12.5" rx="1.5" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.8"/><path d="M16 4.5H5a1.5 1.5 0 0 0-1.5 1.5v10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-seal" viewBox="0 0 24 24"><path d="M12 2.5 14.2 5l3.3-.4.6 3.3 2.9 1.6-1.3 3 1.3 3-2.9 1.6-.6 3.3-3.3-.4L12 21.5 9.8 19l-3.3.4-.6-3.3L3 14.5l1.3-3L3 8.5l2.9-1.6.6-3.3 3.3.4Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 12.2 11 14.6l4.6-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5 5 19" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 2.5v19M2.5 12h19M12 2.5 9 5.5M12 2.5l3 3M12 21.5l-3-3M12 21.5l3-3M2.5 12l3-3M2.5 12l3 3M21.5 12l-3-3M21.5 12l-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M12 3 20.5 7.5v9L12 21l-8.5-4.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-fwd" viewBox="0 0 14 10"><path d="M1 5h11M8 1.5 12 5 8 8.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-fist" viewBox="0 0 24 24"><path d="M6 10.5V7.5a1.8 1.8 0 0 1 3.6 0v1.5-2.5a1.8 1.8 0 0 1 3.6 0V9 7.5a1.8 1.8 0 0 1 3.6 0V11a1.8 1.8 0 0 1 3.2 1.1V14c0 4-2.8 7-7 7h-1c-3.6 0-6-2.7-6-6.2Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2.5c1 4 5.5 6 5.5 11a5.5 5.5 0 0 1-11 0c0-2.6 1.3-4.3 2.6-5.6.2 2 1 3.1 2.2 3.6C10.5 8.5 11 5.5 12 2.5Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="realm">
+
+  <svg class="world" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="w-sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0a0a0d"/>
+        <stop offset=".28" stop-color="#1a1411"/>
+        <stop offset="1" stop-color="#110c0a"/>
+      </linearGradient>
+      <linearGradient id="w-floor" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2d2119"/>
+        <stop offset=".5" stop-color="#271c15"/>
+        <stop offset="1" stop-color="#1a130f"/>
+      </linearGradient>
+      <linearGradient id="w-ledge" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#3d2e23"/>
+        <stop offset="1" stop-color="#2c2019"/>
+      </linearGradient>
+      <radialGradient id="w-slag" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#fff0b0"/>
+        <stop offset=".25" stop-color="#ffb54a"/>
+        <stop offset=".6" stop-color="#e5561a"/>
+        <stop offset=".9" stop-color="#6e1d06"/>
+        <stop offset="1" stop-color="#2a0e05"/>
+      </radialGradient>
+      <radialGradient id="w-glow" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#ff7a2a" stop-opacity=".55"/>
+        <stop offset=".5" stop-color="#ff5a1a" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-cool" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#6d8fb0" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#6d8fb0" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-vignette" cx=".5" cy=".5" r=".72">
+        <stop offset=".45" stop-color="#000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".82"/>
+      </radialGradient>
+      <radialGradient id="w-fog" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#c8b6a6" stop-opacity=".11"/>
+        <stop offset="1" stop-color="#c8b6a6" stop-opacity="0"/>
+      </radialGradient>
+      <pattern id="w-iso" width="124" height="62" patternUnits="userSpaceOnUse">
+        <path d="M0 31 62 0l62 31-62 31Z" fill="none" stroke="#f3c79a" stroke-opacity=".045" stroke-width="1"/>
+      </pattern>
+      <pattern id="w-strata" width="240" height="26" patternUnits="userSpaceOnUse">
+        <path d="M0 20c40-4 80 3 120-1s80-5 120 1" fill="none" stroke="#3a2a20" stroke-opacity=".7" stroke-width="1.2"/>
+      </pattern>
+      <filter id="w-bloom" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="w-soft"><feGaussianBlur stdDeviation="18"/></filter>
+      <filter id="w-grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/>
+        <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/>
+      </filter>
+      <g id="boulder">
+        <path d="M-20 2-11-15 5-20 21-8 17 7-2 12Z" fill="#3b2c22"/>
+        <path d="M-20 2-2 12 17 7 21-8 5-1-11-3Z" fill="#1f1611"/>
+        <path d="M-11-15 5-20 21-8 5-1Z" fill="#4d3a2c"/>
+      </g>
+      <g id="shard">
+        <path d="M-6 4 0-14 7 3 1 7Z" fill="#2a1f18"/>
+        <path d="M0-14 7 3 1 7Z" fill="#3f2f24"/>
+      </g>
+    </defs>
+
+    <rect width="1440" height="900" fill="url(#w-sky)"/>
+
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="#120d0b"/>
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="url(#w-strata)" opacity=".8"/>
+    <path d="M140 70 260 130 420 60 560 120 700 50 880 130 1010 70 1180 140 1300 80 1440 130" fill="none" stroke="#231914" stroke-width="3"/>
+    <path d="M0 150 180 190 330 140 520 200 700 150 900 210 1080 160 1260 210 1440 170" fill="none" stroke="#2a1e17" stroke-width="2"/>
+    <g class="crack crack-b" filter="url(#w-bloom)">
+      <path d="M612 36l14 22-8 20 16 26-6 24 12 30" fill="none" stroke="#ff7a2a" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M1098 90l-10 24 12 16-6 30 10 20" fill="none" stroke="#ff8f3a" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <ellipse cx="260" cy="90" rx="300" ry="140" fill="url(#w-cool)"/>
+
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-floor)"/>
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-iso)"/>
+
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-ledge)"/>
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-iso)"/>
+    <path d="M520 372 172 546V598L520 424Z" fill="#3b2419"/>
+    <path d="M172 546 0 460V512L172 598Z" fill="#150f0c"/>
+    <path d="M520 372 172 546" stroke="#6b4c35" stroke-width="1.5"/>
+    <path d="M520 424 172 598V606L520 432Z" fill="#000" opacity=".35"/>
+
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-ledge)"/>
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-iso)"/>
+    <path d="M934 369 1252 528V580L934 421Z" fill="#171009"/>
+    <path d="M1252 528 1440 434V486L1252 580Z" fill="#40271b"/>
+    <path d="M1252 528 1440 434" stroke="#6b4c35" stroke-width="1.5"/>
+
+    <g stroke="#5a4636" stroke-width="2.2">
+      <path d="M1440 310 1192 434M1440 330 1212 444" />
+    </g>
+    <g stroke="#3a2b20" stroke-width="3">
+      <path d="M1420 314l10 16M1380 334l10 16M1340 354l10 16M1300 374l10 16M1260 394l10 16M1220 414l10 16"/>
+    </g>
+    <g transform="translate(1175 432)">
+      <path d="M-26 4 0-9 30 6 4 19Z" fill="#4a3526"/>
+      <path d="M-26 4 4 19V33L-26 18Z" fill="#23180f"/>
+      <path d="M4 19 30 6V20L4 33Z" fill="#35251a"/>
+      <path d="M-20 3 0-6 22 5 4 14Z" fill="#6a3a1c"/>
+      <circle cx="-4" cy="4" r="4" fill="#ff9a45" filter="url(#w-bloom)" class="crack"/>
+    </g>
+
+    <path d="M880 900 1214 733 1440 846V900Z" fill="#0d0908"/>
+    <path d="M880 900 1214 733V780L974 900Z" fill="#2e1d14"/>
+    <path d="M1214 733 1440 846V890L1214 780Z" fill="#1d130d"/>
+    <path d="M880 900 1214 733 1440 846" fill="none" stroke="#7a5236" stroke-width="1.5"/>
+    <ellipse cx="1210" cy="850" rx="230" ry="90" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="1200" cy="860" rx="150" ry="52" fill="url(#w-slag)"/>
+    <ellipse cx="1180" cy="852" rx="60" ry="14" fill="#fff3c4" opacity=".35"/>
+
+    <ellipse cx="300" cy="400" rx="130" ry="70" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="300" cy="402" rx="62" ry="26" fill="url(#w-slag)"/>
+    <path d="M238 402c20-18 104-18 124 0" fill="none" stroke="#1a0f0a" stroke-width="3"/>
+
+    <ellipse cx="720" cy="520" rx="520" ry="260" fill="url(#w-glow)" opacity=".35"/>
+
+    <g class="crack" filter="url(#w-bloom)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M90 690l42-10 26 18 46-6 20 22 54-4 18 20" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M204 702l10 26 -14 22" stroke="#ff9a45" stroke-width="1.4"/>
+      <path d="M1120 610l-36 16-10 26-48 10-22 30" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M660 760l28 14 40-6 26 24 44 2" stroke="#ff8c3a" stroke-width="1.8"/>
+      <path d="M560 262l30 12 12 24 40 6" stroke="#ff8a3a" stroke-width="1.6"/>
+    </g>
+    <g class="crack crack-b" filter="url(#w-bloom)" fill="none" stroke-linecap="round">
+      <path d="M362 470l22 18 38 2 14 26" stroke="#ff7a2a" stroke-width="1.6"/>
+      <path d="M1000 420l24 20 -6 30 30 16" stroke="#ff9a45" stroke-width="1.6"/>
+      <path d="M40 330l40 16 30-6 26 20" stroke="#ff7a2a" stroke-width="1.5"/>
+    </g>
+
+    <use href="#boulder" transform="translate(120 330) scale(1.6)"/>
+    <use href="#boulder" transform="translate(178 352) scale(.9)"/>
+    <use href="#boulder" transform="translate(430 330) scale(1.1)"/>
+    <use href="#shard" transform="translate(452 350) scale(1.4)"/>
+    <use href="#boulder" transform="translate(1300 330) scale(1.4)"/>
+    <use href="#shard" transform="translate(1256 348) scale(1.6)"/>
+    <use href="#boulder" transform="translate(1030 330) scale(.8)"/>
+    <use href="#boulder" transform="translate(330 610) scale(1.2)"/>
+    <use href="#shard" transform="translate(360 626) scale(1.2)"/>
+    <use href="#boulder" transform="translate(1100 680) scale(1.5)"/>
+    <use href="#shard" transform="translate(1060 700) scale(1.3)"/>
+    <use href="#boulder" transform="translate(560 800) scale(1.3)"/>
+    <use href="#boulder" transform="translate(860 700) scale(.9)"/>
+    <use href="#shard" transform="translate(820 250) scale(1.5)"/>
+    <use href="#boulder" transform="translate(640 250) scale(1.2)"/>
+
+    <g fill="#ffb65a">
+      <circle class="spark" cx="300" cy="400" r="1.6" style="animation-delay:-1s"/>
+      <circle class="spark" cx="330" cy="396" r="1.2" style="animation-delay:-4s"/>
+      <circle class="spark" cx="270" cy="404" r="1.4" style="animation-delay:-2.6s"/>
+      <circle class="spark" cx="1180" cy="850" r="2" style="animation-delay:-.5s"/>
+      <circle class="spark" cx="1230" cy="846" r="1.5" style="animation-delay:-3.2s"/>
+      <circle class="spark" cx="1150" cy="858" r="1.4" style="animation-delay:-5.4s"/>
+      <circle class="spark" cx="1260" cy="862" r="1.8" style="animation-delay:-2s"/>
+      <circle class="spark" cx="210" cy="720" r="1.3" style="animation-delay:-6s"/>
+      <circle class="spark" cx="1050" cy="660" r="1.3" style="animation-delay:-1.8s"/>
+      <circle class="spark" cx="720" cy="780" r="1.2" style="animation-delay:-4.6s"/>
+    </g>
+
+    <g class="fog">
+      <ellipse cx="420" cy="620" rx="520" ry="110" fill="url(#w-fog)"/>
+      <ellipse cx="1100" cy="300" rx="480" ry="90" fill="url(#w-fog)"/>
+    </g>
+    <g class="fog fog-b">
+      <ellipse cx="820" cy="840" rx="620" ry="120" fill="url(#w-fog)"/>
+      <ellipse cx="200" cy="250" rx="400" ry="80" fill="url(#w-fog)"/>
+    </g>
+
+    <rect width="1440" height="900" filter="url(#w-grain)" opacity=".16"/>
+    <rect width="1440" height="900" fill="url(#w-vignette)"/>
+  </svg>
+
+  <div class="scrim" aria-hidden="true"></div>
+
+  <section class="editor win" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+
+    <header class="editor-head">
+      <h1 class="win-title" id="editor-title">Strategy <small>Bjorn, Sigrun and Kaio on Ember Quarry</small></h1>
+      <div class="head-tools">
+        <p class="hunt-state"><i><svg aria-hidden="true"><use href="#i-swords"/></svg></i>Hunt still running</p>
+        <button class="close" type="button" aria-label="Close strategy editor"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+    </header>
+
+    <div class="preset-bar">
+      <div class="tabs" role="tablist" aria-label="Saved strategy presets">
+        <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="preset-panel" id="tab-sustain"><span class="tab-order num">1</span>Sustain<span class="unsaved" role="img" aria-label="Unsaved changes"></span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" tabindex="-1"><span class="tab-order num">2</span>Burst</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" tabindex="-1"><span class="tab-order num">3</span>Safe farm</button>
+        <button class="tab tab--locked" type="button" role="tab" aria-selected="false" aria-disabled="true" tabindex="-1"><svg aria-hidden="true"><use href="#i-lock"/></svg>Fourth slot<span class="premium-tag">Premium</span></button>
+      </div>
+      <div class="preset-actions">
+        <p class="dirty-note"><span class="unsaved" aria-hidden="true"></span><span class="num">5</span> unsaved changes</p>
+        <button class="btn" type="button"><svg aria-hidden="true"><use href="#i-revert"/></svg>Revert</button>
+        <button class="btn" type="button"><svg aria-hidden="true"><use href="#i-copy"/></svg>Duplicate</button>
+        <button class="btn btn--save" type="button"><svg aria-hidden="true"><use href="#i-seal"/></svg>Save Sustain</button>
+      </div>
+    </div>
+
+    <div class="editor-body" id="preset-panel" role="tabpanel" aria-labelledby="tab-sustain">
+
+      <div class="col">
+
+        <section class="pane" aria-labelledby="formation-title">
+          <h2 class="win-title" id="formation-title">Formation <span class="pane-title-note">party rows 4 and 5</span></h2>
+          <div class="pane-body">
+            <div class="board-wrap">
+              <svg class="formation" viewBox="60 138 530 294" role="img" aria-labelledby="fb-title">
+                <title id="fb-title">Formation board. Bjorn at row 4 column 3, Sigrun at row 5 column 2. Kaio is being dragged from row 5 column 4 onto row 5 column 3, a valid cell. Row 3 column 3 is marked as not placeable.</title>
+                <defs>
+                  <linearGradient id="f-tile" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#4a392c"/>
+                    <stop offset="1" stop-color="#2e231b"/>
+                  </linearGradient>
+                  <linearGradient id="f-ally-half" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#8fb8dc" stop-opacity=".03"/>
+                    <stop offset="1" stop-color="#8fb8dc" stop-opacity=".14"/>
+                  </linearGradient>
+                  <pattern id="f-hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-27)">
+                    <path d="M0 5h10" stroke="#0d0906" stroke-width="3.2" stroke-opacity=".55"/>
+                  </pattern>
+                  <linearGradient id="f-ally" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#6d8fae"/>
+                    <stop offset=".55" stop-color="#34495e"/>
+                    <stop offset="1" stop-color="#1a2430"/>
+                  </linearGradient>
+                  <linearGradient id="f-fade-y" gradientUnits="userSpaceOnUse" x1="0" y1="138" x2="0" y2="200">
+                    <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+                    <stop offset="1" stop-color="#fff" stop-opacity="1"/>
+                  </linearGradient>
+                  <mask id="f-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="760" height="460">
+                    <rect x="0" y="0" width="760" height="460" fill="url(#f-fade-y)"/>
+                  </mask>
+                  <filter id="f-glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="4" result="b"/>
+                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                  <path id="f-plate-ally" d="M-17-20H17V0c0 12-8 18.5-17 22.5C-9 18.5-17 12-17 0Z"/>
+                  <path id="f-cell" d="M0-31 62 0 0 31-62 0Z"/>
+                </defs>
+
+                <g mask="url(#f-mask)">
+                  <path d="M70 250 380 405V430L70 275Z" fill="#1d140e"/>
+                  <path d="M380 405 690 250V275L380 430Z" fill="#3a261a"/>
+                  <path d="M380 95 690 250 380 405 70 250Z" fill="url(#f-tile)"/>
+                  <path d="M194 188 504 343 380 405 70 250Z" fill="url(#f-ally-half)"/>
+
+                  <path d="M380 95 690 250 566 312 256 157Z" fill="#0c0908" fill-opacity=".72"/>
+
+                  <path d="M256 157 566 312 504 343 194 188Z" fill="#140e0a" fill-opacity=".7"/>
+                  <path d="M256 157 566 312 504 343 194 188Z" fill="url(#f-hatch)"/>
+                  <path d="M256 157 566 312M194 188 504 343" stroke="#c9a46a" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="6 5"/>
+
+                  <g stroke="#0c0806" stroke-opacity=".75" stroke-width="2">
+                    <path d="M442 126 132 281M504 157 194 312M566 188 256 343M628 219 318 374"/>
+                    <path d="M318 126 628 281M256 157 566 312M194 188 504 343M132 219 442 374"/>
+                  </g>
+                  <g stroke="#e8c79a" stroke-opacity=".1" stroke-width="1">
+                    <path d="M442 127 132 282M504 158 194 313M566 189 256 344M628 220 318 375"/>
+                    <path d="M318 127 628 282M256 158 566 313M194 189 504 344M132 220 442 375"/>
+                  </g>
+                  <path d="M380 95 690 250 380 405 70 250Z" fill="none" stroke="#b8905a" stroke-width="2"/>
+                  <path d="M380 101 678 250 380 399 82 250Z" fill="none" stroke="#b8905a" stroke-opacity=".25" stroke-width="1"/>
+                  <text class="side-label" x="470" y="178" text-anchor="middle">Enemy side</text>
+                </g>
+
+                <g fill="rgba(156, 192, 220, .12)" stroke="#9cc0dc" stroke-opacity=".6" stroke-width="1.5" stroke-dasharray="5 4">
+                  <use href="#f-cell" transform="translate(194 219) scale(.86)"/>
+                  <use href="#f-cell" transform="translate(256 250) scale(.86)"/>
+                  <use href="#f-cell" transform="translate(380 312) scale(.86)"/>
+                  <use href="#f-cell" transform="translate(442 343) scale(.86)"/>
+                  <use href="#f-cell" transform="translate(132 250) scale(.86)"/>
+                  <use href="#f-cell" transform="translate(380 374) scale(.86)"/>
+                </g>
+
+                <g class="drop-ok">
+                  <use href="#f-cell" transform="translate(256 312) scale(.9)" fill="rgba(156, 192, 220, .42)" stroke="#cfe6f7" stroke-width="2.4" filter="url(#f-glow)"/>
+                  <use href="#f-cell" transform="translate(256 312) scale(.62)" fill="none" stroke="#e6f4ff" stroke-opacity=".6" stroke-width="1.2"/>
+                </g>
+
+                <g aria-label="Not placeable: row 3, column 3, neutral lane">
+                  <use href="#f-cell" transform="translate(380 250) scale(.88)" fill="rgba(216, 72, 58, .28)" stroke="#ff6b57" stroke-width="2"/>
+                  <path d="M362 241 398 259M398 241 362 259" stroke="#ff8a78" stroke-width="3.2" stroke-linecap="round"/>
+                  <path d="M428 236 446 226H458" fill="none" stroke="#ff8a78" stroke-width="1.6"/>
+                  <text class="bad-label" x="462" y="232">Not placeable</text>
+                </g>
+
+                <g fill="#d9b47a">
+                  <path d="M225 166l7 6-7 6-7-6Z"/>
+                  <path d="M535 322l7 6-7 6-7-6Z"/>
+                </g>
+                <text class="lane-label" x="466" y="302">Neutral lane</text>
+                <text class="lane-label" x="512" y="366">Front row</text>
+                <text class="lane-label" x="452" y="398">Back row</text>
+
+                <g aria-label="Kaio's original cell, row 5 column 4">
+                  <use href="#f-cell" transform="translate(318 343) scale(.86)" fill="rgba(0,0,0,.25)" stroke="#dcb67c" stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="3 4"/>
+                  <g transform="translate(318 343) scale(1.12)">
+                    <use href="#f-plate-ally" transform="translate(0 -23)" fill="none" stroke="#dcb67c" stroke-opacity=".45" stroke-width="1.3" stroke-dasharray="3 3"/>
+                  </g>
+                </g>
+                <path class="drag-trail" d="M318 318C308 290 290 272 270 272" fill="none" stroke="#cfe6f7" stroke-opacity=".75" stroke-width="2" stroke-dasharray="6 5"/>
+
+                <g aria-label="Bjorn, row 4 column 3">
+                  <g transform="translate(318 281) scale(1.12)">
+                    <ellipse rx="22" ry="9" fill="#000" fill-opacity=".55"/>
+                    <ellipse rx="20" ry="8" fill="none" stroke="#9cc0dc" stroke-opacity=".8" stroke-width="1.5"/>
+                    <use href="#f-plate-ally" transform="translate(0 -23)" fill="url(#f-ally)" stroke="#dcb67c" stroke-width="1.6"/>
+                    <use href="#g-guardian" x="-11" y="-35" width="22" height="22" color="#eaf2f8"/>
+                  </g>
+                  <text class="tok-name" x="344" y="296">Bjorn</text>
+                </g>
+
+                <g aria-label="Sigrun, row 5 column 2, selected">
+                  <g transform="translate(194 281) scale(1.12)">
+                    <ellipse rx="24" ry="10" fill="#000" fill-opacity=".55"/>
+                    <ellipse rx="23" ry="10" fill="none" stroke="#dcb67c" stroke-width="2"/>
+                    <use href="#f-plate-ally" transform="translate(0 -23)" fill="url(#f-ally)" stroke="#f1d49c" stroke-width="2"/>
+                    <use href="#g-cleric" x="-10" y="-34" width="20" height="20" color="#fff4d6"/>
+                  </g>
+                  <text class="tok-name" x="166" y="258" text-anchor="end" style="fill:#f1d49c">Sigrun</text>
+                </g>
+
+                <g aria-label="Kaio, being dragged over row 5 column 3">
+                  <ellipse cx="256" cy="312" rx="24" ry="10" fill="#000" fill-opacity=".5"/>
+                  <g class="drag-lift">
+                    <g transform="translate(256 288) scale(1.2)">
+                      <use href="#f-plate-ally" transform="translate(0 -23)" fill="url(#f-ally)" stroke="#cfe6f7" stroke-width="2" filter="url(#f-glow)"/>
+                      <use href="#g-ranger" x="-10" y="-34" width="20" height="20" color="#e6fff0"/>
+                    </g>
+                    <text class="drop-label" x="256" y="224" text-anchor="middle">Kaio</text>
+                  </g>
+                </g>
+              </svg>
+            </div>
+
+            <ul class="legend" aria-label="Board legend">
+              <li><i class="lg-drop" aria-hidden="true"></i>Drop here</li>
+              <li><i class="lg-open" aria-hidden="true"></i>Open cell</li>
+              <li><i class="lg-bad" aria-hidden="true"></i>Not placeable</li>
+              <li><i class="lg-foe" aria-hidden="true"></i>Enemy rows</li>
+            </ul>
+
+            <p class="drag-status" role="status"><svg aria-hidden="true"><use href="#i-move"/></svg><span>Moving <b>Kaio</b> to row 5, column 3, directly behind Bjorn. Melee foes must path around him.</span></p>
+
+            <div class="formation-foot">
+              <p class="hint">Saved with this preset. The party returns here after every fight.</p>
+              <button class="btn btn--small" type="button"><svg aria-hidden="true"><use href="#i-reset"/></svg>Class default</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="pane projection" aria-labelledby="proj-title">
+          <h2 class="win-title" id="proj-title">Projected effect <span class="pane-title-note">estimate</span></h2>
+          <div class="pane-body">
+            <table>
+              <caption class="sr-only">Estimated hunt results, saved Sustain against the edited version</caption>
+              <thead>
+                <tr><th scope="col"><span class="sr-only">Metric</span></th><th scope="col">Saved</th><th scope="col"><span class="sr-only">becomes</span></th><th scope="col">Edited</th><th scope="col"><span class="sr-only">Change</span></th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Time until death</th>
+                  <td class="proj-now">~3h 20m</td>
+                  <td class="proj-arrow"><svg aria-hidden="true"><use href="#i-fwd"/></svg></td>
+                  <td class="proj-next"><span>~4h 05m</span></td>
+                  <td><span class="delta delta--gain">+45m</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">Kills / hour</th>
+                  <td class="proj-now">1,142</td>
+                  <td class="proj-arrow"><svg aria-hidden="true"><use href="#i-fwd"/></svg></td>
+                  <td class="proj-next"><span>~1,030</span></td>
+                  <td><span class="delta delta--cost">−10%</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">EXP / hour</th>
+                  <td class="proj-now">84,300</td>
+                  <td class="proj-arrow"><svg aria-hidden="true"><use href="#i-fwd"/></svg></td>
+                  <td class="proj-next"><span>~76,000</span></td>
+                  <td><span class="delta delta--cost">−10%</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">HP potions / hour</th>
+                  <td class="proj-now">31</td>
+                  <td class="proj-arrow"><svg aria-hidden="true"><use href="#i-fwd"/></svg></td>
+                  <td class="proj-next"><span>~22</span></td>
+                  <td><span class="delta delta--gain">−9</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="tradeoff" aria-label="Preset leans toward safety">
+              <div class="tradeoff-scale" aria-hidden="true"><span class="mark mark--was"></span><span class="mark mark--now"></span></div>
+              <p class="tradeoff-ends"><span><b>Safer</b></span><span class="hint">Grey mark is the saved preset</span><span><b>Faster</b></span></p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <div class="col">
+        <section class="pane" aria-labelledby="char-title">
+          <h2 class="sr-only" id="char-title">Character rules</h2>
+          <div class="char-tabs" role="tablist" aria-label="Character">
+            <button class="char-tab" type="button" role="tab" aria-selected="false" tabindex="-1">
+              <span class="medal" aria-hidden="true"><svg><use href="#g-guardian"/></svg></span>
+              <span class="char-tab-name">Bjorn</span>
+              <span class="char-tab-class">Guardian <span class="num">24</span></span>
+            </button>
+            <button class="char-tab" type="button" role="tab" aria-selected="true" aria-controls="sigrun-rules">
+              <span class="medal medal--cleric" aria-hidden="true"><svg><use href="#g-cleric"/></svg></span>
+              <span class="char-tab-name">Sigrun <span class="unsaved" role="img" aria-label="has unsaved changes"></span></span>
+              <span class="char-tab-class">Cleric <span class="num">23</span></span>
+            </button>
+            <button class="char-tab" type="button" role="tab" aria-selected="false" tabindex="-1">
+              <span class="medal medal--ranger" aria-hidden="true"><svg><use href="#g-ranger"/></svg></span>
+              <span class="char-tab-name">Kaio <span class="unsaved" role="img" aria-label="has unsaved changes"></span></span>
+              <span class="char-tab-class">Ranger <span class="num">25</span></span>
+            </button>
+          </div>
+
+          <div class="pane-body" id="sigrun-rules" role="tabpanel">
+            <div class="section">
+              <h3 class="subhead">Skill priority <span class="aside">top to bottom, first skill whose rule holds is cast</span></h3>
+              <ol class="prio-list">
+
+                <li class="prio prio--changed">
+                  <button class="grip" type="button" aria-label="Reorder Group Heal, position 1 of 4"><svg aria-hidden="true"><use href="#i-grip"/></svg></button>
+                  <span class="skill"><span class="slot slot--ready school-cleric"><kbd>1</kbd><svg aria-hidden="true"><use href="#s-groupheal"/></svg></span></span>
+                  <div class="prio-body">
+                    <p class="prio-head"><span class="prio-name">Group Heal</span><span class="prio-meta"><span class="mp">120 MP</span>, all allies in range 4</span><input class="toggle" type="checkbox" checked aria-label="Group Heal enabled"></p>
+                    <div class="rule rule--changed">
+                      <div class="chips chips--inline" role="radiogroup" aria-label="Number of allies">
+                        <span class="rule-label">When</span>
+                        <label class="chip"><input type="radio" name="gh-count"><span class="num">1+</span></label>
+                        <label class="chip"><input type="radio" name="gh-count" checked><span class="num">2+</span></label>
+                        <label class="chip"><input type="radio" name="gh-count"><span class="num">3</span></label>
+                        <label class="rule-label" for="gh-hp">allies are below</label>
+                      </div>
+                      <span class="rule-val"><span class="was">was 60%</span><output class="val" for="gh-hp">70%</output></span>
+                      <div class="range range--hp"><span class="ticks"></span><input type="range" id="gh-hp" min="0" max="100" step="5" value="70" style="--p:.7"><span class="was-tick" style="--wp:.6"></span></div>
+                    </div>
+                  </div>
+                </li>
+
+                <li class="prio prio--changed">
+                  <button class="grip" type="button" aria-label="Reorder Heal, position 2 of 4"><svg aria-hidden="true"><use href="#i-grip"/></svg></button>
+                  <span class="skill"><span class="slot slot--ready school-cleric"><kbd>2</kbd><svg aria-hidden="true"><use href="#s-heal"/></svg></span></span>
+                  <div class="prio-body">
+                    <p class="prio-head"><span class="prio-name">Heal</span><span class="prio-meta"><span class="mp">40 MP</span>, lowest-HP ally in range 4</span><input class="toggle" type="checkbox" checked aria-label="Heal enabled"></p>
+                    <div class="rule rule--changed">
+                      <label class="rule-label" for="heal-hp">Heal when an ally's HP is below</label>
+                      <span class="rule-val"><span class="was">was 45%</span><output class="val" for="heal-hp">55%</output></span>
+                      <div class="range range--hp"><span class="ticks"></span><input type="range" id="heal-hp" min="0" max="100" step="5" value="55" style="--p:.55"><span class="was-tick" style="--wp:.45"></span></div>
+                    </div>
+                  </div>
+                </li>
+
+                <li class="prio">
+                  <button class="grip" type="button" aria-label="Reorder Blessing, position 3 of 4"><svg aria-hidden="true"><use href="#i-grip"/></svg></button>
+                  <span class="skill"><span class="slot slot--ready school-cleric"><kbd>3</kbd><svg aria-hidden="true"><use href="#s-blessing"/></svg></span></span>
+                  <div class="prio-body">
+                    <p class="prio-head"><span class="prio-name">Blessing</span><span class="prio-meta"><span class="mp">60 MP</span>, party buff, 120s</span><input class="toggle" type="checkbox" checked aria-label="Blessing enabled"></p>
+                    <div class="rule">
+                      <label class="rule-label" for="bless-time">Recast when time left is below</label>
+                      <span class="rule-val"><output class="val" for="bless-time">10s</output></span>
+                      <div class="range"><span class="ticks"></span><input type="range" id="bless-time" min="0" max="60" step="5" value="10" style="--p:.1667"></div>
+                    </div>
+                  </div>
+                </li>
+
+                <li class="prio prio--changed">
+                  <button class="grip" type="button" aria-label="Reorder Smite, position 4 of 4"><svg aria-hidden="true"><use href="#i-grip"/></svg></button>
+                  <span class="skill"><span class="slot slot--ready school-cleric"><kbd>4</kbd><svg aria-hidden="true"><use href="#s-smite"/></svg></span></span>
+                  <div class="prio-body">
+                    <p class="prio-head"><span class="prio-name">Smite</span><span class="prio-meta"><span class="mp">35 MP</span>, party focus target, range 4</span><input class="toggle" type="checkbox" checked aria-label="Smite enabled"></p>
+                    <div class="rule rule--changed">
+                      <label class="rule-label" for="smite-mp">Use Smite only while MP is above</label>
+                      <span class="rule-val"><span class="was">was 40%</span><output class="val" for="smite-mp">60%</output></span>
+                      <div class="range range--mp"><span class="ticks"></span><input type="range" id="smite-mp" min="0" max="100" step="5" value="60" style="--p:.6"><span class="was-tick" style="--wp:.4"></span></div>
+                    </div>
+                  </div>
+                </li>
+
+                <li class="prio prio--fallback">
+                  <span class="grip grip--fixed" aria-hidden="true"><svg><use href="#i-lock"/></svg></span>
+                  <span class="skill"><span class="slot slot--passive" title="Always last"><svg aria-hidden="true"><use href="#i-fist"/></svg></span></span>
+                  <div class="prio-body">
+                    <p class="prio-head"><span class="prio-name">Basic attack</span><span class="prio-meta">fallback when nothing above can be cast</span><span class="hint">Always on</span></p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div class="section">
+              <h3 class="subhead">Mana</h3>
+              <div class="rule rule--changed">
+                <label class="rule-label" for="mp-reserve">Keep an MP reserve of <b class="num">82</b> of <span class="num">410</span> for Heal</label>
+                <span class="rule-val"><span class="was">was 10%</span><output class="val" for="mp-reserve">20%</output></span>
+                <div class="range range--mp"><span class="ticks"></span><input type="range" id="mp-reserve" min="0" max="50" step="5" value="20" style="--p:.4"><span class="was-tick" style="--wp:.2"></span></div>
+              </div>
+              <p class="hint" style="margin-top:5px">Group Heal, Blessing and Smite will not spend into the reserve. Current MP is <b class="num">96</b>.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col">
+        <section class="pane" aria-labelledby="party-title">
+          <h2 class="win-title" id="party-title">Party rules</h2>
+          <div class="pane-body">
+
+            <div class="section">
+              <fieldset class="chips chips--grid">
+                <legend class="subhead">Focus target</legend>
+                <label class="chip"><input type="radio" name="focus" checked><span>Lowest HP</span></label>
+                <label class="chip"><input type="radio" name="focus"><span>Highest threat</span></label>
+                <label class="chip"><input type="radio" name="focus"><span>Nearest</span></label>
+                <label class="chip"><input type="radio" name="focus"><span><svg aria-hidden="true"><use href="#i-flame"/></svg>Element-weak</span></label>
+              </fieldset>
+              <p class="hint" style="margin-top:6px">Bjorn's Taunt ignores this and pulls whatever is hitting Sigrun or Kaio.</p>
+            </div>
+
+            <div class="section">
+              <h3 class="subhead">Potions <span class="aside">10s cooldown each</span></h3>
+              <div class="item-rule">
+                <span class="potion" aria-hidden="true"><svg><use href="#it-potion"/></svg></span>
+                <div class="rule">
+                  <label class="rule-label" for="pot-hp">Small HP Potion below<span class="stock num">64 in bag</span></label>
+                  <span class="rule-val"><output class="val" for="pot-hp">35%</output></span>
+                  <div class="range range--hp"><span class="ticks"></span><input type="range" id="pot-hp" min="0" max="100" step="5" value="35" style="--p:.35"></div>
+                </div>
+              </div>
+              <div class="item-rule">
+                <span class="potion potion--mp" aria-hidden="true"><svg><use href="#it-potion"/></svg></span>
+                <div class="rule">
+                  <label class="rule-label" for="pot-mp">Small MP Potion below<span class="stock num">18 in bag</span></label>
+                  <span class="rule-val"><output class="val" for="pot-mp">25%</output></span>
+                  <div class="range range--mp"><span class="ticks"></span><input type="range" id="pot-mp" min="0" max="100" step="5" value="25" style="--p:.25"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="subhead">Rest between fights</h3>
+              <div class="rule">
+                <label class="rule-label" for="rest-hp">Rest when anyone's HP is below</label>
+                <span class="rule-val"><output class="val" for="rest-hp">50%</output></span>
+                <div class="range range--hp"><span class="ticks"></span><input type="range" id="rest-hp" min="0" max="100" step="5" value="50" style="--p:.5"></div>
+              </div>
+              <div class="rule">
+                <label class="rule-label" for="rest-mp">Rest when anyone's MP is below</label>
+                <span class="rule-val"><output class="val" for="rest-mp">30%</output></span>
+                <div class="range range--mp"><span class="ticks"></span><input type="range" id="rest-mp" min="0" max="100" step="5" value="30" style="--p:.3"></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="subhead">Retreat</h3>
+              <div class="rule">
+                <label class="rule-label" for="town-pots">Return to town with fewer HP potions than</label>
+                <span class="rule-val"><output class="val" for="town-pots">10</output></span>
+                <div class="range range--foe"><span class="ticks"></span><input type="range" id="town-pots" min="0" max="40" step="1" value="10" style="--p:.25"></div>
+              </div>
+              <div class="inline-rule" style="margin-top:9px">
+                <div class="attempts">
+                  <fieldset class="attempt-pips">
+                    <legend class="sr-only">Death attempts</legend>
+                    <label><input type="radio" name="deaths" aria-label="1"><span class="pip num">1</span></label>
+                    <label><input type="radio" name="deaths" aria-label="2"><span class="pip num">2</span></label>
+                    <label><input type="radio" name="deaths" aria-label="3"><span class="pip num">3</span></label>
+                    <label><input type="radio" name="deaths" aria-label="4"><span class="pip num">4</span></label>
+                    <label><input type="radio" name="deaths" aria-label="5" checked><span class="pip num">5</span></label>
+                  </fieldset>
+                  <span class="rule-label">Stop the hunt after <b class="num">5</b> deaths</span>
+                </div>
+              </div>
+              <p class="hint" style="margin-top:4px">Five is the cap. This hunt has used <b class="num">2</b>.</p>
+              <div class="chips chips--inline" role="radiogroup" aria-labelledby="bag-label" style="margin-top:9px">
+                <span class="rule-label" id="bag-label">Bag full</span>
+                <label class="chip"><input type="radio" name="bag"><span>Go to town</span></label>
+                <label class="chip"><input type="radio" name="bag" checked><span>Stop looting</span></label>
+              </div>
+            </div>
+
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </section>
+</div>
+
+</body>
+</html>
