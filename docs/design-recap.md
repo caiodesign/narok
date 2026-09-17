@@ -1,5 +1,7 @@
 # narok-idle — Layer 1 Design Recap (for review)
 
+> **Historical document — superseded.** Use [current Layer 1 design](../layer-1-design.md), [Realm UI spec](../2026-09-16-realm-ui-spec.md) and [handoff](opus-handoff.md). This earlier recap contains obsolete beta EXP penalties and premium rules; it is not implementation authority.
+
 > **Status:** DRAFT for external review. Not an approved spec.
 > **Date:** 2026-09-14
 > **Codename:** narok-idle (working name only; final public name must not resemble "Ragnarok")

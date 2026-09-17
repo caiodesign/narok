@@ -1,5 +1,7 @@
 # Prompt: narok-idle — Hunt screen, static style study
 
+> **Archived exploration prompt.** The owner selected Realm Refined on 2026-09-16. Use [Realm UI specification](../../2026-09-16-realm-ui-spec.md) and [developer handoff](../opus-handoff.md); do not execute this old three-direction brief as the current design task.
+
 > Paste everything below the line into the building agent. It is self-contained; the agent
 > does not need the rest of this repo.
 

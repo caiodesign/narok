@@ -1,0 +1,1333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bag and loot filter — Realm HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+
+:root {
+  --iron-0: #0b0d10;
+  --iron-1: #171a1f;
+  --iron-2: #242930;
+  --iron-3: #343a43;
+  --steel: #9cc0dc;
+  --steel-dim: #5d7a93;
+  --bronze-dark: #4a3722;
+  --bronze: #8d6b41;
+  --bronze-lit: #dcb67c;
+  --ember: #ff8a3d;
+  --ember-hot: #ffc46b;
+  --ember-deep: #b5401a;
+  --vellum: #eee5d2;
+  --vellum-dim: #b9ae98;
+
+  --hp-ally: #62c26f;
+  --hp-foe: #d8483a;
+  --mp: #4f92e6;
+  --xp: #d2a849;
+  --warn: #ff6b57;
+
+  --r-common: #c2bbad;
+  --r-uncommon: #6fcca9;
+  --r-rare: #6db2f5;
+  --r-epic: #c793f5;
+  --r-legendary: #ffb53f;
+  --gold: #f0c35a;
+
+  --school-guard: #3f5d78;
+  --school-cleric: #8a7433;
+  --school-ranger: #3d6b4c;
+
+  --display: 'Alegreya SC', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --text: 'Alegreya Sans', 'Segoe UI', 'Gill Sans', 'Trebuchet MS', sans-serif;
+
+  --gutter: 16px;
+  --rail-w: clamp(252px, 20vw, 288px);
+  --chat-w: clamp(290px, 22vw, 340px);
+  --party-w: 276px;
+
+  --corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/svg%3E");
+  --corner-tr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 1 26 0)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-bl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(1 0 0 -1 0 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-br: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 -1 26 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --rune-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M7 1v12M7 4l4-3M7 8L3 11M3 4h1.5M9.5 10H11' fill='none' stroke='%23b8905a' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; overflow: hidden; }
+
+body {
+  background: var(--iron-0);
+  color: var(--vellum);
+  font-family: var(--text);
+  font-size: 14px;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  min-width: 1100px;
+}
+
+h1, h2, h3, p, ul, ol, li, dl, dd, dt { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.realm { position: fixed; inset: 0; overflow: hidden; }
+
+.world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.world .fog { animation: fog-drift 38s ease-in-out infinite alternate; }
+.world .fog-b { animation-duration: 52s; animation-direction: alternate-reverse; }
+.world .crack { animation: ember-flicker 3.4s ease-in-out infinite; }
+.world .crack-b { animation-delay: -1.7s; }
+.world .slag-glow { animation: ember-flicker 5s ease-in-out infinite; }
+.world .spark { animation: spark-rise 7s linear infinite; }
+
+@keyframes fog-drift { from { transform: translateX(-40px); } to { transform: translateX(60px); } }
+@keyframes ember-flicker { 0%, 100% { opacity: 1; } 45% { opacity: .62; } 60% { opacity: .9; } }
+@keyframes spark-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translate(24px, -170px); opacity: 0; }
+}
+
+.win {
+  position: absolute;
+  background:
+    linear-gradient(180deg, rgba(52, 58, 67, .9) 0, rgba(28, 32, 38, .93) 34px, rgba(18, 21, 25, .95) 100%);
+  border: 1px solid #5c4529;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 196, .12),
+    inset 0 0 0 1px rgba(0, 0, 0, .7),
+    inset 0 0 22px rgba(0, 0, 0, .55),
+    0 10px 26px rgba(0, 0, 0, .6),
+    0 0 0 1px rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.win::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background:
+    var(--corner-tl) top left / 26px 26px no-repeat,
+    var(--corner-tr) top right / 26px 26px no-repeat,
+    var(--corner-bl) bottom left / 26px 26px no-repeat,
+    var(--corner-br) bottom right / 26px 26px no-repeat;
+}
+
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 6px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .03em;
+  color: var(--bronze-lit);
+  text-shadow: 0 1px 0 #000;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--bronze) 18%, var(--bronze) 82%, transparent) 1;
+}
+.win-title::before, .win-title::after {
+  content: "";
+  width: 14px; height: 14px;
+  background: var(--rune-mark) center / contain no-repeat;
+  flex: none;
+}
+.win-title::after { transform: scaleX(-1); margin-left: auto; }
+
+.ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #3a2e20; }
+.ledger-item { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 0; }
+.ledger-item svg { width: 16px; height: 16px; flex: none; }
+.ledger-item small { display: block; font-size: 11.5px; font-weight: 400; color: var(--vellum-dim); line-height: 1.1; }
+.ledger-gold { color: var(--gold); }
+.ledger-bag { color: var(--vellum); }
+.ledger-premium { color: #d7c9ff; }
+.pips { display: flex; gap: 3px; }
+.pip { width: 10px; height: 12px; clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); background: #d8483a; box-shadow: inset 0 0 0 1px #000; }
+.pip.spent { background: #3b3f46; }
+
+/* ---------- Loot window ---------- */
+
+.loot { flex: 0 1 auto; min-height: 0; }
+.loot-list { padding: 6px 8px 8px; display: grid; gap: 3px; }
+.drop {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 2px 9px;
+  padding: 4px 6px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 14%, transparent), transparent 70%);
+}
+.drop-icon {
+  grid-row: span 2;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 35%, #111), #0c0e11 85%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--rc);
+  color: var(--rc);
+}
+.drop-icon svg { width: 18px; height: 18px; }
+.drop-name { font-weight: 700; font-size: 14px; color: var(--rc); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drop-note { grid-column: 2 / span 2; font-size: 12px; color: var(--vellum-dim); line-height: 1.15; }
+.drop-age { font-size: 11.5px; color: #a3988a; font-variant-numeric: tabular-nums; }
+.drop--common { --rc: var(--r-common); }
+.drop--uncommon { --rc: var(--r-uncommon); }
+.drop--rare { --rc: var(--r-rare); }
+.drop--epic { --rc: var(--r-epic); }
+.drop--legendary { --rc: var(--r-legendary); }
+.drop--plain { --rc: #d9d2c4; background: none; }
+.drop--plain .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px #5b544a; }
+
+.drop--new { box-shadow: inset 2px 0 0 var(--rc); }
+
+.drop--sold { background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .05) 0 6px, transparent 6px 12px); }
+.drop--sold .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px #6a5a3a; background: #14120e; color: var(--gold); }
+.drop--sold .drop-name { color: #a39c90; font-weight: 500; }
+.sold-value { font-weight: 800; font-size: 13.5px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.sold-tag { font-style: italic; color: #cdb98f; }
+
+.drop--legendary {
+  position: relative;
+  margin-top: 4px;
+  padding: 6px 6px;
+  background:
+    linear-gradient(90deg, rgba(255, 150, 40, .28), rgba(120, 40, 10, .18) 60%, rgba(0,0,0,0)),
+    #1a0f07;
+  box-shadow: inset 0 0 0 1px rgba(255, 181, 63, .55), 0 0 14px rgba(255, 140, 40, .22);
+  overflow: hidden;
+}
+.drop--legendary::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 228, 170, .22) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: sheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.drop--legendary .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--r-legendary), 0 0 10px rgba(255, 170, 60, .7); color: #ffd98a; }
+.drop--legendary .drop-name { white-space: normal; font-family: var(--display); font-size: 14.5px; font-weight: 800; color: #ffc35a; text-shadow: 0 0 8px rgba(255, 140, 40, .55), 0 1px 0 #000; }
+.drop--legendary .drop-note { color: #e7cfa6; }
+@keyframes sheen { 0%, 55% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+.older { font-size: 11.5px; font-style: italic; color: #a3988a; padding: 4px 6px 0; display: flex; align-items: center; gap: 8px; }
+.older::before, .older::after { content: ""; flex: 1; height: 1px; background: #3a2e20; }
+
+/* ---------- Orders ---------- */
+
+.orders { margin-top: auto; padding: 10px 10px 10px; display: grid; gap: 7px; }
+.preset {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 8px;
+  width: 100%;
+  padding: 6px 10px 6px 12px;
+  text-align: left;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+}
+.preset:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.preset-kind { font-size: 12px; color: var(--vellum-dim); }
+.preset-value { grid-column: 1; font-weight: 800; font-size: 15px; color: var(--vellum); display: flex; align-items: center; gap: 7px; }
+.preset-value small { font-size: 11.5px; font-weight: 400; color: #a99c85; }
+.preset-edit { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--bronze-lit); }
+.preset-edit svg { width: 15px; height: 15px; }
+.tiers { display: inline-flex; gap: 2px; }
+.tiers i { width: 7px; height: 10px; border-radius: 1px; background: var(--t); box-shadow: 0 0 0 1px #000; }
+.tiers i.off { background: #3a3d42; }
+
+.stop {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%;
+  margin-top: 3px;
+  padding: 8px 12px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  color: #f4d6cf;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #3a1c19, #1d0d0b);
+  box-shadow: inset 0 1px 0 rgba(255,210,200,.1), 0 0 0 1px #000, 0 0 0 2px #7e3a30;
+}
+.stop:hover { box-shadow: inset 0 1px 0 rgba(255,210,200,.14), 0 0 0 1px #000, 0 0 0 2px #b04f40; }
+.stop-seal { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, #a33a2c, #4c1510); box-shadow: 0 0 0 1px #000, 0 0 0 2px #c9a46a; }
+.stop-seal i { width: 7px; height: 7px; background: #f6e3d8; border-radius: 1px; }
+
+:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 3px; }
+
+.tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid #5c4529; }
+.tab {
+  padding: 4px 12px 3px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  color: #a99c85;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #23272d, #16191d);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px #0a0b0d;
+}
+.tab[aria-selected="true"] { color: var(--bronze-lit); background: linear-gradient(180deg, #3a3f47, #1e2227); box-shadow: inset 0 1px 0 rgba(255,236,200,.14), 0 0 0 1px #5c4529; position: relative; top: 1px; }
+.tab .count { font-family: var(--text); font-size: 11px; font-weight: 800; color: #1a1208; background: var(--bronze-lit); border-radius: 7px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+
+/* ---------- Bag and loot filter screen ---------- */
+
+.dim {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(10, 7, 5, .35), rgba(6, 5, 4, .78) 80%),
+    rgba(8, 6, 5, .28);
+}
+
+.statusbar {
+  top: 10px; left: var(--gutter); right: var(--gutter);
+  height: 46px;
+  display: flex; align-items: center; gap: 18px;
+  padding: 0 16px 0 8px;
+}
+.back {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 5px 12px 5px 6px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+  text-align: left;
+}
+.back:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.back-seal { width: 20px; height: 20px; margin-left: 2px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, #ff9a4a, #9c2f0e); box-shadow: 0 0 0 1px #000, 0 0 0 2px #b85a2c; animation: state-beat 1.4s ease-in-out infinite; }
+.back-seal i { width: 8px; height: 8px; border-radius: 50%; background: #fff3e4; box-shadow: 0 0 6px #fff; }
+.back-text { display: grid; line-height: 1.1; }
+.back-text b { font-family: var(--display); font-size: 15px; color: #ffe7c7; }
+.back-text small { font-size: 11.5px; color: var(--vellum-dim); }
+@keyframes state-beat { 0%, 100% { box-shadow: 0 0 0 1px #000, 0 0 0 2px #b85a2c, 0 0 0 0 rgba(255, 138, 61, .7); } 50% { box-shadow: 0 0 0 1px #000, 0 0 0 2px #b85a2c, 0 0 0 6px rgba(255, 138, 61, 0); } }
+
+.screen-name { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--bronze-lit); text-shadow: 0 1px 0 #000; display: flex; align-items: center; gap: 8px; }
+.screen-name::before { content: ""; width: 14px; height: 14px; background: var(--rune-mark) center / contain no-repeat; }
+
+.statusbar .ledger { display: flex; gap: 24px; margin: 0 0 0 auto; padding: 0; border: 0; }
+.statusbar .ledger-item { font-size: 15px; }
+.statusbar .ledger-item svg { width: 18px; height: 18px; }
+.statusbar .ledger-item small { display: inline; margin-left: 5px; font-size: 12px; }
+
+.desk {
+  position: absolute;
+  top: 74px; left: var(--gutter); right: var(--gutter); bottom: var(--gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(430px, 36vw, 520px);
+  gap: 22px;
+}
+.desk > .win { position: relative; min-height: 0; display: flex; flex-direction: column; }
+
+.win-title .title-meta { font-family: var(--text); font-weight: 500; font-size: 12.5px; letter-spacing: 0; color: var(--vellum-dim); }
+.win-title .title-count { font-family: var(--text); font-weight: 800; font-size: 14px; color: var(--vellum); font-variant-numeric: tabular-nums; margin-left: 4px; }
+
+/* bag toolbar */
+.bag-tools { display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px 0; border-bottom: 1px solid #5c4529; }
+.bag-tools .tabs { padding: 0; border-bottom: 0; flex: none; }
+.bag-tools .tab { padding: 5px 11px 5px; }
+.bag-tools .tab .count { background: #6e5a3e; color: #f3e6cf; }
+.bag-tools .tab[aria-selected="true"] .count { background: var(--bronze-lit); color: #1a1208; }
+.bag-tools .tab[aria-selected="true"] { top: 1px; }
+.field {
+  display: flex; align-items: center; gap: 6px;
+  height: 28px;
+  margin: 0 0 6px auto;
+  padding: 0 8px;
+  min-width: 0;
+  flex: 0 1 190px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #07080a, #121418);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.8), 0 0 0 1px #000, 0 0 0 2px #3f3222;
+  color: var(--vellum-dim);
+}
+.field:focus-within { box-shadow: inset 0 1px 3px rgba(0,0,0,.8), 0 0 0 1px #000, 0 0 0 2px var(--ember-hot); }
+.field svg { width: 14px; height: 14px; flex: none; }
+.field input { flex: 1; min-width: 0; font: inherit; font-size: 13.5px; color: var(--vellum); background: none; border: 0; outline: 0; }
+.field input::placeholder { color: #9d917c; }
+.sort {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; margin-bottom: 6px; padding: 0 9px;
+  font-size: 13px; color: var(--vellum-dim);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+  white-space: nowrap;
+}
+.sort b { color: var(--vellum); font-weight: 700; }
+.sort svg { width: 14px; height: 14px; }
+.sort svg:last-child { width: 12px; height: 12px; }
+
+/* bag body */
+.bag-body { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 14px; padding: 10px 12px 0 12px; }
+.slots-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 12px 12px 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #8a6a44 #0a0b0d;
+}
+.slots-scroll::-webkit-scrollbar { width: 8px; }
+.slots-scroll::-webkit-scrollbar-track { background: #0a0b0d; border-radius: 4px; box-shadow: inset 0 0 0 1px #2a241c; }
+.slots-scroll::-webkit-scrollbar-thumb { background: linear-gradient(90deg, #6e5534, #a88457); border-radius: 4px; }
+
+.bag-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
+.cell { position: relative; aspect-ratio: 1; min-width: 0; }
+.cell--empty {
+  border-radius: 3px;
+  background: radial-gradient(circle at 50% 40%, #181b20, #0a0b0d 80%);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.85), inset 0 0 0 1px #000, 0 0 0 1px #2e261c;
+}
+
+.item {
+  position: relative;
+  width: 100%; height: 100%;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 30%, #111), #0c0e11 85%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--rc), inset 0 1px 0 rgba(255,255,255,.08);
+  color: var(--rc);
+  overflow: hidden;
+}
+.item > svg { width: 58%; height: 58%; filter: drop-shadow(0 1px 1px rgba(0,0,0,.8)); }
+.item:hover { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--rc), 0 0 10px color-mix(in srgb, var(--rc) 45%, transparent); }
+.item:focus-visible { outline-offset: 2px; }
+.r-common { --rc: var(--r-common); }
+.r-uncommon { --rc: var(--r-uncommon); }
+.r-rare { --rc: var(--r-rare); }
+.r-epic { --rc: var(--r-epic); }
+.r-legendary { --rc: var(--r-legendary); }
+.r-plain { --rc: #d9d2c4; box-shadow: 0 0 0 1px #000, 0 0 0 2px #5b544a, inset 0 1px 0 rgba(255,255,255,.06); background: radial-gradient(circle at 50% 35%, #2b2926, #0c0e11 85%); }
+.r-common > svg { opacity: .85; }
+
+.r-legendary { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--r-legendary), 0 0 10px rgba(255, 170, 60, .6); color: #ffd98a; background: radial-gradient(circle at 50% 35%, #6a3d10, #150b05 85%); }
+.r-legendary::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 228, 170, .35) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: sheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.item.is-selected {
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--r-legendary), 0 0 0 4px #1a130b, 0 0 0 5px var(--bronze-lit), 0 0 18px rgba(255, 170, 60, .65);
+}
+
+.qty {
+  position: absolute; right: 3px; bottom: 1px;
+  font-size: 12px; font-weight: 800; line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 0 3px #000, 0 1px 1px #000, 0 0 2px #000;
+  font-variant-numeric: tabular-nums;
+}
+.new-mark {
+  position: absolute; left: 0; top: 0;
+  padding: 0 4px 1px 3px;
+  font-size: 10.5px; font-weight: 800; line-height: 13px;
+  color: #2a1204;
+  background: linear-gradient(180deg, var(--ember-hot), var(--ember));
+  border-radius: 0 0 4px 0;
+  box-shadow: 0 0 8px rgba(255, 138, 61, .7);
+}
+.equipped-mark {
+  position: absolute; right: 2px; top: 2px;
+  width: 16px; height: 16px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 10.5px; font-weight: 800; line-height: 1;
+  color: #e6fff0;
+  background: radial-gradient(circle at 50% 38%, #4b8a64, #173022 80%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #9a7747;
+}
+.lock-mark { position: absolute; left: 3px; bottom: 3px; width: 13px; height: 13px; color: var(--bronze-lit); filter: drop-shadow(0 0 2px #000); }
+.lock-mark svg { width: 100%; height: 100%; display: block; }
+
+.expansion { margin-top: 14px; }
+.expansion-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12.5px; color: var(--vellum-dim); }
+.expansion-head::before, .expansion-head::after { content: ""; flex: 1; height: 1px; background: #3a2e20; }
+.expansion-head::before { flex: 0 0 10px; }
+.expansion-head b { color: #cdbd9f; font-weight: 700; }
+.ghost {
+  padding: 2px 9px;
+  font-size: 12.5px; font-weight: 700;
+  color: var(--bronze-lit);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px #4a3722;
+}
+.ghost:hover { box-shadow: 0 0 0 1px #9a7747; background: rgba(220, 182, 124, .06); }
+.cell--locked {
+  display: grid; place-items: center;
+  border-radius: 3px;
+  background: repeating-linear-gradient(135deg, rgba(220, 182, 124, .035) 0 5px, transparent 5px 10px), #0d0e10;
+  box-shadow: inset 0 0 0 1px #000, 0 0 0 1px #2e261c;
+  outline: 1px dashed rgba(141, 107, 65, .35);
+  outline-offset: -4px;
+  color: #6b5a42;
+}
+.cell--locked svg { width: 34%; height: 34%; opacity: .7; }
+
+/* bag footer */
+.bag-foot { display: flex; align-items: center; gap: 16px; padding: 10px 14px 12px; border-top: 1px solid #3a2e20; margin-top: 4px; }
+.capacity { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; flex: 1; min-width: 0; max-width: 360px; }
+.capacity svg { grid-row: span 2; width: 22px; height: 22px; color: #c9a46a; }
+.capacity-line { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--vellum-dim); }
+.capacity-line b { font-size: 17px; font-weight: 800; color: var(--vellum); font-variant-numeric: tabular-nums; }
+.capacity-meter { position: relative; height: 6px; border-radius: 3px; background: #07080a; box-shadow: inset 0 0 0 1px #000, 0 1px 0 rgba(255,255,255,.05); }
+.capacity-meter i { position: absolute; inset: 1px auto 1px 1px; width: calc(47% - 2px); border-radius: 2px; background: linear-gradient(90deg, #8d6b41, var(--bronze-lit)); }
+.capacity-meter::after { content: ""; position: absolute; inset: 1px; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(0,0,0,.85) calc(10% - 1px) 10%); border-radius: 2px; }
+
+.bulk {
+  margin-left: auto;
+  display: grid; grid-template-columns: auto auto; align-items: center; gap: 0 14px;
+  padding: 6px 12px 6px 12px;
+  text-align: left;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #33301f, #1b1a12);
+  box-shadow: inset 0 1px 0 rgba(255,240,200,.1), 0 0 0 1px #000, 0 0 0 2px #6a5a3a;
+}
+.bulk:hover { box-shadow: inset 0 1px 0 rgba(255,240,200,.14), 0 0 0 1px #000, 0 0 0 2px #a8894e; }
+.bulk-label { font-weight: 800; font-size: 14.5px; color: var(--vellum); }
+.bulk-label .tier-swatch { display: inline-block; width: 8px; height: 11px; margin-right: 6px; border-radius: 1px; background: var(--r-common); box-shadow: 0 0 0 1px #000; vertical-align: -1px; }
+.bulk-meta { grid-column: 1; font-size: 12px; color: var(--vellum-dim); }
+.bulk .sold-value { grid-row: 1 / span 2; grid-column: 2; font-size: 16px; }
+
+/* pinned tooltip */
+.itemtip {
+  position: relative;
+  align-self: start;
+  margin-top: 6px;
+  padding: 12px 14px 12px;
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(90, 48, 14, .5), rgba(20, 14, 9, 0) 90px),
+    linear-gradient(180deg, rgba(28, 24, 20, .97), rgba(12, 11, 10, .98));
+  border: 1px solid #8a5a24;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 160, .16),
+    inset 0 0 0 1px rgba(0,0,0,.7),
+    0 0 0 1px rgba(0,0,0,.6),
+    0 0 22px rgba(255, 150, 40, .16),
+    0 14px 30px rgba(0,0,0,.7);
+}
+.itemtip::before {
+  content: "";
+  position: absolute; inset: -6px;
+  pointer-events: none;
+  background:
+    var(--corner-tl) top left / 26px 26px no-repeat,
+    var(--corner-tr) top right / 26px 26px no-repeat,
+    var(--corner-bl) bottom left / 26px 26px no-repeat,
+    var(--corner-br) bottom right / 26px 26px no-repeat;
+}
+.tip-bar { display: flex; align-items: center; gap: 6px; margin: -4px -4px 8px 0; font-size: 11.5px; color: #cdb98f; }
+.tip-bar svg { width: 13px; height: 13px; color: var(--bronze-lit); }
+.tip-close { margin-left: auto; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 2px; color: var(--vellum-dim); }
+.tip-close:hover { color: var(--vellum); background: rgba(255,255,255,.06); }
+.tip-close svg { width: 12px; height: 12px; color: currentColor; }
+
+.tip-head { display: grid; grid-template-columns: 46px 1fr; gap: 0 11px; align-items: center; }
+.tip-icon {
+  position: relative;
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, #7a4712, #150b05 85%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--r-legendary), 0 0 14px rgba(255, 170, 60, .7);
+  color: #ffd98a;
+  overflow: hidden;
+}
+.tip-icon svg { width: 30px; height: 30px; }
+.tip-icon::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 228, 170, .35) 50%, transparent 65%); transform: translateX(-100%); animation: sheen 4.5s ease-in-out infinite; }
+.tip-name { font-family: var(--display); font-size: 18px; font-weight: 800; line-height: 1.05; color: #ffc35a; text-shadow: 0 0 10px rgba(255, 140, 40, .55), 0 1px 0 #000; }
+.tip-kind { margin-top: 3px; font-size: 13px; color: #e7cfa6; }
+
+.tip-facts { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 0 10px; margin: 11px 0 9px; padding: 7px 0; border-block: 1px solid #3a2e20; }
+.tip-facts dt { font-size: 11.5px; color: var(--vellum-dim); }
+.tip-facts dd { font-size: 15px; font-weight: 800; color: var(--vellum); font-variant-numeric: tabular-nums; }
+
+.tip-bonuses { display: grid; gap: 4px; }
+.tip-bonuses li { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #f3e3c3; }
+.tip-bonuses li::before { content: ""; width: 7px; height: 7px; flex: none; transform: rotate(45deg); background: var(--r-legendary); box-shadow: 0 0 6px rgba(255, 170, 60, .8); }
+.tip-bonuses b { color: var(--ember-hot); font-variant-numeric: tabular-nums; min-width: 34px; }
+.tip-bonuses .fit { margin-left: auto; font-size: 11.5px; font-weight: 500; font-style: italic; color: #a9e3c4; }
+
+.tip-flavor { margin-top: 9px; font-size: 13px; font-style: italic; line-height: 1.3; color: #cdbd9f; }
+.tip-source { margin-top: 6px; font-size: 12px; color: var(--vellum-dim); }
+
+.tip-compare { margin-top: 9px; padding: 6px 8px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #d8cfbd; border-radius: 2px; background: rgba(61, 107, 76, .18); box-shadow: inset 2px 0 0 #62c26f; }
+.tip-compare b { color: #bff0c8; }
+.chip-k { width: 18px; height: 18px; flex: none; display: grid; place-items: center; border-radius: 50%; font-size: 10.5px; font-weight: 800; color: #e6fff0; background: radial-gradient(circle at 50% 38%, #4b8a64, #173022 80%); box-shadow: 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+
+.tip-price { display: flex; justify-content: space-between; align-items: baseline; margin-top: 9px; font-size: 12.5px; color: var(--vellum-dim); }
+
+.tip-actions { display: grid; grid-template-columns: 1fr auto auto; gap: 7px; margin-top: 10px; }
+.act {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  height: 32px; padding: 0 10px;
+  font-weight: 800; font-size: 13.5px;
+  color: var(--vellum);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+  white-space: nowrap;
+}
+.act:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.act svg { width: 14px; height: 14px; }
+.act--equip { font-family: var(--display); font-weight: 700; font-size: 15px; color: #1b1208; background: linear-gradient(180deg, #f1d49c, #b48a50); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 0 0 1px #000, 0 0 0 2px #6e5230; }
+.act--equip:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 0 1px #000, 0 0 0 2px #dcb67c; }
+.act--sell { color: #f4d6cf; background: linear-gradient(180deg, #3a1c19, #1d0d0b); box-shadow: inset 0 1px 0 rgba(255,210,200,.1), 0 0 0 1px #000, 0 0 0 2px #7e3a30; }
+.act--sell:hover { box-shadow: inset 0 1px 0 rgba(255,210,200,.14), 0 0 0 1px #000, 0 0 0 2px #b04f40; }
+
+/* ---------- Loot filter ---------- */
+
+.edited { font-family: var(--text); font-size: 11.5px; font-weight: 800; letter-spacing: 0; color: #2a1204; background: linear-gradient(180deg, var(--ember-hot), var(--ember)); border-radius: 8px; padding: 0 7px; line-height: 16px; }
+
+.filter-body { flex: 1; min-height: 0; overflow-y: auto; padding: 9px 14px 6px; display: grid; align-content: start; gap: 9px; scrollbar-width: thin; scrollbar-color: #8a6a44 #0a0b0d; }
+
+.fpresets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fpreset {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 30px; padding: 0 10px;
+  font-weight: 700; font-size: 13.5px;
+  color: var(--vellum-dim);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #23272d, #16191d);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px #000, 0 0 0 2px #3a2e20;
+}
+.fpreset:hover { color: var(--vellum); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #7a5c36; }
+.fpreset[aria-checked="true"] { color: #fff2dc; font-weight: 800; background: linear-gradient(180deg, #3a3f47, #1e2227); box-shadow: inset 0 1px 0 rgba(255,236,200,.14), 0 0 0 1px #000, 0 0 0 2px var(--bronze-lit), 0 0 12px rgba(220, 182, 124, .2); }
+.fpreset .dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+.fpresets-note { margin-left: auto; font-size: 12px; color: #a99c85; }
+
+.fsec { display: grid; gap: 6px; }
+.fsec > h3.older { padding: 0; font-family: var(--display); font-style: normal; font-weight: 700; font-size: 14px; color: var(--bronze-lit); }
+.fsec > h3.older small { font-family: var(--text); font-weight: 400; font-style: italic; font-size: 12px; color: #a99c85; }
+
+.ramp { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.tier {
+  --rc: var(--r-common);
+  position: relative;
+  display: grid; gap: 4px;
+  padding: 7px 5px 5px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 16%, #111316), #0e1013 75%);
+  box-shadow: inset 0 2px 0 var(--rc), 0 0 0 1px #000;
+}
+.tier-name { font-weight: 800; font-size: 13px; color: var(--rc); text-align: center; line-height: 1.1; }
+.tier-note { font-size: 11px; color: #a3988a; text-align: center; font-variant-numeric: tabular-nums; }
+.t-uncommon { --rc: var(--r-uncommon); }
+.t-rare { --rc: var(--r-rare); }
+.t-epic { --rc: var(--r-epic); }
+.t-legendary { --rc: var(--r-legendary); box-shadow: inset 0 2px 0 var(--rc), 0 0 0 1px #000, 0 0 12px rgba(255, 150, 40, .18); }
+
+.choice { display: grid; gap: 2px; }
+.choice button {
+  height: 19px;
+  font-size: 12px; font-weight: 700;
+  color: #9d917c;
+  border-radius: 2px;
+  background: #0a0b0d;
+  box-shadow: inset 0 0 0 1px #24211c;
+}
+.choice button:hover { color: var(--vellum); }
+.choice .on-keep { color: #eaf6ee; background: linear-gradient(180deg, #2f5a3d, #1a3223); box-shadow: inset 0 1px 0 rgba(200,255,220,.15), inset 0 0 0 1px #62c26f; }
+.choice .on-sell { color: var(--gold); background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .1) 0 5px, transparent 5px 10px), #1d1910; box-shadow: inset 0 0 0 1px #8a7440; }
+.choice .locked { display: flex; align-items: center; justify-content: center; gap: 4px; height: 61px; font-size: 11.5px; font-weight: 700; line-height: 1.15; text-align: center; color: #ffd98a; border-radius: 2px; background: linear-gradient(180deg, rgba(255,150,40,.16), rgba(0,0,0,0)), #140c06; box-shadow: inset 0 0 0 1px rgba(255, 181, 63, .5); flex-direction: column; }
+.choice .locked svg { width: 14px; height: 14px; }
+
+.threshold { position: absolute; top: -6px; bottom: -6px; left: calc(40% - 3px); width: 1px; background: linear-gradient(180deg, transparent, var(--bronze-lit) 20%, var(--bronze-lit) 80%, transparent); pointer-events: none; }
+.threshold::before { content: ""; position: absolute; top: 0; left: -4px; width: 9px; height: 9px; background: var(--bronze-lit); transform: rotate(45deg); box-shadow: 0 0 0 1px #000; }
+
+.fhint { font-size: 12px; color: #a99c85; }
+.fhint b { color: #cdbd9f; font-weight: 700; }
+
+.rules { display: grid; gap: 5px; counter-reset: rule; }
+.rule {
+  display: grid;
+  grid-template-columns: 12px 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1c1f24, #131519);
+  box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255,255,255,.04);
+}
+.rule-grip { width: 12px; height: 16px; color: #5c5243; }
+.rule-no { width: 20px; height: 20px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--bronze-lit); border-radius: 50%; box-shadow: inset 0 0 0 1px #5c4529; font-variant-numeric: tabular-nums; }
+.rule-if { font-size: 13.5px; color: #d8cfbd; line-height: 1.5; }
+.rule-if .then { color: #a99c85; font-style: italic; }
+.cond { display: inline-block; padding: 0 6px; margin: 1px 0; border-radius: 2px; font-weight: 700; font-size: 13px; color: var(--vellum); background: #2a2e35; box-shadow: inset 0 0 0 1px #3f454f; line-height: 19px; white-space: nowrap; }
+.cond--stat { color: var(--steel); }
+.verdict { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12.5px; font-weight: 800; white-space: nowrap; }
+.verdict svg { width: 13px; height: 13px; }
+.verdict--keep { color: #eaf6ee; background: #1f3a28; box-shadow: inset 0 0 0 1px #62c26f; }
+.verdict--sell { color: var(--gold); background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .1) 0 5px, transparent 5px 10px), #1d1910; box-shadow: inset 0 0 0 1px #8a7440; }
+
+.rule--edited { box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(255, 138, 61, .55), inset 3px 0 0 var(--ember); background: linear-gradient(90deg, rgba(255, 138, 61, .09), transparent 60%), #16181c; }
+.rule--edited .rule-if::after { content: "new"; margin-left: 6px; padding: 0 5px; font-size: 10.5px; font-weight: 800; color: #2a1204; background: var(--ember); border-radius: 6px; vertical-align: 1px; }
+
+.level-slider { grid-column: 3 / span 2; margin-top: -2px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding-bottom: 2px; }
+.track { position: relative; height: 22px; }
+.track::before { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: #07080a; box-shadow: inset 0 0 0 1px #000; }
+.track-sold { position: absolute; left: 0; width: 59.2%; top: 9px; height: 4px; border-radius: 2px 0 0 2px; background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .55) 0 3px, rgba(240,195,90,.2) 3px 6px); }
+.track-zone { position: absolute; left: 46.9%; width: 20.4%; top: 3px; height: 16px; border-radius: 2px; background: rgba(255, 138, 61, .12); box-shadow: inset 0 0 0 1px rgba(255, 138, 61, .45); }
+.track-zone span { position: absolute; left: calc(100% + 6px); top: 1px; font-size: 11px; line-height: 14px; color: #e0a88a; white-space: nowrap; padding: 0 5px; background: #17181b; border-radius: 2px; }
+.track input { position: absolute; inset: 0; width: 100%; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.track input::-webkit-slider-runnable-track { height: 22px; background: transparent; }
+.track input::-moz-range-track { height: 22px; background: transparent; }
+.track input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: 4px; transform: rotate(45deg); background: linear-gradient(135deg, #f1d49c, #b48a50); border: 1px solid #1a130b; box-shadow: 0 0 0 1px #000, 0 0 8px rgba(255, 196, 107, .6); }
+.track input::-moz-range-thumb { width: 12px; height: 12px; transform: rotate(45deg); background: linear-gradient(135deg, #f1d49c, #b48a50); border: 1px solid #1a130b; border-radius: 0; box-shadow: 0 0 0 1px #000; }
+.track input:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 2px; }
+.level-value { font-size: 16px; font-weight: 800; color: var(--ember-hot); font-variant-numeric: tabular-nums; min-width: 22px; text-align: right; }
+
+.add-rule { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 3px 10px 3px 6px; font-size: 13px; font-weight: 700; color: var(--bronze-lit); border-radius: 3px; box-shadow: 0 0 0 1px #4a3722; }
+.add-rule:hover { box-shadow: 0 0 0 1px #9a7747; background: rgba(220, 182, 124, .06); }
+.add-rule svg { width: 13px; height: 13px; }
+.sec-head { display: flex; align-items: center; gap: 10px; }
+.sec-head .older { flex: 1; padding: 0; font-family: var(--display); font-style: normal; font-weight: 700; font-size: 14px; color: var(--bronze-lit); }
+.sec-head .older small { font-family: var(--text); font-weight: 400; font-style: italic; font-size: 12px; color: #a99c85; }
+.sec-head .older::after { display: none; }
+.sec-head .add-rule { padding: 2px 9px 2px 5px; }
+
+.preview { padding: 0; gap: 2px; }
+.preview .drop { padding-block: 3px; }
+.preview .drop--legendary { margin-top: 2px; padding-block: 5px; }
+.preview .drop-age { font-size: 11.5px; }
+.why { font-size: 11.5px; font-weight: 700; color: #a9e3c4; white-space: nowrap; }
+.drop--kept .why::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--hp-ally); vertical-align: 1px; }
+.drop--changed { box-shadow: inset 3px 0 0 var(--warn); }
+.drop--changed .drop-note { color: #ffb4a8; }
+.drop--changed .drop-note svg { width: 12px; height: 12px; vertical-align: -1px; margin-right: 3px; color: var(--warn); }
+
+.tally { display: grid; margin-right: auto; font-size: 12.5px; line-height: 1.25; color: var(--vellum-dim); min-width: 0; }
+.tally b { font-size: 14px; color: var(--vellum); font-variant-numeric: tabular-nums; }
+.tally .sold-value { font-size: 14px; }
+.tally .was { font-size: 12px; font-style: italic; color: #a3988a; }
+
+.filter-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px 12px; border-top: 1px solid #3a2e20; }
+.filter-foot .fhint { margin-right: auto; }
+.filter-foot .fhint b { color: var(--ember-hot); }
+.btn-revert { height: 32px; padding: 0 14px; font-weight: 700; font-size: 14px; color: var(--vellum-dim); border-radius: 3px; background: linear-gradient(180deg, #2f353d, #1b1f24); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329; }
+.btn-revert:hover { color: var(--vellum); box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.btn-save { height: 32px; padding: 0 16px; font-family: var(--display); font-weight: 700; font-size: 15px; color: #1b1208; border-radius: 3px; background: linear-gradient(180deg, #f1d49c, #b48a50); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 0 0 1px #000, 0 0 0 2px #6e5230, 0 0 14px rgba(220, 182, 124, .25); white-space: nowrap; }
+.btn-save:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 0 1px #000, 0 0 0 2px #dcb67c, 0 0 16px rgba(220, 182, 124, .35); }
+
+@media (max-width: 1360px) {
+  .bag-body { grid-template-columns: minmax(0, 1fr); }
+  .itemtip { position: absolute; top: auto; bottom: 6px; right: 34px; width: 264px; margin: 0; z-index: 5; }
+  .statusbar .ledger-item small { display: none; }
+}
+@media (max-width: 1200px) {
+  .screen-name { display: none; }
+  .bag-tools .tab { padding: 5px 7px; font-size: 13px; }
+  .sort-word { display: none; }
+  .field { flex-basis: 150px; min-width: 96px; }
+  .fpreset { padding: 0 8px; font-size: 13px; }
+  .fpreset[aria-checked="false"] .tiers { display: none; }
+  .filter .title-meta { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+  .castbar-track > i, .slot--casting .cast-progress i { inset: 0 40% 0 0; }
+}
+
+
+/* Refined hierarchy: keep metal frames around windows, simplify internal details. */
+.tip-source,.tip-facts,.tip-kind,.fhint,.tier-note,.skill-meta,.attr-name small,.gear-slot {font-size:13px;color:#c6bba7}
+button:disabled {opacity:.5;cursor:not-allowed}
+.comparison {width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+.comparison th,.comparison td {text-align:left;padding:4px 3px;border-bottom:1px solid #40372b}
+.comparison th {color:#c6bba7;font-weight:500}.comparison .gain {color:#96d2a9}.comparison .loss {color:#eda583}
+.eligibility,.allocation-preview {padding:9px 10px;background:#222820;border-left:2px solid #ab955d;color:#e9dfc8;font-size:14px;margin:9px 0}
+.allocation-actions {display:flex;gap:9px;margin-top:8px}.allocation-actions button {padding:6px 12px;border:1px solid #8d6b41;border-radius:2px;font-size:14px}
+.allocation-actions button:first-child {background:#bd995f;color:#17130e;font-weight:700}
+.attr.is-staged {background:#304034}.attr.is-staged .attr-total {color:#a8e0b4}
+.tip-actions {flex-wrap:wrap}.tip-actions .act--equip {flex-basis:100%;font-size:14px}
+.tip-flavor {display:none}.skill-desc .next {display:block;color:#a8d7b4}.skill-meta {line-height:1.35}
+.itemtip {max-height:100%;overflow-y:auto;scrollbar-width:thin}
+.autospend {margin-top:12px}.allocation-preview small {display:block;color:#bcb29e;font-size:12px;margin-top:5px}
+
+</style>
+<link rel="stylesheet" href="refined.css">
+<script src="refined.js" defer></script>
+</head>
+<body data-screen="bag">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="g-guardian" viewBox="0 0 24 24"><path d="M12 2.5 20 5.5V11c0 5.2-3.4 9-8 10.5C7.4 20 4 16.2 4 11V5.5Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 6v12M7.5 10h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-cleric" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22M4.9 4.9l2.5 2.5M16.6 16.6l2.5 2.5M4.9 19.1l2.5-2.5M16.6 7.4l2.5-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-ranger" viewBox="0 0 24 24"><path d="M5 19 18.5 5.5M18.5 5.5h-6M18.5 5.5v6M5 19l-1 2.5M5 19l-2.5 1M7 17l-2.2.3M7 17l-.3 2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.5C4.5 6 6.5 4 10 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="g-grub" viewBox="0 0 24 24"><path d="M3 15c0-3 2.4-5 5-5 1-3 4-4.5 7-3.5 3 1 5 3.8 5 7 0 3.5-3 5.5-6 5.5H7.5C5 19 3 17.5 3 15Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7"/><path d="M9 10.5v8M13.5 7v12M17.5 8.5v10" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="14.5" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="g-slagjaw" viewBox="0 0 24 24"><path d="M2.5 7h19l-2.5 5-2 6.5H7L5 12Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M5 12l2.2 2.5L9.4 12l2.6 3 2.6-3 2.2 2.5L19 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 4l1.5 3M16 4l-1.5 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="g-revenant" viewBox="0 0 24 24"><path d="M12 2.5c-4.8 0-7 4.2-7 9V21l2.4-1.8L9.7 21 12 19.2l2.3 1.8 2.3-1.8L19 21v-9.5c0-4.8-2.2-9-7-9Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.5 11l2.2 1.2M15.5 11l-2.2 1.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+
+    <symbol id="s-taunt" viewBox="0 0 24 24"><path d="M3 10h4l6-4.5v13L7 14H3Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 8.5c1.5 2 1.5 5 0 7M19 6c2.8 3.5 2.8 8.5 0 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="s-shieldwall" viewBox="0 0 24 24"><path d="M3 5h18v10c0 3-4 5.5-9 6.5C7 20.5 3 18 3 15Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3 10.5h18M3 15.5h18M9 5v5.5M15 5v5.5M12 10.5v5M6 15.5v2.5M18 15.5v2.5" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="s-cleave" viewBox="0 0 24 24"><path d="M4 21 13.5 11.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 5.5c5-3 10 .5 10 6-2.5-2-5.5-2-8.5-1.5Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 12c1-4 4-7 7.5-8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2"/></symbol>
+    <symbol id="s-bulwark" viewBox="0 0 24 24"><path d="M5 21V10L3.5 8.5V3.5h3.5v2h2.5v-2h5v2h2.5v-2h3.5v5L19 10v11Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 21v-5a2 2 0 0 1 4 0v5" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="s-heal" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 7.5v9M7.5 12h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="s-groupheal" viewBox="0 0 24 24"><path d="M12 3v6M9 6h6M5.5 12v6M2.5 15h6M18.5 12v6M15.5 15h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 9.5 5.5 11M16 9.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+    <symbol id="s-blessing" viewBox="0 0 24 24"><path d="M4 17c2.5-6 13.5-6 16 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="10" r="3" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2M6.5 5.5 8 7M17.5 5.5 16 7M3.5 20h17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="s-smite" viewBox="0 0 24 24"><path d="M13.5 2 5.5 13H11l-2 9 9.5-12.5H13Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="s-doubleshot" viewBox="0 0 24 24"><path d="M3 12 17 5M17 5l-5 .2M17 5l-2.3 4.4M5 20l14-7M19 13l-5 .2M19 13l-2.3 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="s-arrowrain" viewBox="0 0 24 24"><path d="M6 2.5v11M12 2.5v14M18 2.5v11M3.8 11.5 6 14.5l2.2-3M9.8 14l2.2 3 2.2-3M15.8 11.5l2.2 3 2.2-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 20.5c3-1.3 16-1.3 19 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="s-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="s-keeneye" viewBox="0 0 24 24"><path d="M2 12c4-7 16-7 20 0-4 7-16 7-20 0Z" fill="currentColor" fill-opacity=".15" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+
+    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-neutral" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-swords" viewBox="0 0 24 24"><path d="M4 4l11 11M20 4 9 15M13 17l4 4M11 17l-4 4M15 13l3 3M9 13l-3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="8" ry="4" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.7"/><path d="M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M8 7c0-2.5 1.8-4 4-4s4 1.5 4 4M5 8h14l-1 12.5H6Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9.5 18.5c1-1.3 4-1.3 5 0l.8 2H8.7Z" fill="currentColor"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 24 24"><path d="M12 3c-4.5 0-7.5 3-7.5 7 0 2.4 1.2 4 2.5 5v3.5h10V15c1.3-1 2.5-2.6 2.5-5 0-4-3-7-7.5-7Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="10.5" r="1.7" fill="currentColor"/><circle cx="15" cy="10.5" r="1.7" fill="currentColor"/><path d="M10 18.5V21M14 18.5V21" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-quill" viewBox="0 0 24 24"><path d="M20 3C12 4 7 9 5.5 17.5L4 21M20 3c-1 6-5 11-11.5 12.5M14 7.5l-3.5 1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 1.5 14.5 9.5 22.5 12 14.5 14.5 12 22.5 9.5 14.5 1.5 12 9.5 9.5Z" fill="currentColor"/></symbol>
+
+    <symbol id="it-bow" viewBox="0 0 24 24"><path d="M6 3c9 2 13 9 11.5 18M6 3l11.5 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 12h13M16 12l-3-2.5M16 12l-3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="it-cloak" viewBox="0 0 24 24"><path d="M9 3h6l1.5 3L20 21H4L7.5 6Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 6v15" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="it-potion" viewBox="0 0 24 24"><path d="M10 3h4M10.5 3v5.5L6 15a5.5 5.5 0 1 0 12 0l-4.5-6.5V3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 15.5h10a5 5 0 0 1-10 0Z" fill="#d8483a"/></symbol>
+    <symbol id="it-greaves" viewBox="0 0 24 24"><path d="M8 2.5h6v11l6 4.5v3.5H6.5L8 13Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 7h6M8 11h6" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="it-horn" viewBox="0 0 24 24"><path d="M3 5.5c4 0 6.5 2.5 8.5 6.5s4.5 7 9.5 7l-1-4c-3 0-4.5-2-6-5.5S10 3 3 2.5Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 3.5l-1 2.5M11 6l-1.5 2M14 10.5l-2 1" stroke="currentColor" stroke-width="1.3"/><path d="M17 20.5l2.5-3" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 1.5"/></symbol>
+
+    <symbol id="rune-a" viewBox="0 0 10 14"><path d="M5 1v12M5 4l3.5-3M5 8 1.5 11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="rune-b" viewBox="0 0 10 14"><path d="M2 1v12M2 3l6 3.5L2 10M8 10v3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="rune-c" viewBox="0 0 10 14"><path d="M5 1 1 7l4 6 4-6ZM5 4v6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="it-mpotion" viewBox="0 0 24 24"><path d="M10 3h4M10.5 3v5.5L6 15a5.5 5.5 0 1 0 12 0l-4.5-6.5V3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 15.5h10a5 5 0 0 1-10 0Z" fill="#4f92e6"/></symbol>
+    <symbol id="it-ring" viewBox="0 0 24 24"><circle cx="12" cy="14.5" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3 15 6.3 12 9.6 9 6.3Z" fill="currentColor" fill-opacity=".45" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+    <symbol id="it-helm" viewBox="0 0 24 24"><path d="M4 16a8 8 0 0 1 16 0v4.5h-5.5V16h-5v4.5H4Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 5v6.5M4 16h5.5M14.5 16H20" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="it-chest" viewBox="0 0 24 24"><path d="M8.5 3 4.5 5 3 11.5l3 .8V21h12v-8.7l3-.8L19.5 5l-4-2c-.8 1.8-2 2.8-3.5 2.8S9.3 4.8 8.5 3Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 15h12M12 6v15" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="it-shield" viewBox="0 0 24 24"><path d="M12 2.5 19.5 5v6.2c0 5-3.4 8.8-7.5 10.3C7.9 20 4.5 16.2 4.5 11.2V5Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 5.5v13M8 10h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <symbol id="it-sword" viewBox="0 0 24 24"><path d="M19.5 3 21 4.5 9.5 16 8 14.5Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M5.5 12.5l6 6M7.3 16.7 3.5 20.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="it-mace" viewBox="0 0 24 24"><circle cx="15.5" cy="8.5" r="4" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 2.5v2M21.5 8.5h-2M19.8 4.2l-1.4 1.4M12.6 11.4 4 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="it-staff" viewBox="0 0 24 24"><path d="M5 21 15.5 8.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="17.5" cy="6" r="3" fill="currentColor" fill-opacity=".4" stroke="currentColor" stroke-width="1.6"/><path d="M13.5 4c-.5-1 0-2 1-2.3M21.5 10c-.4 1-1.5 1.4-2.4 1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+    <symbol id="it-boots" viewBox="0 0 24 24"><path d="M7.5 3h5.5v10h4.5a3 3 0 0 1 3 3v4.5H5.5V14Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M5.5 18h15M7.5 7.5H13" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="it-amulet" viewBox="0 0 24 24"><path d="M5.5 3c0 5.5 3 9 6.5 10.5C15.5 12 18.5 8.5 18.5 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 13.5 15.5 17.5 12 21.5 8.5 17.5Z" fill="currentColor" fill-opacity=".4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="it-ore" viewBox="0 0 24 24"><path d="M3 16 6 9l6-4 7 3 2.5 7L16 20.5H8Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 9l5 4 8-5M11 13l1 7.5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="15.5" cy="14" r="1.6" fill="#e8a25a"/><circle cx="8" cy="15" r="1.2" fill="#e8a25a"/></symbol>
+    <symbol id="it-ember" viewBox="0 0 24 24"><path d="M12 2 17.5 9 12 22 6.5 9Z" fill="#ff8a3d" fill-opacity=".35" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6.5 9h11M12 2l-2 7 2 13 2-13Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></symbol>
+    <symbol id="it-chitin" viewBox="0 0 24 24"><path d="M2.5 15c2-6.5 6-9.5 9.5-9.5s7.5 3 9.5 9.5c-3.5 3.5-15.5 3.5-19 0Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M7 9.5c1.5 2 1.5 6 1 8M12 5.5v12.5M17 9.5c-1.5 2-1.5 6-1 8" fill="none" stroke="currentColor" stroke-width="1.2"/></symbol>
+    <symbol id="it-ash" viewBox="0 0 24 24"><path d="M3 20c2-5 5-8 9-8s7 3 9 8Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 9.5c-1.2-2 1-3-.2-5.5M14.5 9c1.2-2-1-3 .2-5.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M7.5 11V8a4.5 4.5 0 0 1 9 0v3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="11" width="14" height="10" rx="1.5" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.8"/><path d="M12 14.5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3.5 3.5V14h-11v-1.5L10 9Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 14v7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-caret" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></g></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 22 20H2Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9.5v5M12 17.2v.3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="realm">
+
+  <svg class="world" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="w-sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0a0a0d"/>
+        <stop offset=".28" stop-color="#1a1411"/>
+        <stop offset="1" stop-color="#110c0a"/>
+      </linearGradient>
+      <linearGradient id="w-floor" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2d2119"/>
+        <stop offset=".5" stop-color="#271c15"/>
+        <stop offset="1" stop-color="#1a130f"/>
+      </linearGradient>
+      <linearGradient id="w-ledge" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#3d2e23"/>
+        <stop offset="1" stop-color="#2c2019"/>
+      </linearGradient>
+      <radialGradient id="w-slag" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#fff0b0"/>
+        <stop offset=".25" stop-color="#ffb54a"/>
+        <stop offset=".6" stop-color="#e5561a"/>
+        <stop offset=".9" stop-color="#6e1d06"/>
+        <stop offset="1" stop-color="#2a0e05"/>
+      </radialGradient>
+      <radialGradient id="w-glow" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#ff7a2a" stop-opacity=".55"/>
+        <stop offset=".5" stop-color="#ff5a1a" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-cool" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#6d8fb0" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#6d8fb0" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-vignette" cx=".5" cy=".5" r=".72">
+        <stop offset=".45" stop-color="#000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".82"/>
+      </radialGradient>
+      <radialGradient id="w-fog" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#c8b6a6" stop-opacity=".11"/>
+        <stop offset="1" stop-color="#c8b6a6" stop-opacity="0"/>
+      </radialGradient>
+      <pattern id="w-iso" width="124" height="62" patternUnits="userSpaceOnUse">
+        <path d="M0 31 62 0l62 31-62 31Z" fill="none" stroke="#f3c79a" stroke-opacity=".045" stroke-width="1"/>
+      </pattern>
+      <pattern id="w-strata" width="240" height="26" patternUnits="userSpaceOnUse">
+        <path d="M0 20c40-4 80 3 120-1s80-5 120 1" fill="none" stroke="#3a2a20" stroke-opacity=".7" stroke-width="1.2"/>
+      </pattern>
+      <filter id="w-bloom" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="w-soft"><feGaussianBlur stdDeviation="18"/></filter>
+      <filter id="w-grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/>
+        <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/>
+      </filter>
+      <g id="boulder">
+        <path d="M-20 2-11-15 5-20 21-8 17 7-2 12Z" fill="#3b2c22"/>
+        <path d="M-20 2-2 12 17 7 21-8 5-1-11-3Z" fill="#1f1611"/>
+        <path d="M-11-15 5-20 21-8 5-1Z" fill="#4d3a2c"/>
+      </g>
+      <g id="shard">
+        <path d="M-6 4 0-14 7 3 1 7Z" fill="#2a1f18"/>
+        <path d="M0-14 7 3 1 7Z" fill="#3f2f24"/>
+      </g>
+    </defs>
+
+    <rect width="1440" height="900" fill="url(#w-sky)"/>
+
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="#120d0b"/>
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="url(#w-strata)" opacity=".8"/>
+    <path d="M140 70 260 130 420 60 560 120 700 50 880 130 1010 70 1180 140 1300 80 1440 130" fill="none" stroke="#231914" stroke-width="3"/>
+    <path d="M0 150 180 190 330 140 520 200 700 150 900 210 1080 160 1260 210 1440 170" fill="none" stroke="#2a1e17" stroke-width="2"/>
+    <g class="crack crack-b" filter="url(#w-bloom)">
+      <path d="M612 36l14 22-8 20 16 26-6 24 12 30" fill="none" stroke="#ff7a2a" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M1098 90l-10 24 12 16-6 30 10 20" fill="none" stroke="#ff8f3a" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <ellipse cx="260" cy="90" rx="300" ry="140" fill="url(#w-cool)"/>
+
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-floor)"/>
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-iso)"/>
+
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-ledge)"/>
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-iso)"/>
+    <path d="M520 372 172 546V598L520 424Z" fill="#3b2419"/>
+    <path d="M172 546 0 460V512L172 598Z" fill="#150f0c"/>
+    <path d="M520 372 172 546" stroke="#6b4c35" stroke-width="1.5"/>
+    <path d="M520 424 172 598V606L520 432Z" fill="#000" opacity=".35"/>
+
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-ledge)"/>
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-iso)"/>
+    <path d="M934 369 1252 528V580L934 421Z" fill="#171009"/>
+    <path d="M1252 528 1440 434V486L1252 580Z" fill="#40271b"/>
+    <path d="M1252 528 1440 434" stroke="#6b4c35" stroke-width="1.5"/>
+
+    <g stroke="#5a4636" stroke-width="2.2">
+      <path d="M1440 310 1192 434M1440 330 1212 444" />
+    </g>
+    <g stroke="#3a2b20" stroke-width="3">
+      <path d="M1420 314l10 16M1380 334l10 16M1340 354l10 16M1300 374l10 16M1260 394l10 16M1220 414l10 16"/>
+    </g>
+    <g transform="translate(1175 432)">
+      <path d="M-26 4 0-9 30 6 4 19Z" fill="#4a3526"/>
+      <path d="M-26 4 4 19V33L-26 18Z" fill="#23180f"/>
+      <path d="M4 19 30 6V20L4 33Z" fill="#35251a"/>
+      <path d="M-20 3 0-6 22 5 4 14Z" fill="#6a3a1c"/>
+      <circle cx="-4" cy="4" r="4" fill="#ff9a45" filter="url(#w-bloom)" class="crack"/>
+    </g>
+
+    <path d="M880 900 1214 733 1440 846V900Z" fill="#0d0908"/>
+    <path d="M880 900 1214 733V780L974 900Z" fill="#2e1d14"/>
+    <path d="M1214 733 1440 846V890L1214 780Z" fill="#1d130d"/>
+    <path d="M880 900 1214 733 1440 846" fill="none" stroke="#7a5236" stroke-width="1.5"/>
+    <ellipse cx="1210" cy="850" rx="230" ry="90" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="1200" cy="860" rx="150" ry="52" fill="url(#w-slag)"/>
+    <ellipse cx="1180" cy="852" rx="60" ry="14" fill="#fff3c4" opacity=".35"/>
+
+    <ellipse cx="300" cy="400" rx="130" ry="70" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="300" cy="402" rx="62" ry="26" fill="url(#w-slag)"/>
+    <path d="M238 402c20-18 104-18 124 0" fill="none" stroke="#1a0f0a" stroke-width="3"/>
+
+    <ellipse cx="720" cy="520" rx="520" ry="260" fill="url(#w-glow)" opacity=".35"/>
+
+    <g class="crack" filter="url(#w-bloom)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M90 690l42-10 26 18 46-6 20 22 54-4 18 20" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M204 702l10 26 -14 22" stroke="#ff9a45" stroke-width="1.4"/>
+      <path d="M1120 610l-36 16-10 26-48 10-22 30" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M660 760l28 14 40-6 26 24 44 2" stroke="#ff8c3a" stroke-width="1.8"/>
+      <path d="M560 262l30 12 12 24 40 6" stroke="#ff8a3a" stroke-width="1.6"/>
+    </g>
+    <g class="crack crack-b" filter="url(#w-bloom)" fill="none" stroke-linecap="round">
+      <path d="M362 470l22 18 38 2 14 26" stroke="#ff7a2a" stroke-width="1.6"/>
+      <path d="M1000 420l24 20 -6 30 30 16" stroke="#ff9a45" stroke-width="1.6"/>
+      <path d="M40 330l40 16 30-6 26 20" stroke="#ff7a2a" stroke-width="1.5"/>
+    </g>
+
+    <use href="#boulder" transform="translate(120 330) scale(1.6)"/>
+    <use href="#boulder" transform="translate(178 352) scale(.9)"/>
+    <use href="#boulder" transform="translate(430 330) scale(1.1)"/>
+    <use href="#shard" transform="translate(452 350) scale(1.4)"/>
+    <use href="#boulder" transform="translate(1300 330) scale(1.4)"/>
+    <use href="#shard" transform="translate(1256 348) scale(1.6)"/>
+    <use href="#boulder" transform="translate(1030 330) scale(.8)"/>
+    <use href="#boulder" transform="translate(330 610) scale(1.2)"/>
+    <use href="#shard" transform="translate(360 626) scale(1.2)"/>
+    <use href="#boulder" transform="translate(1100 680) scale(1.5)"/>
+    <use href="#shard" transform="translate(1060 700) scale(1.3)"/>
+    <use href="#boulder" transform="translate(560 800) scale(1.3)"/>
+    <use href="#boulder" transform="translate(860 700) scale(.9)"/>
+    <use href="#shard" transform="translate(820 250) scale(1.5)"/>
+    <use href="#boulder" transform="translate(640 250) scale(1.2)"/>
+
+    <g fill="#ffb65a">
+      <circle class="spark" cx="300" cy="400" r="1.6" style="animation-delay:-1s"/>
+      <circle class="spark" cx="330" cy="396" r="1.2" style="animation-delay:-4s"/>
+      <circle class="spark" cx="270" cy="404" r="1.4" style="animation-delay:-2.6s"/>
+      <circle class="spark" cx="1180" cy="850" r="2" style="animation-delay:-.5s"/>
+      <circle class="spark" cx="1230" cy="846" r="1.5" style="animation-delay:-3.2s"/>
+      <circle class="spark" cx="1150" cy="858" r="1.4" style="animation-delay:-5.4s"/>
+      <circle class="spark" cx="1260" cy="862" r="1.8" style="animation-delay:-2s"/>
+      <circle class="spark" cx="210" cy="720" r="1.3" style="animation-delay:-6s"/>
+      <circle class="spark" cx="1050" cy="660" r="1.3" style="animation-delay:-1.8s"/>
+      <circle class="spark" cx="720" cy="780" r="1.2" style="animation-delay:-4.6s"/>
+    </g>
+
+    <g class="fog">
+      <ellipse cx="420" cy="620" rx="520" ry="110" fill="url(#w-fog)"/>
+      <ellipse cx="1100" cy="300" rx="480" ry="90" fill="url(#w-fog)"/>
+    </g>
+    <g class="fog fog-b">
+      <ellipse cx="820" cy="840" rx="620" ry="120" fill="url(#w-fog)"/>
+      <ellipse cx="200" cy="250" rx="400" ry="80" fill="url(#w-fog)"/>
+    </g>
+
+    <rect width="1440" height="900" filter="url(#w-grain)" opacity=".16"/>
+    <rect width="1440" height="900" fill="url(#w-vignette)"/>
+  </svg>
+
+  <div class="dim" aria-hidden="true"></div>
+
+  <header class="statusbar win">
+    <button class="back" type="button" onclick="location.href='hunt.html'">
+      <span class="back-seal" aria-hidden="true"><i></i></span>
+      <span class="back-text"><b>Ember Quarry</b><small>Fighting, return to hunt</small></span>
+    </button>
+    <h1 class="screen-name">Bag and loot filter</h1>
+    <div class="ledger">
+      <div class="ledger-item ledger-gold">
+        <svg aria-hidden="true"><use href="#i-coin"/></svg>
+        <div>184,220<small>Gold</small></div>
+      </div>
+      <div class="ledger-item ledger-bag">
+        <svg aria-hidden="true" style="color:#c9a46a"><use href="#i-bag"/></svg>
+        <div>47 / 100<small>Bag</small></div>
+      </div>
+      <div class="ledger-item ledger-premium">
+        <svg aria-hidden="true"><use href="#i-hourglass"/></svg>
+        <div>17h 42m<small>Premium offline</small></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="desk">
+
+    <section class="bag win" aria-labelledby="bag-title">
+      <h2 class="win-title" id="bag-title">Bag <span class="title-count">47 / 100</span> <span class="title-meta">Shared by Bjorn, Sigrun and Kaio</span></h2>
+
+      <div class="bag-tools">
+        <div class="tabs" role="tablist" aria-label="Bag categories">
+          <button class="tab" role="tab" aria-selected="true" type="button">All<span class="count num">47</span></button>
+          <button class="tab" role="tab" aria-selected="false" type="button">Equipment<span class="count num">40</span></button>
+          <button class="tab" role="tab" aria-selected="false" type="button">Consumables<span class="count num">2</span></button>
+          <button class="tab" role="tab" aria-selected="false" type="button">Materials<span class="count num">5</span></button>
+        </div>
+        <label class="field"><svg aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Search the bag</span><input type="search" placeholder="Search"></label>
+        <button class="sort" type="button" aria-haspopup="listbox"><svg aria-hidden="true"><use href="#i-sort"/></svg><span class="sort-word">Sort</span> <b>Newest</b><svg aria-hidden="true"><use href="#i-caret"/></svg></button>
+      </div>
+
+      <div class="bag-body">
+        <div class="slots-scroll" tabindex="0" aria-label="Bag slots, 47 of 100 used">
+          <ol class="bag-grid">
+<li class="cell"><button class="item r-epic" type="button" aria-label="Emberforged Longbow, Epic, new, locked"><svg aria-hidden="true"><use href="#it-bow"/></svg><span class="new-mark" aria-hidden="true">new</span><span class="lock-mark" aria-hidden="true"><svg><use href="#i-lock"/></svg></span></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Warden's Ashen Cloak, Rare, new"><svg aria-hidden="true"><use href="#it-cloak"/></svg><span class="new-mark" aria-hidden="true">new</span></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Small HP Potion ×14, consumable, new"><svg aria-hidden="true"><use href="#it-potion"/></svg><span class="new-mark" aria-hidden="true">new</span><span class="qty" aria-hidden="true">14</span></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Ashplate Greaves, Uncommon, new"><svg aria-hidden="true"><use href="#it-greaves"/></svg><span class="new-mark" aria-hidden="true">new</span></button></li>
+<li class="cell"><button class="item r-legendary is-selected" type="button" aria-label="Gjallarhorn Fragment, Legendary" aria-pressed="true" aria-controls="itemtip"><svg aria-hidden="true"><use href="#it-horn"/></svg></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Small MP Potion ×9, consumable"><svg aria-hidden="true"><use href="#it-mpotion"/></svg><span class="qty" aria-hidden="true">9</span></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Quarry Iron Ore ×38, material"><svg aria-hidden="true"><use href="#it-ore"/></svg><span class="qty" aria-hidden="true">38</span></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Cinderguard Kite Shield, Rare"><svg aria-hidden="true"><use href="#it-shield"/></svg></button></li>
+<li class="cell"><button class="item r-epic" type="button" aria-label="Duskwind Recurve, Epic, equipped by Kaio"><svg aria-hidden="true"><use href="#it-bow"/></svg><span class="equipped-mark" aria-hidden="true">K</span></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Slag Ember ×12, material"><svg aria-hidden="true"><use href="#it-ember"/></svg><span class="qty" aria-hidden="true">12</span></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Ashplate Helm, Uncommon"><svg aria-hidden="true"><use href="#it-helm"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Tarnished Ring, Common"><svg aria-hidden="true"><use href="#it-ring"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Slagforged Mace, Rare"><svg aria-hidden="true"><use href="#it-mace"/></svg></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Grub Chitin ×21, material"><svg aria-hidden="true"><use href="#it-chitin"/></svg><span class="qty" aria-hidden="true">21</span></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Ember-Singed Tunic, Common"><svg aria-hidden="true"><use href="#it-chest"/></svg></button></li>
+<li class="cell"><button class="item r-epic" type="button" aria-label="Emberglass Rod, Epic"><svg aria-hidden="true"><use href="#it-staff"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Grubhide Boots, Uncommon"><svg aria-hidden="true"><use href="#it-boots"/></svg></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Revenant Ash ×7, material"><svg aria-hidden="true"><use href="#it-ash"/></svg><span class="qty" aria-hidden="true">7</span></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Dented Kettle Helm, Common"><svg aria-hidden="true"><use href="#it-helm"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Quarrywalker Boots, Rare"><svg aria-hidden="true"><use href="#it-boots"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Iron Ward Buckler, Uncommon"><svg aria-hidden="true"><use href="#it-shield"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Frayed Travel Cloak, Common"><svg aria-hidden="true"><use href="#it-cloak"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Ashen Signet, Rare"><svg aria-hidden="true"><use href="#it-ring"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Copper Charm Ring, Uncommon"><svg aria-hidden="true"><use href="#it-ring"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Worn Leather Boots, Common"><svg aria-hidden="true"><use href="#it-boots"/></svg></button></li>
+<li class="cell"><button class="item r-plain" type="button" aria-label="Rough Garnet ×3, material"><svg aria-hidden="true"><use href="#it-ore"/></svg><span class="qty" aria-hidden="true">3</span></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Soldier's Arming Sword, Uncommon"><svg aria-hidden="true"><use href="#it-sword"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Emberline Hauberk, Rare"><svg aria-hidden="true"><use href="#it-chest"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Chipped Short Sword, Common"><svg aria-hidden="true"><use href="#it-sword"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Plain Oak Staff, Common, locked"><svg aria-hidden="true"><use href="#it-staff"/></svg><span class="lock-mark" aria-hidden="true"><svg><use href="#i-lock"/></svg></span></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Tallow Staff, Uncommon"><svg aria-hidden="true"><use href="#it-staff"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Soot-Veil Hood, Rare"><svg aria-hidden="true"><use href="#it-helm"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Bent Buckler, Common"><svg aria-hidden="true"><use href="#it-shield"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Scorched Longbow, Uncommon"><svg aria-hidden="true"><use href="#it-bow"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Rusted Chain Shirt, Common"><svg aria-hidden="true"><use href="#it-chest"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Bronze Circlet, Uncommon"><svg aria-hidden="true"><use href="#it-helm"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Wardstone Amulet, Rare"><svg aria-hidden="true"><use href="#it-amulet"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Cord Amulet, Common"><svg aria-hidden="true"><use href="#it-amulet"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Cinder Wraps, Uncommon"><svg aria-hidden="true"><use href="#it-boots"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Rough Hunting Bow, Common"><svg aria-hidden="true"><use href="#it-bow"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Ranger's Oilskin Cloak, Uncommon"><svg aria-hidden="true"><use href="#it-cloak"/></svg></button></li>
+<li class="cell"><button class="item r-rare" type="button" aria-label="Revenant's Mantle, Rare"><svg aria-hidden="true"><use href="#it-cloak"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Split Wooden Mace, Common"><svg aria-hidden="true"><use href="#it-mace"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Ashplate Hauberk, Uncommon"><svg aria-hidden="true"><use href="#it-chest"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Hollow Bead Amulet, Uncommon"><svg aria-hidden="true"><use href="#it-amulet"/></svg></button></li>
+<li class="cell"><button class="item r-common" type="button" aria-label="Patched Greaves, Common"><svg aria-hidden="true"><use href="#it-greaves"/></svg></button></li>
+<li class="cell"><button class="item r-uncommon" type="button" aria-label="Quarry Pick-Blade, Uncommon"><svg aria-hidden="true"><use href="#it-sword"/></svg></button></li>
+<li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li><li class="cell cell--empty" aria-hidden="true"></li>
+          </ol>
+          <div class="expansion">
+            <p class="expansion-head"><b>Slots 101–110</b> <button class="ghost" type="button">See options</button> <span>Bag expansion, a convenience purchase</span></p>
+            <ol class="bag-grid" aria-label="10 locked expansion slots">
+              <li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li><li class="cell cell--locked"><svg aria-hidden="true"><use href="#i-lock"/></svg></li>
+            </ol>
+          </div>
+        </div>
+
+        <aside class="itemtip" id="itemtip" aria-labelledby="tip-name">
+          <p class="tip-bar"><svg aria-hidden="true"><use href="#i-pin"/></svg>Pinned<button class="tip-close" type="button" aria-label="Unpin tooltip"><svg aria-hidden="true"><use href="#i-close"/></svg></button></p>
+          <div class="tip-head">
+            <span class="tip-icon"><svg aria-hidden="true"><use href="#it-horn"/></svg></span>
+            <div>
+              <h3 class="tip-name" id="tip-name">Gjallarhorn Fragment</h3>
+              <p class="tip-kind">Legendary accessory</p>
+            </div>
+          </div>
+          <dl class="tip-facts">
+            <div><dt>Item level</dt><dd>30</dd></div>
+            <div><dt>Requires</dt><dd>Lv 30</dd></div>
+            <div><dt>Bonuses</dt><dd>4 of 4</dd></div>
+          </dl>
+          <ul class="tip-bonuses">
+            <li><b>+7</b>DEX <span class="fit">future upgrade</span></li>
+            <li><b>+6%</b>Crit chance <span class="fit">future upgrade</span></li>
+            <li><b>+9%</b>Attack speed</li>
+            <li><b>+14%</b>Damage vs Undead</li>
+          </ul>
+          <p class="tip-flavor">A split rim of the horn meant to call the last battle. Held to the ear, it still hums.</p>
+          <p class="tip-source">Dropped by Quarry Revenant in Ember Quarry, 24m ago</p>
+          <p class="tip-compare"><span class="chip-k" aria-hidden="true">K</span><span>Compared with Kaio’s <b>Tern-bone Ring</b></span></p>
+ <table class="comparison" aria-label="Illustrative accessory comparison"><thead><tr><th>Stat</th><th>Equipped</th><th>Fragment</th><th>Change</th></tr></thead><tbody><tr><th>DEX</th><td>+3</td><td>+7</td><td class="gain">+4</td></tr><tr><th>Crit</th><td>—</td><td>+6%</td><td class="gain">+6 pp</td></tr><tr><th>Attack speed</th><td>+12%</td><td>+9%</td><td class="loss">−3 pp</td></tr><tr><th>vs Undead</th><td>—</td><td>+14%</td><td class="gain">+14%</td></tr></tbody></table>
+ <p class="eligibility">Available at level 30 · Kaio is level 25.<br><small>More crit, less speed. Example item rolls.</small></p>
+          <p class="tip-price">Sell price<span class="sold-value">1,960g</span></p>
+          <div class="tip-actions">
+            <button class="act act--equip" type="button" disabled title="Kaio must reach level 30">Requires level 30</button>
+            <button class="act" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-lock"/></svg>Lock</button>
+            <button class="act act--sell" type="button">Sell</button>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="bag-foot">
+        <div class="capacity">
+          <svg aria-hidden="true"><use href="#i-bag"/></svg>
+          <p class="capacity-line"><b>47 / 100</b> slots used, 53 free</p>
+          <div class="capacity-meter" role="meter" aria-label="Bag capacity" aria-valuenow="47" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+        </div>
+        <button class="bulk" type="button">
+          <span class="bulk-label"><span class="tier-swatch" aria-hidden="true"></span>Sell all Common</span>
+          <span class="bulk-meta">12 items, 1 locked item kept</span>
+          <span class="sold-value">+1,860g</span>
+        </button>
+      </footer>
+    </section>
+
+    <section class="filter win" aria-labelledby="filter-title">
+      <h2 class="win-title" id="filter-title">Loot filter <span class="edited">edited</span> <span class="title-meta">3 of 3 filters saved</span></h2>
+
+      <div class="filter-body">
+        <div class="fpresets" role="radiogroup" aria-label="Saved loot filters">
+          <button class="fpreset" type="button" role="radio" aria-checked="true">Rare and up
+            <span class="tiers" aria-hidden="true"><i class="off"></i><i class="off"></i><i style="--t:var(--r-rare)"></i><i style="--t:var(--r-epic)"></i><i style="--t:var(--r-legendary)"></i></span>
+            <span class="dirty" title="Unsaved changes"></span>
+          </button>
+          <button class="fpreset" type="button" role="radio" aria-checked="false">Everything
+            <span class="tiers" aria-hidden="true"><i style="--t:var(--r-common)"></i><i style="--t:var(--r-uncommon)"></i><i style="--t:var(--r-rare)"></i><i style="--t:var(--r-epic)"></i><i style="--t:var(--r-legendary)"></i></span>
+          </button>
+          <button class="fpreset" type="button" role="radio" aria-checked="false">Materials run
+            <span class="tiers" aria-hidden="true"><i class="off"></i><i class="off"></i><i class="off"></i><i style="--t:var(--r-epic)"></i><i style="--t:var(--r-legendary)"></i></span>
+          </button>
+                  </div>
+
+        <section class="fsec" aria-labelledby="ramp-title">
+          <h3 class="older" id="ramp-title">By rarity</h3>
+          <ol class="ramp">
+            <li class="tier t-common">
+              <span class="tier-name">Common</span><span class="tier-note">0 bonuses</span>
+              <div class="choice" role="radiogroup" aria-label="Common">
+                <button type="button" role="radio" aria-checked="false">Keep</button>
+                <button class="on-sell" type="button" role="radio" aria-checked="true">Auto-sell</button>
+                <button type="button" role="radio" aria-checked="false">Ignore</button>
+              </div>
+            </li>
+            <li class="tier t-uncommon">
+              <span class="tier-name">Uncommon</span><span class="tier-note">1 bonus</span>
+              <div class="choice" role="radiogroup" aria-label="Uncommon">
+                <button type="button" role="radio" aria-checked="false">Keep</button>
+                <button class="on-sell" type="button" role="radio" aria-checked="true">Auto-sell</button>
+                <button type="button" role="radio" aria-checked="false">Ignore</button>
+              </div>
+            </li>
+            <li class="tier t-rare">
+              <span class="tier-name">Rare</span><span class="tier-note">2 bonuses</span>
+              <div class="choice" role="radiogroup" aria-label="Rare">
+                <button class="on-keep" type="button" role="radio" aria-checked="true">Keep</button>
+                <button type="button" role="radio" aria-checked="false">Auto-sell</button>
+                <button type="button" role="radio" aria-checked="false">Ignore</button>
+              </div>
+            </li>
+            <li class="tier t-epic">
+              <span class="tier-name">Epic</span><span class="tier-note">3 bonuses</span>
+              <div class="choice" role="radiogroup" aria-label="Epic">
+                <button class="on-keep" type="button" role="radio" aria-checked="true">Keep</button>
+                <button type="button" role="radio" aria-checked="false">Auto-sell</button>
+                <button type="button" role="radio" aria-checked="false">Ignore</button>
+              </div>
+            </li>
+            <li class="tier t-legendary">
+              <span class="tier-name">Legendary</span><span class="tier-note">4 bonuses</span>
+              <div class="choice">
+                <p class="locked"><svg aria-hidden="true"><use href="#i-lock"/></svg>Always kept</p>
+              </div>
+            </li>
+            <li class="threshold" aria-hidden="true"></li>
+          </ol>
+          <p class="fhint"><b>Protection first:</b> locked items and Legendary drops are never auto-sold. Then exceptions; rarity rules last.</p>
+        </section>
+
+        <section class="fsec" aria-labelledby="rules-title">
+          <div class="sec-head"><h3 class="older" id="rules-title">Exceptions <small>after protection · first match wins</small></h3><button class="add-rule" type="button"><svg aria-hidden="true"><use href="#i-plus"/></svg>Add exception</button></div>
+          <ol class="rules">
+            <li class="rule">
+              <svg class="rule-grip" aria-hidden="true"><use href="#i-grip"/></svg>
+              <span class="rule-no">1</span>
+              <p class="rule-if">Any <span class="cond">Consumable</span></p>
+              <span class="verdict verdict--keep"><svg aria-hidden="true"><use href="#i-bag"/></svg>Keep</span>
+            </li>
+            <li class="rule">
+              <svg class="rule-grip" aria-hidden="true"><use href="#i-grip"/></svg>
+              <span class="rule-no">2</span>
+              <p class="rule-if">Has <span class="cond cond--stat">Crit</span> and <span class="cond cond--stat">Attack speed</span></p>
+              <span class="verdict verdict--keep"><svg aria-hidden="true"><use href="#i-bag"/></svg>Keep</span>
+            </li>
+            <li class="rule rule--edited">
+              <svg class="rule-grip" aria-hidden="true"><use href="#i-grip"/></svg>
+              <span class="rule-no">3</span>
+              <p class="rule-if"><span class="cond">Equipment</span> below item level</p>
+              <span class="verdict verdict--sell"><svg aria-hidden="true"><use href="#i-coin"/></svg>Auto-sell</span>
+              <div class="level-slider">
+                <div class="track">
+                  <span class="track-sold" aria-hidden="true"></span>
+                  <span class="track-zone" aria-hidden="true"><span>Ember Quarry drops</span></span>
+                  <input type="range" min="1" max="50" value="30" aria-label="Minimum item level to keep">
+                </div>
+                <output class="level-value">30</output>
+              </div>
+            </li>
+            <li class="rule">
+              <svg class="rule-grip" aria-hidden="true"><use href="#i-grip"/></svg>
+              <span class="rule-no">4</span>
+              <p class="rule-if"><span class="cond">Staff or rod</span> <span class="then">nobody in party can equip</span></p>
+              <span class="verdict verdict--sell"><svg aria-hidden="true"><use href="#i-coin"/></svg>Auto-sell</span>
+            </li>
+          </ol>
+        </section>
+
+        <section class="fsec" aria-labelledby="preview-title">
+          <h3 class="older" id="preview-title">What this would have done <small>last 6 drops</small></h3>
+          <ul class="loot-list preview">
+            <li class="drop drop--epic drop--kept">
+              <span class="drop-icon"><svg aria-hidden="true"><use href="#it-bow"/></svg></span>
+              <span class="drop-name">Emberforged Longbow</span><span class="why">Kept</span>
+              <span class="drop-note">Epic, item lv 31, by rarity</span>
+            </li>
+            <li class="drop drop--rare drop--sold drop--changed">
+              <span class="drop-icon"><svg aria-hidden="true"><use href="#i-coin"/></svg></span>
+              <span class="drop-name">Warden's Ashen Cloak</span><span class="sold-value">+655g</span>
+              <span class="drop-note"><svg aria-hidden="true"><use href="#i-warn"/></svg><span class="sold-tag">Auto-sold</span> by exception 3, item lv 29. Saved filter kept it</span>
+            </li>
+            <li class="drop drop--plain drop--kept">
+              <span class="drop-icon"><svg aria-hidden="true"><use href="#it-potion"/></svg></span>
+              <span class="drop-name">Small HP Potion ×3</span><span class="why">Kept</span>
+              <span class="drop-note">Consumable, by exception 1</span>
+            </li>
+            <li class="drop drop--uncommon drop--sold">
+              <span class="drop-icon"><svg aria-hidden="true"><use href="#i-coin"/></svg></span>
+              <span class="drop-name">Ashplate Greaves</span><span class="sold-value">+312g</span>
+              <span class="drop-note"><span class="sold-tag">Auto-sold</span> by exception 3, item lv 28</span>
+            </li>
+            <li class="drop drop--common drop--sold">
+              <span class="drop-icon"><svg aria-hidden="true"><use href="#i-coin"/></svg></span>
+              <span class="drop-name">Cracked Ore Band</span><span class="sold-value">+240g</span>
+              <span class="drop-note"><span class="sold-tag">Auto-sold</span> by exception 3, item lv 27</span>
+            </li>
+            <li class="drop drop--legendary drop--kept">
+              <span class="drop-icon"><svg aria-hidden="true"><use href="#it-horn"/></svg></span>
+              <span class="drop-name">Gjallarhorn Fragment</span><span class="why">Kept</span>
+              <span class="drop-note">Protected first · exceptions cannot auto-sell this item</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="filter-foot">
+        <p class="tally"><span class="tally-now"><b>3</b> kept, <b>3</b> sold <span class="sold-value">+1,207g</span></span><span class="was">Preview only · existing bag items stay untouched</span></p>
+        <button class="btn-revert" type="button">Revert</button>
+        <button class="btn-save" type="button">Apply to future drops</button>
+      </footer>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(() => {
+ const fromAway=new URLSearchParams(location.search).get('from')==='away';
+ let capacity=fromAway?100:47;
+ const bulk=document.querySelector('.bulk');
+ function render(){document.querySelector('.title-count').textContent=capacity+' / 100';document.querySelector('.ledger-bag > div').firstChild.textContent=capacity+' / 100';const counts=document.querySelectorAll('.bag-tools .count');counts[0].textContent=capacity;counts[1].textContent=capacity-7;document.querySelector('.slots-scroll').setAttribute('aria-label','Inventory excerpt, '+capacity+' of 100 slots used');document.querySelector('.capacity-line').textContent=capacity+' / 100 slots used, '+(100-capacity)+' free';document.querySelector('.capacity-meter').setAttribute('aria-valuenow',capacity);document.querySelector('.capacity-meter i').style.width='calc('+capacity+'% - 2px)';}
+ if(fromAway){document.querySelector('.eligibility').innerHTML='Available at level 30 · Kaio is level 26.<br><small>More crit, less speed. Example item rolls.</small>';document.querySelector('.tip-actions .act--equip').title='Kaio must reach level 30';document.querySelector('.title-meta').textContent='After the away session · inventory excerpt';}
+ render();
+ bulk.addEventListener('click',()=>{if(bulk.disabled)return;capacity-=12;[...document.querySelectorAll('.bag-grid .item.r-common:not(:has(.lock-mark))')].slice(0,12).forEach(item=>{item.parentElement.classList.add('cell--empty');item.remove();});render();document.querySelector('.ledger-gold > div').firstChild.textContent='186,080';document.querySelector('.title-meta').textContent='Illustrative inventory excerpt · sale applied locally';bulk.disabled=true;bulk.querySelector('.bulk-label').textContent='12 Common items sold';bulk.querySelector('.bulk-meta').textContent='12 slots freed · locked item kept · demo only';bulk.setAttribute('aria-live','polite');});
+ const save=document.querySelector('.btn-save'),revert=document.querySelector('.btn-revert');
+ document.querySelectorAll('.filter input,.filter .fpreset,.filter .choice button,.filter .add-rule').forEach(control=>{control.disabled=true;control.title='Fixed rule example for this prototype';});
+ revert.disabled=true;revert.title='This prototype shows a fixed draft; rule editing is not interactive.';
+ document.querySelector('.filter .title-meta').textContent='Fixed draft preview';
+ save.addEventListener('click',()=>{save.disabled=true;save.textContent='Applied in demo';document.querySelector('.filter .edited').textContent='demo';document.querySelector('.filter .was').textContent='Local confirmation only · no game inventory changed';document.querySelector('.filter .was').setAttribute('aria-live','polite');});
+})();
+</script>
+</body>
+</html>

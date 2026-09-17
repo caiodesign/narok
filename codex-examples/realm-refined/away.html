@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>While you were away — Realm Refined</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --iron-0: #0b0d10;
+  --iron-1: #171a1f;
+  --iron-2: #242930;
+  --iron-3: #343a43;
+  --steel: #9cc0dc;
+  --steel-dim: #5d7a93;
+  --bronze-dark: #4a3722;
+  --bronze: #8d6b41;
+  --bronze-lit: #dcb67c;
+  --ember: #ff8a3d;
+  --ember-hot: #ffc46b;
+  --ember-deep: #b5401a;
+  --vellum: #eee5d2;
+  --vellum-dim: #b9ae98;
+
+  --hp-ally: #62c26f;
+  --hp-foe: #d8483a;
+  --mp: #4f92e6;
+  --xp: #d2a849;
+  --warn: #ff6b57;
+
+  --r-common: #c2bbad;
+  --r-uncommon: #6fcca9;
+  --r-rare: #6db2f5;
+  --r-epic: #c793f5;
+  --r-legendary: #ffb53f;
+  --gold: #f0c35a;
+
+  --school-guard: #3f5d78;
+  --school-cleric: #8a7433;
+  --school-ranger: #3d6b4c;
+
+  --display: 'Alegreya SC', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --text: 'Alegreya Sans', 'Segoe UI', 'Gill Sans', 'Trebuchet MS', sans-serif;
+
+  --gutter: 16px;
+
+  --corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/svg%3E");
+  --corner-tr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 1 26 0)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-bl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(1 0 0 -1 0 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-br: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 -1 26 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3Cpath d='M7 3l4 4-4 4-4-4z' fill='%23e8c690' stroke='%232a1d10' stroke-width='.9'/%3E%3C/g%3E%3C/svg%3E");
+  --rune-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M7 1v12M7 4l4-3M7 8L3 11M3 4h1.5M9.5 10H11' fill='none' stroke='%23b8905a' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; overflow: hidden; }
+
+body {
+  background: var(--iron-0);
+  color: var(--vellum);
+  font-family: var(--text);
+  font-size: 14px;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  min-width: 1100px;
+}
+
+h1, h2, h3, p, ul, ol, li, dl, dd, dt { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.realm { position: fixed; inset: 0; overflow: hidden; }
+
+.world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.world .fog { animation: fog-drift 38s ease-in-out infinite alternate; }
+.world .fog-b { animation-duration: 52s; animation-direction: alternate-reverse; }
+.world .crack { animation: ember-flicker 3.4s ease-in-out infinite; }
+.world .crack-b { animation-delay: -1.7s; }
+.world .slag-glow { animation: ember-flicker 5s ease-in-out infinite; }
+.world .spark { animation: spark-rise 7s linear infinite; }
+
+@keyframes fog-drift { from { transform: translateX(-40px); } to { transform: translateX(60px); } }
+@keyframes ember-flicker { 0%, 100% { opacity: 1; } 45% { opacity: .62; } 60% { opacity: .9; } }
+@keyframes spark-rise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translate(24px, -170px); opacity: 0; }
+}
+
+.battlefield {
+  position: absolute;
+  left: 50%;
+  top: 124px;
+  width: min(58vw, 820px);
+  transform: translateX(-50%);
+  overflow: visible;
+}
+.battlefield text { font-family: var(--text); }
+.tok-name { font-size: 12px; font-weight: 700; fill: var(--vellum); paint-order: stroke; stroke: #0b0806; stroke-width: 3px; stroke-linejoin: round; }
+.lane-label { font-size: 11px; font-style: italic; fill: #c9b9a2; letter-spacing: .02em; paint-order: stroke; stroke: #0b0806; stroke-width: 3px; }
+
+.win {
+  position: absolute;
+  background:
+    linear-gradient(180deg, rgba(52, 58, 67, .9) 0, rgba(28, 32, 38, .93) 34px, rgba(18, 21, 25, .95) 100%);
+  border: 1px solid #5c4529;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 196, .12),
+    inset 0 0 0 1px rgba(0, 0, 0, .7),
+    inset 0 0 22px rgba(0, 0, 0, .55),
+    0 10px 26px rgba(0, 0, 0, .6),
+    0 0 0 1px rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.win::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background:
+    var(--corner-tl) top left / 26px 26px no-repeat,
+    var(--corner-tr) top right / 26px 26px no-repeat,
+    var(--corner-bl) bottom left / 26px 26px no-repeat,
+    var(--corner-br) bottom right / 26px 26px no-repeat;
+}
+
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 6px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .03em;
+  color: var(--bronze-lit);
+  text-shadow: 0 1px 0 #000;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--bronze) 18%, var(--bronze) 82%, transparent) 1;
+}
+.win-title::before, .win-title::after {
+  content: "";
+  width: 14px; height: 14px;
+  background: var(--rune-mark) center / contain no-repeat;
+  flex: none;
+}
+.win-title::after { transform: scaleX(-1); margin-left: auto; }
+
+.unit {
+  position: relative;
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 0 10px;
+  padding: 8px 12px 8px 8px;
+  inset: auto;
+}
+.unit.win { position: relative; }
+
+.medal {
+  position: relative;
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, var(--medal-tint, #3f5d78) 0, #11151b 72%);
+  box-shadow:
+    0 0 0 2px #1a130b,
+    0 0 0 4px #9a7747,
+    0 0 0 5px #2b1f12,
+    inset 0 3px 8px rgba(255,255,255,.12),
+    inset 0 -6px 12px rgba(0,0,0,.6);
+  display: grid; place-items: center;
+  color: #eaf2f8;
+  margin: 4px 0 0 4px;
+}
+.medal svg { width: 30px; height: 30px; }
+.medal--cleric { --medal-tint: #7a6630; color: #fff4d6; }
+.medal--ranger { --medal-tint: #35644a; color: #e6fff0; }
+.lvl {
+  position: absolute;
+  bottom: -6px; left: 50%;
+  transform: translateX(-50%);
+  min-width: 26px;
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  color: #1b1208;
+  background: linear-gradient(180deg, #f1d49c, #b48a50);
+  border: 1px solid #2b1f12;
+  border-radius: 8px;
+}
+
+.unit-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
+.unit-name { font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1; color: var(--vellum); }
+.unit-class { font-size: 12.5px; color: var(--vellum-dim); }
+
+.xp { position: relative; height: 4px; margin-top: 4px; background: #07080a; border-radius: 2px; box-shadow: inset 0 0 0 1px #000; }
+.xp > i { position: absolute; inset: 0 auto 0 0; width: var(--v); background: linear-gradient(90deg, #8a6a2a, var(--xp)); border-radius: 2px; }
+
+.metric dt { font-size: 12.5px; color: var(--vellum-dim); }
+.metric dd { font-size: 19px; font-weight: 700; line-height: 1.15; color: var(--vellum); font-variant-numeric: tabular-nums lining-nums; }
+
+.pips { display: flex; gap: 3px; }
+.pip { width: 10px; height: 12px; clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%); background: #d8483a; box-shadow: inset 0 0 0 1px #000; }
+.pip.spent { background: #3b3f46; }
+
+.drop {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 2px 9px;
+  padding: 4px 6px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 14%, transparent), transparent 70%);
+}
+.drop-icon {
+  grid-row: span 2;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 2px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 35%, #111), #0c0e11 85%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--rc);
+  color: var(--rc);
+}
+.drop-icon svg { width: 18px; height: 18px; }
+.drop-name { font-weight: 700; font-size: 14px; color: var(--rc); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drop-note { grid-column: 2 / span 2; font-size: 12px; color: var(--vellum-dim); line-height: 1.15; }
+.drop-age { font-size: 11.5px; color: #a3988a; font-variant-numeric: tabular-nums; }
+.drop--common { --rc: var(--r-common); }
+.drop--uncommon { --rc: var(--r-uncommon); }
+.drop--rare { --rc: var(--r-rare); }
+.drop--epic { --rc: var(--r-epic); }
+.drop--legendary { --rc: var(--r-legendary); }
+
+.drop--sold { background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .05) 0 6px, transparent 6px 12px); }
+.drop--sold .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px #6a5a3a; background: #14120e; color: var(--gold); }
+.drop--sold .drop-name { color: #a39c90; font-weight: 500; }
+.sold-value { font-weight: 800; font-size: 13.5px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.sold-tag { font-style: italic; color: #cdb98f; }
+
+.drop--legendary {
+  position: relative;
+  margin-top: 4px;
+  padding: 6px 6px;
+  background:
+    linear-gradient(90deg, rgba(255, 150, 40, .28), rgba(120, 40, 10, .18) 60%, rgba(0,0,0,0)),
+    #1a0f07;
+  box-shadow: inset 0 0 0 1px rgba(255, 181, 63, .55), 0 0 14px rgba(255, 140, 40, .22);
+  overflow: hidden;
+}
+.drop--legendary::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 228, 170, .22) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: sheen 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.drop--legendary .drop-icon { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--r-legendary), 0 0 10px rgba(255, 170, 60, .7); color: #ffd98a; }
+.drop--legendary .drop-name { white-space: normal; font-family: var(--display); font-size: 14.5px; font-weight: 800; color: #ffc35a; text-shadow: 0 0 8px rgba(255, 140, 40, .55), 0 1px 0 #000; }
+.drop--legendary .drop-note { color: #e7cfa6; }
+@keyframes sheen { 0%, 55% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+.older { font-size: 11.5px; font-style: italic; color: #a3988a; padding: 4px 6px 0; display: flex; align-items: center; gap: 8px; }
+.older::before, .older::after { content: ""; flex: 1; height: 1px; background: #3a2e20; }
+
+.preset {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 8px;
+  width: 100%;
+  padding: 6px 10px 6px 12px;
+  text-align: left;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2f353d, #1b1f24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px #000, 0 0 0 2px #574329;
+}
+.preset:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 0 0 2px #9a7747; }
+.preset-kind { font-size: 12px; color: var(--vellum-dim); }
+.preset-value { grid-column: 1; font-weight: 800; font-size: 15px; color: var(--vellum); display: flex; align-items: center; gap: 7px; }
+.preset-value small { font-size: 11.5px; font-weight: 400; color: #a99c85; }
+.preset-edit { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--bronze-lit); }
+.preset-edit svg { width: 15px; height: 15px; }
+.tiers { display: inline-flex; gap: 2px; }
+.tiers i { width: 7px; height: 10px; border-radius: 1px; background: var(--t); box-shadow: 0 0 0 1px #000; }
+.tiers i.off { background: #3a3d42; }
+
+:focus-visible { outline: 2px solid var(--ember-hot); outline-offset: 3px; }
+
+/* ---------- Away report ---------- */
+
+.hush {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 42%, rgba(40, 16, 6, .35), rgba(0, 0, 0, 0) 70%),
+    linear-gradient(180deg, rgba(6, 7, 9, .78), rgba(6, 7, 9, .7) 40%, rgba(6, 7, 9, .86));
+  -webkit-backdrop-filter: blur(2px) saturate(.7);
+  backdrop-filter: blur(2px) saturate(.7);
+}
+.idle-note {
+  position: absolute; left: var(--gutter); bottom: 14px;
+  font-size: 12.5px; font-style: italic; color: #a99c85;
+}
+
+.dialog-stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px 24px;
+}
+
+.report.win {
+  position: relative;
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 28px);
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(180deg, rgba(52, 58, 67, .95) 0, rgba(26, 29, 35, .97) 120px, rgba(16, 18, 22, .98) 100%);
+  border-color: #7a5c36;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 196, .16),
+    inset 0 0 0 1px rgba(0, 0, 0, .7),
+    inset 0 0 40px rgba(0, 0, 0, .55),
+    0 30px 80px rgba(0, 0, 0, .8),
+    0 0 0 1px rgba(0, 0, 0, .6),
+    0 0 60px rgba(255, 120, 40, .12);
+}
+.report-body { overflow: auto; min-height: 0; padding: 0 22px 10px; display: grid; gap: 10px; }
+
+.herald {
+  position: relative;
+  padding: 12px 22px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
+  gap: 8px 28px;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--bronze) 12%, var(--bronze-lit) 50%, var(--bronze) 88%, transparent) 1;
+  background:
+    radial-gradient(ellipse 60% 120% at 50% 0%, rgba(255, 150, 60, .16), rgba(0, 0, 0, 0) 70%);
+  overflow: hidden;
+}
+.herald-crest { display: flex; align-items: center; gap: 12px; }
+.herald-crest svg.sigil { width: 40px; height: 40px; flex: none; color: var(--ember-hot); filter: drop-shadow(0 0 8px rgba(255, 150, 60, .55)); }
+.herald-title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: .02em;
+  color: #f4d397;
+  background: linear-gradient(180deg, #fff1cf 0, #f2cb83 45%, #b98a47 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 #000) drop-shadow(0 0 12px rgba(255, 150, 60, .3));
+}
+.herald-sub { margin-top: 5px; font-size: 14px; color: var(--vellum-dim); }
+.herald-sub b { color: var(--vellum); font-weight: 700; }
+
+.herald-facts { display: flex; gap: 26px; justify-self: end; align-items: end; }
+.fact dt { font-size: 12.5px; color: var(--vellum-dim); }
+.fact dd { font-size: 22px; font-weight: 800; line-height: 1.1; color: var(--vellum); font-variant-numeric: tabular-nums lining-nums; }
+.fact dd small { font-size: 12.5px; font-weight: 500; color: var(--vellum-dim); }
+.fact--map dd { font-family: var(--display); font-size: 20px; color: #ffe7c7; text-shadow: 0 0 10px rgba(255, 138, 61, .45), 0 1px 0 #000; }
+
+.cap { min-width: 270px; }
+.cap-track { position: relative; height: 10px; margin-top: 6px; border-radius: 2px; background: linear-gradient(180deg, #07080a, #15181c); box-shadow: inset 0 0 0 1px #000, 0 1px 0 rgba(255,255,255,.06); }
+.cap-track > i { position: absolute; inset: 1px auto 1px 1px; width: 52.2%; border-radius: 1px; background: linear-gradient(180deg, #e2d4ff, #9a82d8 50%, #5a4892); }
+.cap-free { position: absolute; top: -3px; bottom: -3px; left: 67.8%; width: 2px; background: #a99c85; box-shadow: 0 0 0 1px #000; }
+.cap-legend { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11.5px; color: #a99c85; font-variant-numeric: tabular-nums; }
+.cap-legend .prem { color: #d7c9ff; }
+.cap-legend .free-short { display: none; }
+
+.embers { position: absolute; inset: 0; pointer-events: none; }
+.embers i {
+  position: absolute; bottom: -6px;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: #ffc46b;
+  box-shadow: 0 0 6px 1px rgba(255, 150, 60, .8);
+  opacity: 0;
+  animation: ember-up 6s linear infinite;
+}
+@keyframes ember-up {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: .95; }
+  100% { transform: translate(18px, -120px); opacity: 0; }
+}
+
+.verdict {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  align-items: center;
+  gap: 4px 14px;
+  margin-top: 12px;
+  padding: 8px 16px 8px 12px;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(135deg, rgba(240, 195, 90, .045) 0 8px, transparent 8px 16px),
+    linear-gradient(90deg, rgba(90, 52, 20, .55), rgba(40, 26, 14, .35) 60%, rgba(30, 20, 12, .2));
+  box-shadow: inset 0 0 0 1px rgba(220, 182, 124, .35), inset 3px 0 0 var(--ember);
+}
+.verdict-seal {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, #8a5a22, #2b1a0b 80%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c9a46a;
+  color: #ffe7c7;
+}
+.verdict-seal svg { width: 20px; height: 20px; }
+.verdict-head { font-family: var(--display); font-weight: 800; font-size: 18px; line-height: 1.1; color: #ffe2b8; }
+.verdict-text { font-size: 14px; color: #dcd1bc; }
+.verdict-text b { color: var(--vellum); }
+.verdict-text .r-epic { color: var(--r-epic); font-weight: 700; }
+.attempts { display: grid; justify-items: end; gap: 3px; padding-left: 16px; border-left: 1px solid #5c4529; }
+.attempts .pips { gap: 4px; }
+.attempts .pip { width: 13px; height: 16px; }
+.attempts .pip.new { background: #3b3f46; box-shadow: inset 0 0 0 1px #000, 0 0 0 1px #ff6b57; }
+.attempts-label { font-size: 13px; font-weight: 700; color: var(--vellum); font-variant-numeric: tabular-nums; }
+.attempts-note { font-size: 12px; color: var(--vellum-dim); }
+
+.section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--display); font-weight: 700; font-size: 15px;
+  letter-spacing: .03em; color: var(--bronze-lit); text-shadow: 0 1px 0 #000;
+  margin-bottom: 6px;
+}
+.section-title::before { content: ""; width: 14px; height: 14px; background: var(--rune-mark) center / contain no-repeat; flex: none; }
+.section-title::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--bronze), transparent); }
+.section-title small { font-family: var(--text); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--vellum-dim); order: 2; }
+
+.party-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.result.unit { padding: 10px 12px 10px 10px; gap: 0 12px; }
+.result .unit-head { margin-bottom: 6px; }
+.lvl-change { margin-left: auto; display: inline-flex; align-items: baseline; gap: 5px; font-size: 13px; color: var(--vellum-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lvl-change b { font-size: 15px; font-weight: 800; color: var(--vellum); }
+
+.result--up { border-color: #a9844f; box-shadow: inset 0 1px 0 rgba(255, 234, 196, .12), inset 0 0 0 1px rgba(0,0,0,.7), inset 0 0 22px rgba(0,0,0,.55), 0 10px 26px rgba(0,0,0,.6), 0 0 0 1px rgba(220, 182, 124, .35), 0 0 18px rgba(255, 170, 60, .16); }
+.result--up .medal {
+  box-shadow: 0 0 0 2px #1a130b, 0 0 0 4px #e0b56a, 0 0 0 5px #2b1f12, 0 0 16px rgba(255, 190, 90, .55), inset 0 3px 8px rgba(255,255,255,.12), inset 0 -6px 12px rgba(0,0,0,.6);
+}
+.result--up .medal::after {
+  content: "";
+  position: absolute; inset: -12px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 20deg, rgba(255, 210, 130, .5) 24deg, transparent 30deg 110deg, rgba(255, 210, 130, .45) 114deg, transparent 120deg 200deg, rgba(255, 210, 130, .5) 204deg, transparent 210deg 290deg, rgba(255, 210, 130, .45) 294deg, transparent 300deg);
+  -webkit-mask: radial-gradient(circle, transparent 29px, #000 30px, #000 40px, transparent 41px);
+  mask: radial-gradient(circle, transparent 29px, #000 30px, #000 40px, transparent 41px);
+  animation: spin 14s linear infinite;
+  pointer-events: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.result--up .lvl { background: linear-gradient(180deg, #fff0c8, #e0a84a); box-shadow: 0 0 8px rgba(255, 200, 100, .6); }
+.levelup-flag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 8px;
+  font-size: 12px; font-weight: 800; color: #2a1804;
+  background: linear-gradient(180deg, #ffe3a6, #d9a24c);
+  box-shadow: 0 0 0 1px #2b1f12;
+}
+.levelup-flag svg { width: 10px; height: 10px; }
+.lvl-change .from { color: #a99c85; }
+
+.xp-result { position: relative; height: 9px; margin-top: 2px; background: #07080a; border-radius: 2px; box-shadow: inset 0 0 0 1px #000; }
+.xp-result > i { position: absolute; top: 1px; bottom: 1px; left: calc(var(--from) + 1px); width: calc(var(--to) - var(--from) - 2px); border-radius: 1px; background: linear-gradient(180deg, #f6d98a, var(--xp) 55%, #8a6a2a); box-shadow: 0 0 6px rgba(242, 207, 122, .45); }
+.xp-result > s { position: absolute; top: 1px; bottom: 1px; left: 1px; width: var(--from); background: #5a4a2a; border-radius: 1px; text-decoration: none; }
+.xp-result > u { position: absolute; top: -3px; bottom: -3px; left: var(--from); width: 2px; background: #1b1208; box-shadow: 0 0 0 1px #e0b56a; text-decoration: none; }
+.xp-caption { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--vellum-dim); font-variant-numeric: tabular-nums; }
+.xp-caption b { color: var(--xp); font-weight: 700; }
+
+.result-stats { grid-column: 1 / -1; display: grid; grid-template-columns: .9fr .9fr 1.4fr; gap: 0 10px; margin-top: 8px; padding-top: 7px; border-top: 1px solid #3a2e20; }
+.result-stats dt { font-size: 12px; color: var(--vellum-dim); }
+.result-stats dd { font-size: 15px; font-weight: 700; color: var(--vellum); font-variant-numeric: tabular-nums lining-nums; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.result-stats dd svg { width: 14px; height: 14px; color: #c9b9a2; flex: none; }
+.result-stats dd small { font-size: 12px; font-weight: 500; color: var(--vellum-dim); }
+.result-stats .exp dd { color: var(--xp); }
+.result-stats .pts dd { display: block; font-size: 13px; font-weight: 500; color: #dcd1bc; white-space: normal; line-height: 1.25; }
+.result-stats .pts dd b { color: var(--ember-hot); font-weight: 800; }
+
+.ledger-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: stretch; }
+.pane { position: relative; padding: 8px 14px 10px; }
+.pane.win { position: relative; }
+
+.totals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.totals .metric dd { font-size: 22px; }
+.metric--gold dd { color: var(--gold); }
+.metric--exp dd { color: var(--xp); }
+.metric-note { display: block; font-size: 12px; color: var(--vellum-dim); line-height: 1.2; margin-top: 1px; }
+
+.gold-split { width: 100%; margin-top: 4px; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.gold-split th { text-align: left; font-weight: 400; color: var(--vellum-dim); padding: 1px 0; }
+.gold-split td { text-align: right; color: #e9d7a8; font-weight: 700; padding: 1px 0; }
+
+.timesplit { margin-top: 10px; padding-top: 9px; border-top: 1px solid #3a2e20; }
+.timesplit-head { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--vellum-dim); }
+.timesplit-bar { display: flex; gap: 2px; height: 10px; margin-top: 5px; padding: 1px; border-radius: 2px; background: #07080a; box-shadow: inset 0 0 0 1px #000; }
+.timesplit-bar i { height: 100%; border-radius: 1px; }
+.seg-fight { background: linear-gradient(180deg, #ffc27a, var(--ember) 50%, var(--ember-deep)); }
+.seg-walk { background: linear-gradient(180deg, #c8dff0, var(--steel) 50%, var(--steel-dim)); }
+.seg-rest { background: linear-gradient(180deg, #a9e3b1, var(--hp-ally) 50%, #3a7a44); }
+.timesplit-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12.5px; color: var(--vellum-dim); }
+.timesplit-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.timesplit-legend li::before { content: ""; width: 9px; height: 9px; border-radius: 1px; background: var(--k); box-shadow: 0 0 0 1px #000; }
+.timesplit-legend b { color: var(--vellum); font-variant-numeric: tabular-nums; }
+
+.loot-pane { display: grid; gap: 8px; align-content: start; }
+.ramp { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.tier {
+  position: relative;
+  padding: 4px 8px 5px 10px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 16%, #111317), #0e1013);
+  box-shadow: inset 0 0 0 1px #000, inset 0 2px 0 var(--rc);
+}
+.tier dt { font-size: 12px; font-weight: 700; color: var(--rc); }
+.tier dd { font-size: 19px; font-weight: 800; line-height: 1.05; color: var(--vellum); font-variant-numeric: tabular-nums lining-nums; }
+.tier dd + dd { font-size: 11.5px; font-weight: 500; line-height: 1.2; color: var(--vellum-dim); }
+.tier--legendary { box-shadow: inset 0 0 0 1px rgba(255, 181, 63, .55), inset 0 2px 0 var(--rc), 0 0 12px rgba(255, 140, 40, .22); }
+.tier--legendary dd:first-of-type { color: #ffd98a; text-shadow: 0 0 8px rgba(255, 140, 40, .55); }
+
+.notable { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.notable .drop--legendary { margin-top: 0; }
+.drop--lost { background: repeating-linear-gradient(135deg, rgba(255, 107, 87, .06) 0 6px, transparent 6px 12px); box-shadow: inset 2px 0 0 #7e3a30; }
+.drop--lost .drop-icon { opacity: .55; }
+.drop--lost .drop-name { color: color-mix(in srgb, var(--r-epic) 70%, #777); text-decoration: line-through; text-decoration-color: rgba(255, 180, 168, .55); }
+.lost-tag { font-size: 12px; font-weight: 700; color: #ffb4a8; }
+
+.sold-line { display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 2px; font-size: 13.5px; color: #dcd1bc; background: repeating-linear-gradient(135deg, rgba(240, 195, 90, .05) 0 6px, transparent 6px 12px); box-shadow: inset 0 0 0 1px #3a2e20; }
+.sold-line svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
+.sold-line b { color: var(--vellum); font-variant-numeric: tabular-nums; }
+.sold-line .sold-value { margin-left: auto; font-size: 15px; }
+
+.chronicle { position: relative; padding: 8px 18px 6px; }
+.chronicle.win { position: relative; }
+.track-wrap { position: relative; margin: 28px 8px 40px; }
+.track { position: relative; height: 12px; border-radius: 2px; background: linear-gradient(180deg, #07080a, #15181c); box-shadow: inset 0 0 0 1px #000, 0 1px 0 rgba(255,255,255,.06); }
+.track-looting { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(85.2% - 2px); border-radius: 1px; background: linear-gradient(180deg, #7a5a2c, #4a3218); }
+.track-dry { position: absolute; top: 2px; bottom: 2px; left: 85.2%; right: 2px; border-radius: 1px; background: repeating-linear-gradient(135deg, #5a2a22 0 4px, #2a1411 4px 8px); }
+.hours { position: absolute; inset: 0; pointer-events: none; }
+.hours i { position: absolute; top: 12px; width: 1px; height: 4px; background: #5c4529; }
+.hours span { position: absolute; top: 17px; transform: translateX(-50%); font-size: 11px; color: #8f8472; font-variant-numeric: tabular-nums; }
+
+.mark { position: absolute; left: var(--at); top: 0; height: 12px; width: 0; }
+.mark::before {
+  content: "";
+  position: absolute; left: -6px; top: 0;
+  width: 12px; height: 12px;
+  transform: rotate(45deg);
+  background: var(--mc);
+  box-shadow: 0 0 0 1px #000, 0 0 8px color-mix(in srgb, var(--mc) 60%, transparent);
+}
+.mark-label {
+  position: absolute; left: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.1;
+  color: var(--vellum);
+}
+.mark-label time { display: block; font-size: 11px; color: #a3988a; font-variant-numeric: tabular-nums; }
+.mark--up .mark-label { bottom: 16px; }
+.mark--down .mark-label { top: 34px; }
+.mark--down::after { content: ""; position: absolute; left: -.5px; top: 13px; width: 1px; height: 20px; background: color-mix(in srgb, var(--mc) 60%, #000); }
+.mark--up::after { content: ""; position: absolute; left: -.5px; bottom: 12px; width: 1px; height: 4px; background: color-mix(in srgb, var(--mc) 60%, #000); }
+.mark--epic { --mc: var(--r-epic); }
+.mark--epic .mark-label { color: #dcc0f8; }
+.mark--legendary { --mc: var(--r-legendary); }
+.mark--legendary::before { width: 16px; height: 16px; left: -8px; top: -2px; box-shadow: 0 0 0 1px #000, 0 0 12px rgba(255, 170, 60, .9); }
+.mark--legendary .mark-label { color: #ffc35a; font-weight: 800; }
+.mark--level { --mc: #f6d98a; }
+.mark--level .mark-label { color: #f6d98a; font-weight: 700; }
+.mark--death { --mc: #d8483a; }
+.mark--death .mark-label { color: #ffb4a8; font-weight: 700; }
+.mark--stop { --mc: #ff6b57; }
+.mark--stop::before { transform: none; border-radius: 1px; left: -2px; width: 4px; height: 20px; top: -4px; }
+.mark--stop .mark-label { color: #ffb4a8; font-weight: 800; }
+.mark--lost { --mc: transparent; }
+.mark--lost::before { background: #1b1015; box-shadow: 0 0 0 1px #000, inset 0 0 0 2px var(--r-epic); }
+.mark--lost .mark-label { color: #c5a9dd; font-style: italic; }
+.mark--end { --mc: var(--steel); }
+.mark--end::before { transform: none; border-radius: 50%; }
+
+.actions {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 22px 12px;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--bronze) 12%, var(--bronze) 88%, transparent) 1;
+  background: linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.35));
+}
+.actions-note { font-size: 13px; color: var(--vellum-dim); max-width: 36ch; }
+.actions-note b { color: var(--vellum); }
+.actions .preset { width: auto; min-width: 180px; }
+.actions .preset:first-of-type { margin-left: auto; }
+
+.collect {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 22px 10px 12px;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 18px;
+  color: #fff0d8;
+  text-shadow: 0 1px 0 #2a0e04, 0 0 10px rgba(255, 160, 70, .5);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #a0561f 0, #6e3410 48%, #3e1a07 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, .35), inset 0 -2px 6px rgba(0,0,0,.4), 0 0 0 1px #000, 0 0 0 2px #e0b56a, 0 0 0 3px #2b1f12, 0 0 22px rgba(255, 130, 40, .35);
+}
+.collect:hover { background: linear-gradient(180deg, #b8652a 0, #7e3c14 48%, #46200a 100%); }
+.collect-seal { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, #ffd27a, #b5401a 80%); box-shadow: 0 0 0 1px #000, 0 0 0 2px #f1d49c; color: #2a0e04; }
+.collect-seal svg { width: 14px; height: 14px; }
+
+@media (max-width: 1300px) {
+  .herald { gap: 8px 20px; }
+  .herald-title { font-size: 28px; }
+  .herald-sub { max-width: 34ch; }
+  .herald-facts { gap: 20px; }
+  .fact--away { display: none; }
+  .cap { min-width: 230px; }
+  .cap-legend .free-long { display: none; }
+  .cap-legend .free-short { display: inline; }
+  .result-stats { grid-template-columns: .8fr .8fr 1.4fr; }
+}
+@media (max-height: 860px) {
+  .herald { padding-top: 12px; padding-bottom: 10px; }
+  .herald-title { font-size: 28px; }
+  .report-body { gap: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+  .embers { display: none; }
+}
+
+/* Refined report: one major frame, legible details, persistent recovery action. */
+body[data-screen="away"] { min-width: 360px; }
+.herald { grid-template-columns: 1fr auto; }
+.herald, .actions { flex-shrink: 0; }
+.herald-sub { max-width: 48ch; line-height: 1.35; }
+.fact--away { display: none; }
+.cap { min-width: 220px; }
+.report.win { max-height: calc(100dvh - 70px); }
+.report-body { gap: 16px; padding-bottom: 18px; scrollbar-color: #746044 #16191e; }
+.report-body .win::before { display: none; }
+.report-body .win { box-shadow: inset 0 1px 0 #ffffff08; border-color: #55442f; }
+.result--up .medal::after { opacity: .45; }
+.verdict { padding: 12px; }
+.verdict-head { margin-bottom: 5px; }
+.verdict-text { line-height: 1.4; }
+.section-title small, .xp-caption, .drop-note, .result-stats dt, .result-stats dd small, .tier dd + dd, .gold-split { font-size: 13px; }
+.result-stats { grid-template-columns: .9fr 1fr 1.2fr; }
+.result-stats dd { flex-wrap: wrap; gap: 2px 5px; }
+.result .unit-head { flex-wrap: wrap; }
+.result .lvl-change { width: 100%; margin: 0; }
+.drop-name { white-space: normal; line-height: 1.2; }
+.notable .drop--legendary { grid-column: 1 / -1; padding: 10px; }
+.notable .drop--legendary .drop-name { font-size: 19px; }
+.notable .drop--legendary .drop-note { font-size: 14px; }
+.actions a { text-decoration: none; }
+.actions .collect { white-space: nowrap; }
+.actions-note { max-width: 40ch; line-height: 1.35; }
+.return-hunt { color: var(--vellum); margin-left: auto; white-space: nowrap; padding: 12px 8px; border-bottom: 1px solid #796443; }
+.return-hunt:hover { color: var(--bronze-lit); }
+.actions .preset { min-width: 185px; }
+@media (min-width: 1101px) {
+ .report-body { gap: 10px; padding-bottom: 10px; }
+ .herald { padding-top: 10px; padding-bottom: 8px; }
+ .verdict { padding: 8px 12px; margin-top: 8px; }
+ .result.unit { padding: 8px 10px; grid-template-columns: 48px 1fr; gap: 0 10px; }
+ .result .medal { width: 44px; height: 44px; }
+ .result .unit-head { gap: 2px 6px; margin-bottom: 3px; }
+ .result .lvl-change { width: auto; margin-left: auto; font-size: 12px; gap: 3px; }
+ .result .unit-class { display: none; }
+ .result .levelup-flag { font-size: 11px; padding: 1px 5px; }
+ .result-stats { margin-top: 6px; padding-top: 5px; grid-template-columns: .85fr 1.05fr 1.25fr; gap: 5px; }
+ .result-stats dd { font-size: 14px; }
+ .result-stats .pts dd { font-size: 13px; }
+ .notable .drop--legendary { grid-column: auto; padding: 6px; }
+ .notable .drop--legendary .drop-name { font-size: 15px; }
+ .notable .drop--legendary .drop-note { font-size: 13px; }
+ .notable { gap: 3px 10px; }
+ .loot-pane { gap: 6px; }
+ .pane { padding-top: 6px; padding-bottom: 8px; }
+ .track-wrap { margin-top: 27px; margin-bottom: 36px; }
+}
+@media (max-width: 1100px) {
+ .herald-facts .cap { display: none; } .dialog-stage { padding: 14px; }
+ .report { width: 100%; } .section-title { flex-wrap: wrap; } .section-title small { width: 100%; }
+ .actions { gap: 12px; } .actions .preset { display: none; } .notable { grid-template-columns: 1fr; }
+ .result-stats { grid-template-columns: 1fr 1fr; row-gap: 8px; } .result-stats .pts { grid-column: 1 / -1; }
+ .chronicle { overflow-x: auto; } .track-wrap { min-width: 860px; }
+}
+@media (max-width: 760px) {
+ .dialog-stage { padding: 8px; } .herald { display: block; padding: 16px; } .herald-facts { display: none; }
+ .herald-title { font-size: 27px; } .herald-sub { font-size: 14px; } .report-body { padding: 0 14px 16px; }
+ .verdict { grid-template-columns: 1fr; } .verdict-seal { display: none; } .attempts { justify-items: start; border: 0; padding: 8px 0 0; }
+ .party-results, .ledger-grid { grid-template-columns: 1fr; } .result .lvl-change { width: auto; margin-left: auto; }
+ .result-stats { grid-template-columns: 1fr 1fr 1.3fr; } .result-stats .pts { grid-column: auto; }
+ .ramp { grid-template-columns: repeat(3, minmax(0, 1fr)); } .actions { flex-wrap: wrap; padding: 12px 16px; }
+ .actions-note { order: 3; max-width: none; width: 100%; font-size: 13px; } .collect { font-size: 17px; } .return-hunt { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+
+</style>
+<link rel="stylesheet" href="refined.css">
+<script src="refined.js" defer></script>
+</head>
+<body data-screen="away">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="g-guardian" viewBox="0 0 24 24"><path d="M12 2.5 20 5.5V11c0 5.2-3.4 9-8 10.5C7.4 20 4 16.2 4 11V5.5Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 6v12M7.5 10h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-cleric" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22M4.9 4.9l2.5 2.5M16.6 16.6l2.5 2.5M4.9 19.1l2.5-2.5M16.6 7.4l2.5-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="g-ranger" viewBox="0 0 24 24"><path d="M5 19 18.5 5.5M18.5 5.5h-6M18.5 5.5v6M5 19l-1 2.5M5 19l-2.5 1M7 17l-2.2.3M7 17l-.3 2.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.5C4.5 6 6.5 4 10 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+
+    <symbol id="i-coin" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="8" ry="4" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.7"/><path d="M4 8v4c0 2.2 3.6 4 8 4s8-1.8 8-4V8M4 12v4c0 2.2 3.6 4 8 4s8-1.8 8-4v-4" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M8 7c0-2.5 1.8-4 4-4s4 1.5 4 4M5 8h14l-1 12.5H6Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M9.5 18.5c1-1.3 4-1.3 5 0l.8 2H8.7Z" fill="currentColor"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 24 24"><path d="M12 3c-4.5 0-7.5 3-7.5 7 0 2.4 1.2 4 2.5 5v3.5h10V15c1.3-1 2.5-2.6 2.5-5 0-4-3-7-7.5-7Z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="10.5" r="1.7" fill="currentColor"/><circle cx="15" cy="10.5" r="1.7" fill="currentColor"/><path d="M10 18.5V21M14 18.5V21" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-quill" viewBox="0 0 24 24"><path d="M20 3C12 4 7 9 5.5 17.5L4 21M20 3c-1 6-5 11-11.5 12.5M14 7.5l-3.5 1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 1.5 14.5 9.5 22.5 12 14.5 14.5 12 22.5 9.5 14.5 1.5 12 9.5 9.5Z" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5 19.5 12 7 19.5Z" fill="currentColor"/></symbol>
+    <symbol id="i-sunrise" viewBox="0 0 48 48"><path d="M6 32h36M11 38h26" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M13 32a11 11 0 0 1 22 0" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="2.2"/><path d="M24 7v6M9.5 13l4 4.3M38.5 13l-4 4.3M3.5 24.5h5M39.5 24.5h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M24 17l2 5-2 1.5-2-1.5Z" fill="currentColor"/></symbol>
+
+    <symbol id="it-bow" viewBox="0 0 24 24"><path d="M6 3c9 2 13 9 11.5 18M6 3l11.5 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M3 12h13M16 12l-3-2.5M16 12l-3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="it-cloak" viewBox="0 0 24 24"><path d="M9 3h6l1.5 3L20 21H4L7.5 6Z" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 6v15" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="it-horn" viewBox="0 0 24 24"><path d="M3 5.5c4 0 6.5 2.5 8.5 6.5s4.5 7 9.5 7l-1-4c-3 0-4.5-2-6-5.5S10 3 3 2.5Z" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 3.5l-1 2.5M11 6l-1.5 2M14 10.5l-2 1" stroke="currentColor" stroke-width="1.3"/><path d="M17 20.5l2.5-3" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 1.5"/></symbol>
+    <symbol id="it-shield" viewBox="0 0 24 24"><path d="M4 3h16v9c0 5-4 8-8 9.5C8 20 4 17 4 12Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 8h16M12 3v18" stroke="currentColor" stroke-width="1.3"/></symbol>
+    <symbol id="it-mace" viewBox="0 0 24 24"><path d="M5 20 13 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="15.5" cy="8.5" r="4.2" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 2.5v2M21.5 8.5h-2M19.8 4.2l-1.4 1.4M15.5 14.5v-1.8M9.5 8.5h1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="it-mail" viewBox="0 0 24 24"><path d="M8 3 4 5.5l1 6.5 2-1V21h10V11l2 1 1-6.5L16 3c-.5 2-2 3-4 3S8.5 5 8 3Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 14h10M7 17.5h10" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/></symbol>
+  </defs>
+</svg>
+
+<div class="realm">
+
+  <svg class="world" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="w-sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0a0a0d"/>
+        <stop offset=".28" stop-color="#1a1411"/>
+        <stop offset="1" stop-color="#110c0a"/>
+      </linearGradient>
+      <linearGradient id="w-floor" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2d2119"/>
+        <stop offset=".5" stop-color="#271c15"/>
+        <stop offset="1" stop-color="#1a130f"/>
+      </linearGradient>
+      <linearGradient id="w-ledge" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#3d2e23"/>
+        <stop offset="1" stop-color="#2c2019"/>
+      </linearGradient>
+      <radialGradient id="w-slag" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#fff0b0"/>
+        <stop offset=".25" stop-color="#ffb54a"/>
+        <stop offset=".6" stop-color="#e5561a"/>
+        <stop offset=".9" stop-color="#6e1d06"/>
+        <stop offset="1" stop-color="#2a0e05"/>
+      </radialGradient>
+      <radialGradient id="w-glow" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#ff7a2a" stop-opacity=".55"/>
+        <stop offset=".5" stop-color="#ff5a1a" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-cool" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#6d8fb0" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#6d8fb0" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="w-vignette" cx=".5" cy=".5" r=".72">
+        <stop offset=".45" stop-color="#000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".82"/>
+      </radialGradient>
+      <radialGradient id="w-fog" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#c8b6a6" stop-opacity=".11"/>
+        <stop offset="1" stop-color="#c8b6a6" stop-opacity="0"/>
+      </radialGradient>
+      <pattern id="w-iso" width="124" height="62" patternUnits="userSpaceOnUse">
+        <path d="M0 31 62 0l62 31-62 31Z" fill="none" stroke="#f3c79a" stroke-opacity=".045" stroke-width="1"/>
+      </pattern>
+      <pattern id="w-strata" width="240" height="26" patternUnits="userSpaceOnUse">
+        <path d="M0 20c40-4 80 3 120-1s80-5 120 1" fill="none" stroke="#3a2a20" stroke-opacity=".7" stroke-width="1.2"/>
+      </pattern>
+      <filter id="w-bloom" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="w-grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/>
+        <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/>
+      </filter>
+      <g id="boulder">
+        <path d="M-20 2-11-15 5-20 21-8 17 7-2 12Z" fill="#3b2c22"/>
+        <path d="M-20 2-2 12 17 7 21-8 5-1-11-3Z" fill="#1f1611"/>
+        <path d="M-11-15 5-20 21-8 5-1Z" fill="#4d3a2c"/>
+      </g>
+      <g id="shard">
+        <path d="M-6 4 0-14 7 3 1 7Z" fill="#2a1f18"/>
+        <path d="M0-14 7 3 1 7Z" fill="#3f2f24"/>
+      </g>
+    </defs>
+
+    <rect width="1440" height="900" fill="url(#w-sky)"/>
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="#120d0b"/>
+    <path d="M0 0H1440V232L1392 212 1330 248 1262 220 1190 262 1128 236 1050 272 984 246 910 282 830 254 766 280 694 250 626 282 548 248 478 272 410 236 338 262 268 226 190 254 118 218 48 244 0 226Z" fill="url(#w-strata)" opacity=".8"/>
+    <path d="M140 70 260 130 420 60 560 120 700 50 880 130 1010 70 1180 140 1300 80 1440 130" fill="none" stroke="#231914" stroke-width="3"/>
+    <path d="M0 150 180 190 330 140 520 200 700 150 900 210 1080 160 1260 210 1440 170" fill="none" stroke="#2a1e17" stroke-width="2"/>
+    <g class="crack crack-b" filter="url(#w-bloom)">
+      <path d="M612 36l14 22-8 20 16 26-6 24 12 30" fill="none" stroke="#ff7a2a" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M1098 90l-10 24 12 16-6 30 10 20" fill="none" stroke="#ff8f3a" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <ellipse cx="260" cy="90" rx="300" ry="140" fill="url(#w-cool)"/>
+
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-floor)"/>
+    <rect x="0" y="228" width="1440" height="672" fill="url(#w-iso)"/>
+
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-ledge)"/>
+    <path d="M0 258H292L520 372 172 546 0 460Z" fill="url(#w-iso)"/>
+    <path d="M520 372 172 546V598L520 424Z" fill="#3b2419"/>
+    <path d="M172 546 0 460V512L172 598Z" fill="#150f0c"/>
+    <path d="M520 372 172 546" stroke="#6b4c35" stroke-width="1.5"/>
+
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-ledge)"/>
+    <path d="M1440 262H1148L934 369 1252 528 1440 434Z" fill="url(#w-iso)"/>
+    <path d="M934 369 1252 528V580L934 421Z" fill="#171009"/>
+    <path d="M1252 528 1440 434V486L1252 580Z" fill="#40271b"/>
+    <path d="M1252 528 1440 434" stroke="#6b4c35" stroke-width="1.5"/>
+
+    <path d="M880 900 1214 733 1440 846V900Z" fill="#0d0908"/>
+    <path d="M880 900 1214 733V780L974 900Z" fill="#2e1d14"/>
+    <path d="M1214 733 1440 846V890L1214 780Z" fill="#1d130d"/>
+    <ellipse cx="1210" cy="850" rx="230" ry="90" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="1200" cy="860" rx="150" ry="52" fill="url(#w-slag)"/>
+
+    <ellipse cx="300" cy="400" rx="130" ry="70" fill="url(#w-glow)" class="slag-glow"/>
+    <ellipse cx="300" cy="402" rx="62" ry="26" fill="url(#w-slag)"/>
+    <ellipse cx="720" cy="520" rx="520" ry="260" fill="url(#w-glow)" opacity=".35"/>
+
+    <g class="crack" filter="url(#w-bloom)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M90 690l42-10 26 18 46-6 20 22 54-4 18 20" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M1120 610l-36 16-10 26-48 10-22 30" stroke="#ff7a2a" stroke-width="2"/>
+      <path d="M660 760l28 14 40-6 26 24 44 2" stroke="#ff8c3a" stroke-width="1.8"/>
+    </g>
+    <g class="crack crack-b" filter="url(#w-bloom)" fill="none" stroke-linecap="round">
+      <path d="M362 470l22 18 38 2 14 26" stroke="#ff7a2a" stroke-width="1.6"/>
+      <path d="M1000 420l24 20 -6 30 30 16" stroke="#ff9a45" stroke-width="1.6"/>
+    </g>
+
+    <use href="#boulder" transform="translate(120 330) scale(1.6)"/>
+    <use href="#boulder" transform="translate(430 330) scale(1.1)"/>
+    <use href="#shard" transform="translate(452 350) scale(1.4)"/>
+    <use href="#boulder" transform="translate(1300 330) scale(1.4)"/>
+    <use href="#shard" transform="translate(1256 348) scale(1.6)"/>
+    <use href="#boulder" transform="translate(330 610) scale(1.2)"/>
+    <use href="#boulder" transform="translate(1100 680) scale(1.5)"/>
+    <use href="#boulder" transform="translate(560 800) scale(1.3)"/>
+    <use href="#shard" transform="translate(820 250) scale(1.5)"/>
+
+    <g fill="#ffb65a">
+      <circle class="spark" cx="300" cy="400" r="1.6" style="animation-delay:-1s"/>
+      <circle class="spark" cx="270" cy="404" r="1.4" style="animation-delay:-2.6s"/>
+      <circle class="spark" cx="1180" cy="850" r="2" style="animation-delay:-.5s"/>
+      <circle class="spark" cx="1230" cy="846" r="1.5" style="animation-delay:-3.2s"/>
+      <circle class="spark" cx="1260" cy="862" r="1.8" style="animation-delay:-2s"/>
+    </g>
+
+    <g class="fog">
+      <ellipse cx="420" cy="620" rx="520" ry="110" fill="url(#w-fog)"/>
+      <ellipse cx="1100" cy="300" rx="480" ry="90" fill="url(#w-fog)"/>
+    </g>
+
+    <rect width="1440" height="900" filter="url(#w-grain)" opacity=".16"/>
+    <rect width="1440" height="900" fill="url(#w-vignette)"/>
+  </svg>
+
+  <svg class="battlefield" viewBox="0 0 760 460" aria-hidden="true">
+    <defs>
+      <linearGradient id="b-tile" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#4a392c"/>
+        <stop offset="1" stop-color="#2e231b"/>
+      </linearGradient>
+      <linearGradient id="b-ally" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6d8fae"/>
+        <stop offset=".55" stop-color="#34495e"/>
+        <stop offset="1" stop-color="#1a2430"/>
+      </linearGradient>
+      <pattern id="b-hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(-27)">
+        <path d="M0 5h10" stroke="#0d0906" stroke-width="3.2" stroke-opacity=".55"/>
+      </pattern>
+      <path id="b-plate-ally" d="M-17-20H17V0c0 12-8 18.5-17 22.5C-9 18.5-17 12-17 0Z"/>
+    </defs>
+    <path d="M70 250 380 405V430L70 275Z" fill="#1d140e"/>
+    <path d="M380 405 690 250V275L380 430Z" fill="#3a261a"/>
+    <path d="M380 95 690 250 380 405 70 250Z" fill="url(#b-tile)"/>
+    <path d="M256 157 566 312 504 343 194 188Z" fill="#140e0a" fill-opacity=".7"/>
+    <path d="M256 157 566 312 504 343 194 188Z" fill="url(#b-hatch)"/>
+    <g stroke="#0c0806" stroke-opacity=".75" stroke-width="2">
+      <path d="M442 126 132 281M504 157 194 312M566 188 256 343M628 219 318 374"/>
+      <path d="M318 126 628 281M256 157 566 312M194 188 504 343M132 219 442 374"/>
+    </g>
+    <path d="M380 95 690 250 380 405 70 250Z" fill="none" stroke="#b8905a" stroke-width="2"/>
+
+    <g>
+      <ellipse cx="318" cy="281" rx="24" ry="10" fill="#000" fill-opacity=".55"/>
+      <g transform="translate(318 257) scale(1.05)"><use href="#b-plate-ally" fill="url(#b-ally)" stroke="#dcb67c" stroke-width="1.6"/></g>
+      <use href="#g-guardian" x="307" y="245" width="22" height="22" color="#eaf2f8"/>
+      <text class="tok-name" x="346" y="262">Bjorn</text>
+    </g>
+    <g>
+      <ellipse cx="194" cy="281" rx="22" ry="9" fill="#000" fill-opacity=".55"/>
+      <g transform="translate(194 258)"><use href="#b-plate-ally" fill="url(#b-ally)" stroke="#dcb67c" stroke-width="1.6"/></g>
+      <use href="#g-cleric" x="184" y="247" width="20" height="20" color="#fff4d6"/>
+      <text class="tok-name" x="166" y="252" text-anchor="end">Sigrun</text>
+    </g>
+    <g>
+      <ellipse cx="318" cy="343" rx="22" ry="9" fill="#000" fill-opacity=".55"/>
+      <g transform="translate(318 320)"><use href="#b-plate-ally" fill="url(#b-ally)" stroke="#dcb67c" stroke-width="1.6"/></g>
+      <use href="#g-ranger" x="308" y="309" width="20" height="20" color="#e6fff0"/>
+      <text class="tok-name" x="346" y="324">Kaio</text>
+    </g>
+  </svg>
+
+  <div class="hush" aria-hidden="true"></div>
+
+  <div class="dialog-stage">
+    <section class="report win" aria-labelledby="report-title" aria-describedby="report-verdict">
+
+      <header class="herald">
+        <div class="embers" aria-hidden="true">
+          <i style="left:6%;animation-delay:-.4s"></i><i style="left:14%;animation-delay:-3.1s"></i><i style="left:23%;animation-delay:-1.6s"></i>
+          <i style="left:35%;animation-delay:-4.4s"></i><i style="left:44%;animation-delay:-2.2s"></i><i style="left:52%;animation-delay:-5.3s"></i>
+          <i style="left:61%;animation-delay:-.9s"></i><i style="left:70%;animation-delay:-3.8s"></i><i style="left:79%;animation-delay:-2.7s"></i>
+          <i style="left:88%;animation-delay:-4.9s"></i><i style="left:95%;animation-delay:-1.2s"></i>
+        </div>
+        <div class="herald-crest">
+          <svg class="sigil" aria-hidden="true"><use href="#i-sunrise"/></svg>
+          <div>
+            <h1 class="herald-title" id="report-title">While you were away</h1>
+            <p class="herald-sub"><b class="num">9h 14m</b> away. Earned rewards are credited. Your hunt is still running.</p>
+          </div>
+        </div>
+        <dl class="herald-facts">
+          <div class="fact fact--away"><dt>Time away</dt><dd class="num">9h 14m</dd></div>
+          <div class="fact cap">
+            <dt>Simulated <b class="num" style="color:var(--vellum)">9h 14m</b> of your <span style="color:#d7c9ff">17h 42m</span> offline limit</dt>
+            <dd>
+              <div class="cap-track" role="meter" aria-label="Offline time simulated against offline limit" aria-valuenow="554" aria-valuemin="0" aria-valuemax="1062"><i></i></div>
+              <div class="cap-legend"><span>0h</span><span>All time accounted for</span><span class="prem">17h 42m</span></div>
+            </dd>
+          </div>
+          <div class="fact fact--map"><dt>Map</dt><dd>Ember Quarry <small class="num">24–34</small></dd></div>
+        </dl>
+      </header>
+
+      <div class="report-body">
+
+        <div class="verdict" id="report-verdict">
+          <span class="verdict-seal" aria-hidden="true"><svg><use href="#i-bag"/></svg></span>
+          <div>
+            <h2 class="verdict-head">Bag full · new kept drops are being lost</h2>
+            <p class="verdict-text">Full since <b class="num">7h 52m</b>: <b class="num">11 drops</b> left behind, including <span class="r-epic">1 Epic</span>. Make room to collect new kept drops. Common drops still auto-sell; gold and EXP continue.</p>
+          </div>
+          <div class="attempts" aria-label="Expedition party wipes: 3 of 5 used in total; 1 occurred while away">
+            <span class="pips" aria-hidden="true"><i class="pip spent"></i><i class="pip spent"></i><i class="pip new"></i><i class="pip"></i><i class="pip"></i></span>
+            <span class="attempts-label">3 / 5 party wipes used</span>
+            <span class="attempts-note">2 before + 1 while away</span>
+          </div>
+        </div>
+
+        <section aria-labelledby="party-title">
+          <h2 class="section-title" id="party-title">Party <small>Net EXP includes the 10% level loss from the wipe at 2h 18m.</small></h2>
+          <div class="party-results">
+
+            <article class="unit win result">
+              <div class="medal"><svg aria-hidden="true"><use href="#g-guardian"/></svg><span class="lvl num">24</span></div>
+              <div>
+                <header class="unit-head">
+                  <h3 class="unit-name">Bjorn</h3>
+                  <span class="unit-class">Guardian</span>
+                  <span class="lvl-change">Level <b>24</b></span>
+                </header>
+                <div class="xp-result" style="--from:31%;--to:88%" role="meter" aria-label="Experience in level 24, from 31% to 88%" aria-valuenow="88" aria-valuemin="0" aria-valuemax="100"><s></s><i></i><u></u></div>
+                <p class="xp-caption"><span>31% to <b>88%</b></span><span>12% to level 25</span></p>
+              </div>
+              <dl class="result-stats">
+                <div class="exp"><dt>EXP gained</dt><dd class="num">+36,415</dd></div>
+                <div><dt>Deaths while away</dt><dd class="num"><svg aria-hidden="true"><use href="#i-skull"/></svg>2 <small>incl. wipe</small></dd></div>
+                <div class="pts"><dt>Points</dt><dd>No level this trip</dd></div>
+              </dl>
+            </article>
+
+            <article class="unit win result result--up">
+              <div class="medal medal--cleric"><svg aria-hidden="true"><use href="#g-cleric"/></svg><span class="lvl num">24</span></div>
+              <div>
+                <header class="unit-head">
+                  <h3 class="unit-name">Sigrun</h3>
+                  <span class="unit-class">Cleric</span>
+                  <span class="lvl-change"><span class="levelup-flag"><svg aria-hidden="true"><use href="#i-star"/></svg>Level up</span><span class="from num">23</span><span aria-label="to">→</span><b class="num">24</b></span>
+                </header>
+                <div class="xp-result" style="--from:0%;--to:23%" role="meter" aria-label="Experience in level 24: 23%" aria-valuenow="23" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+                <p class="xp-caption"><span>Reached 24 at 6h 02m</span><span><b>23%</b> into level 24</span></p>
+              </div>
+              <dl class="result-stats">
+                <div class="exp"><dt>EXP gained</dt><dd class="num">+36,415</dd></div>
+                <div><dt>Deaths while away</dt><dd class="num"><svg aria-hidden="true"><use href="#i-skull"/></svg>1 <small>in wipe</small></dd></div>
+                <div class="pts"><dt>Points</dt><dd><span class="num">7</span> stats auto-spent, <b class="num">1 skill point</b> to spend</dd></div>
+              </dl>
+            </article>
+
+            <article class="unit win result result--up">
+              <div class="medal medal--ranger"><svg aria-hidden="true"><use href="#g-ranger"/></svg><span class="lvl num">26</span></div>
+              <div>
+                <header class="unit-head">
+                  <h3 class="unit-name">Kaio</h3>
+                  <span class="unit-class">Ranger</span>
+                  <span class="lvl-change"><span class="levelup-flag"><svg aria-hidden="true"><use href="#i-star"/></svg>Level up</span><span class="from num">25</span><span aria-label="to">→</span><b class="num">26</b></span>
+                </header>
+                <div class="xp-result" style="--from:0%;--to:12%" role="meter" aria-label="Experience in level 26: 12%" aria-valuenow="12" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+                <p class="xp-caption"><span>Reached 26 at 7h 15m</span><span><b>12%</b> into level 26</span></p>
+              </div>
+              <dl class="result-stats">
+                <div class="exp"><dt>EXP gained</dt><dd class="num">+36,415</dd></div>
+                <div><dt>Deaths while away</dt><dd class="num"><svg aria-hidden="true"><use href="#i-skull"/></svg>1 <small>in wipe</small></dd></div>
+                <div class="pts"><dt>Points</dt><dd><span class="num">8</span> stats auto-spent, <b class="num">1 skill point</b> to spend</dd></div>
+              </dl>
+            </article>
+
+          </div>
+        </section>
+
+        <div class="ledger-grid">
+          <section class="pane win" aria-labelledby="totals-title">
+            <h2 class="section-title" id="totals-title">Totals</h2>
+            <dl class="totals">
+              <div class="metric"><dt>Kills</dt><dd>10,212</dd></div>
+              <div class="metric metric--exp"><dt>Party EXP</dt><dd>+109,245</dd></div>
+              <div class="metric metric--gold">
+                <dt>Gold earned</dt><dd>+100,360</dd>
+                <table class="gold-split">
+                  <caption class="sr-only">Gold sources</caption>
+                  <tr><th scope="row">From kills</th><td>81,920</td></tr>
+                  <tr><th scope="row">Auto-sold loot</th><td>18,440</td></tr>
+                </table>
+              </div>
+              <div class="metric">
+                <dt>Potions used</dt><dd>105</dd>
+                <table class="gold-split">
+                  <caption class="sr-only">Potions consumed</caption>
+                  <tr><th scope="row">Small HP Potion</th><td style="color:#f0a89c">64</td></tr>
+                  <tr><th scope="row">Small MP Potion</th><td style="color:#9cc4f5">41</td></tr>
+                </table>
+              </div>
+            </dl>
+            <div class="timesplit">
+              <p class="timesplit-head"><span>How the time was spent</span><span class="num">9h 14m</span></p>
+              <div class="timesplit-bar" role="img" aria-label="Fighting 6 hours 41 minutes, walking 1 hour 58 minutes, resting 35 minutes">
+                <i class="seg-fight" style="width:72.4%"></i><i class="seg-walk" style="width:21.3%"></i><i class="seg-rest" style="width:6.3%"></i>
+              </div>
+              <ul class="timesplit-legend">
+                <li style="--k:var(--ember)">Fighting <b>6h 41m</b></li>
+                <li style="--k:var(--steel)">Walking <b>1h 58m</b></li>
+                <li style="--k:var(--hp-ally)">Resting <b>35m</b></li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="pane win loot-pane" aria-labelledby="loot-title">
+            <h2 class="section-title" id="loot-title" style="margin-bottom:0">Loot <small>276 equipment drops, 53 kept</small></h2>
+            <dl class="ramp">
+              <div class="tier drop--common"><dt>Common</dt><dd>212</dd><dd>All auto-sold</dd></div>
+              <div class="tier drop--uncommon"><dt>Uncommon</dt><dd>42</dd><dd>34 kept, 8 left</dd></div>
+              <div class="tier drop--rare"><dt>Rare</dt><dd>17</dd><dd>15 kept, 2 left</dd></div>
+              <div class="tier drop--epic"><dt>Epic</dt><dd>4</dd><dd>3 kept, 1 left</dd></div>
+              <div class="tier tier--legendary drop--legendary" style="margin:0;padding:4px 8px 5px 10px"><dt>Legendary</dt><dd>1</dd><dd>Kept</dd></div>
+            </dl>
+
+            <ul class="notable" aria-label="Notable drops">
+              <li class="drop drop--legendary">
+                <span class="drop-icon"><svg aria-hidden="true"><use href="#it-horn"/></svg></span>
+                <span class="drop-name">Gjallarhorn Fragment</span><span class="drop-age">4h 27m</span>
+                <span class="drop-note">Saved in your bag · 4 bonuses · requires level 30</span>
+              </li>
+              <li class="drop drop--epic">
+                <span class="drop-icon"><svg aria-hidden="true"><use href="#it-bow"/></svg></span>
+                <span class="drop-name">Emberforged Longbow</span><span class="drop-age">3h 31m</span>
+                <span class="drop-note">Epic, 3 bonuses, item lv 31</span>
+              </li>
+              <li class="drop drop--epic">
+                <span class="drop-icon"><svg aria-hidden="true"><use href="#it-mace"/></svg></span>
+                <span class="drop-name">Slagheart Mace</span><span class="drop-age">6h 40m</span>
+                <span class="drop-note">Epic, 3 bonuses, item lv 33</span>
+              </li>
+              <li class="drop drop--epic">
+                <span class="drop-icon"><svg aria-hidden="true"><use href="#it-shield"/></svg></span>
+                <span class="drop-name">Quarryward Tower Shield</span><span class="drop-age">1h 05m</span>
+                <span class="drop-note">Epic, 3 bonuses, item lv 29</span>
+              </li>
+              <li class="drop drop--rare">
+                <span class="drop-icon"><svg aria-hidden="true"><use href="#it-cloak"/></svg></span>
+                <span class="drop-name">Warden's Ashen Cloak</span><span class="drop-age">5h 12m</span>
+                <span class="drop-note">Rare, 2 bonuses, item lv 29</span>
+              </li>
+              <li class="drop drop--epic drop--lost">
+                <span class="drop-icon"><svg aria-hidden="true"><use href="#it-mail"/></svg></span>
+                <span class="drop-name">Cindermail Hauberk</span><span class="drop-age">8h 36m</span>
+                <span class="drop-note"><span class="lost-tag">Left behind</span>, Epic, item lv 32</span>
+              </li>
+            </ul>
+
+            <p class="sold-line"><svg aria-hidden="true"><use href="#i-coin"/></svg><span>Your loot filter sold <b>212 Common items</b> the moment they dropped. None of them took a bag slot.</span><span class="sold-value">+18,440g</span></p>
+          </section>
+        </div>
+
+        <section class="chronicle win" aria-labelledby="chron-title">
+          <h2 class="section-title" id="chron-title" style="margin-bottom:0">Timeline <small>Hatched: kept drops lost; auto-sell continued</small></h2>
+          <div class="track-wrap">
+            <div class="track" aria-hidden="true">
+              <span class="track-looting"></span><span class="track-dry"></span>
+            </div>
+            <div class="hours" aria-hidden="true">
+              <i style="left:0"></i><span style="left:0">0h</span>
+              <i style="left:10.83%"></i><i style="left:21.66%"></i><span style="left:21.66%">2h</span>
+              <i style="left:32.49%"></i><i style="left:43.32%"></i><span style="left:43.32%">4h</span>
+              <i style="left:54.15%"></i><i style="left:64.98%"></i><span style="left:64.98%">6h</span>
+              <i style="left:75.81%"></i><i style="left:86.64%"></i><i style="left:97.47%"></i>
+            </div>
+            <ol aria-label="Events while away">
+              <li class="mark mark--up mark--epic" style="--at:11.7%"><span class="mark-label"><time>1h 05m</time>Tower Shield</span></li>
+              <li class="mark mark--down mark--death" style="--at:24.9%"><span class="mark-label"><time>2h 18m</time>Party wipe</span></li>
+              <li class="mark mark--up mark--epic" style="--at:38.1%"><span class="mark-label"><time>3h 31m</time>Longbow</span></li>
+              <li class="mark mark--down mark--legendary" style="--at:48.2%"><span class="mark-label"><time>4h 27m</time>Legendary</span></li>
+              <li class="mark mark--up mark--level" style="--at:65.3%"><span class="mark-label"><time>6h 02m</time>Sigrun 24</span></li>
+              <li class="mark mark--down mark--epic" style="--at:72.2%"><span class="mark-label"><time>6h 40m</time>Mace</span></li>
+              <li class="mark mark--up mark--level" style="--at:78.5%"><span class="mark-label"><time>7h 15m</time>Kaio 26</span></li>
+              <li class="mark mark--down mark--stop" style="--at:85.2%"><span class="mark-label"><time>7h 52m</time>Bag full</span></li>
+              <li class="mark mark--up mark--lost" style="--at:93.1%"><span class="mark-label"><time>8h 36m</time>Epic left</span></li>
+              <li class="mark mark--down mark--end" style="--at:100%"><span class="mark-label" style="transform:translateX(-80%)"><time>9h 14m</time>You returned</span></li>
+            </ol>
+          </div>
+        </section>
+      </div>
+
+      <footer class="actions">
+        <a class="collect" href="bag.html?from=away"><span class="collect-seal" aria-hidden="true"><svg><use href="#i-bag"/></svg></span>Manage bag</a>
+        <p class="actions-note">Bag <b class="num">100 / 100</b>. Make room for future drops. The 11 missed drops cannot be recovered.</p>
+        <a class="return-hunt" href="hunt.html">Return to hunt <span aria-hidden="true">→</span></a>
+        <a class="preset" href="bag.html?from=away#loot-filter"><span class="preset-kind">Current loot filter</span><span class="preset-value">Keep Uncommon+</span><span class="preset-edit"><svg aria-hidden="true"><use href="#i-quill"/></svg>Review</span></a>
+      </footer>
+    </section>
+  </div>
+</div>
+
+</body>
+</html>
