@@ -4,6 +4,7 @@ import type { RecipeId } from '@narok/data';
 import { transition, regenerate, finishEncounter, deadline } from '../src/lifecycle';
 import { drawBelow } from '../src/rng';
 import { schedule } from '../src/scheduler';
+import { encodeSnapshot, decodeSnapshot } from '../src/snapshot';
 import { gridPosition } from '../src/battlefield/grid';
 import { derive } from '../src/math';
 import { fightFixture, walkCompleteState, context, actor, labInput } from './fixtures';
@@ -128,6 +129,38 @@ test('encounter exit deletes enemy actors and their metrics entries', () => {
   finishEncounter(state, context(state, []));
   expect(Object.keys(state.actors).sort()).toEqual(['p0', 'p1', 'p2']);
   expect(Object.keys(state.metrics.actors).sort()).toEqual(['p0', 'p1', 'p2']);
+});
+
+test('encounter exit prunes stale-epoch queue entries but keeps epoch-null ones, staying decodable', () => {
+  const state = fightFixture();
+  const ctx = context(state, []);
+  const epochBeforeExit = state.epoch;
+
+  // Extra epoch-scoped entries referencing enemies that are about to be deleted,
+  // on top of fightFixture's own act/deadline entries for every actor.
+  schedule(state, {
+    at: state.nowMs + 100, kind: 'resolve', actorId: 'e0', epoch: state.epoch,
+    token: state.actors.e0.actionToken,
+  });
+  schedule(state, { at: state.nowMs + 200, kind: 'expire', actorId: 'e1', epoch: state.epoch, token: null });
+
+  for (const a of Object.values(state.actors)) if (a.side === 'enemy') a.hp = 0;
+  finishEncounter(state, ctx);
+
+  expect(state.epoch).toBe(epochBeforeExit + 1);
+  // (a) no surviving queue entry references a now-deleted (or any unknown) actor.
+  for (const event of state.queue) {
+    if (event.actorId !== '') expect(Object.hasOwn(state.actors, event.actorId)).toBe(true);
+  }
+  // every entry carrying the old, now-stale epoch is gone.
+  expect(state.queue.some((event) => event.epoch !== null && event.epoch !== state.epoch)).toBe(false);
+  // the round trip that would otherwise reject a dangling actor reference succeeds.
+  const decoded = decodeSnapshot(encodeSnapshot(state), content, ctx.battlefield);
+  expect(decoded.epoch).toBe(state.epoch);
+
+  // (b) epoch-null entries (the regen tick, and win's scheduled walking transition) survive.
+  expect(state.queue.some((event) => event.kind === 'regen' && event.epoch === null)).toBe(true);
+  expect(state.queue.some((event) => event.kind === 'transition' && event.epoch === null)).toBe(true);
 });
 
 test('cooldown timestamps survive both win and wipe cleanup', () => {

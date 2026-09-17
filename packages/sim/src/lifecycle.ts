@@ -23,6 +23,21 @@ function enemyIds(state: SimState): ActorId[] {
 }
 
 /**
+ * Drops every queued entry whose `epoch` is non-null and no longer matches the
+ * current epoch (ruling R45). Global entries (`epoch: null` — regen ticks, walking
+ * and respawn transitions) always survive. Applied at encounter exit, right after
+ * the epoch bump and enemy-actor deletion, so a snapshot taken between the
+ * conclusion of one encounter and the queue's natural drain never carries a
+ * queued entry referencing an actor `validateSimState` can no longer find —
+ * `validate-state.ts`'s unknown-actor-id check would otherwise reject it. Stop
+ * paths that already replace the whole queue with `[]` do not need this: an
+ * empty array has nothing left to prune.
+ */
+function pruneStaleEpochEntries(state: SimState): void {
+  state.queue = state.queue.filter((event) => event.epoch === null || event.epoch === state.epoch);
+}
+
+/**
  * Resolves this encounter's recipe (ruling R34). A fixed `input.recipe` consumes no
  * RNG. `'mixed'` consumes exactly one `drawBelow(rng, totalWeight)` over the recipes
  * in the fixed melee/ranged/clustered order, updating `state.rng`.
@@ -259,7 +274,8 @@ export function regenerate(state: SimState, ctx: Context): void {
  * Encounter completion (ruling R36). Called by the dispatcher after a whole cast
  * resolution; returns immediately unless the encounter is decided (`fighting` with
  * one side fully dead). Records exactly one win or wipe, invalidates the encounter
- * epoch, and chooses the next recovery phase.
+ * epoch, prunes the now-stale queue (ruling R45), and chooses the next recovery
+ * phase.
  */
 export function finishEncounter(state: SimState, ctx: Context): void {
   if (state.phase !== 'fighting') return;
@@ -276,6 +292,7 @@ export function finishEncounter(state: SimState, ctx: Context): void {
     delete state.actors[id];
     delete state.metrics.actors[id];
   }
+  pruneStaleEpochEntries(state);
   for (const id of partyIds(state)) {
     const member = state.actors[id];
     member.statuses = [];
