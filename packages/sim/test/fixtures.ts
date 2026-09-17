@@ -3,7 +3,7 @@ import type { ClassId } from '@narok/data';
 import type { Actor, ActorId, Context, DomainEvent, LabInput, Metrics, SimState, Strategy } from '../src/types';
 import { derive } from '../src/math';
 import { defaultPlacement, gridPosition, createGrid } from '../src/battlefield/grid';
-import { defaultStrategy } from '../src/state';
+import { defaultStrategy, startState } from '../src/state';
 import { drawBelow } from '../src/rng';
 import { schedule } from '../src/scheduler';
 
@@ -189,6 +189,21 @@ export function fightFixture(): SimState {
   schedule(state, { at: 122_000, kind: 'deadline', actorId: '', epoch: 0, token: null });
   schedule(state, { at: 5_000, kind: 'regen', actorId: '', epoch: null, token: null });
 
+  return state;
+}
+
+/**
+ * A freshly started experiment with its first walk already elapsed (ruling R34):
+ * `nowMs` sits exactly at `content.walkMs`, `phase` is `'walking'`, and the queue
+ * still holds the original walk-complete `transition` and the first `regen` tick.
+ * `transition(state, ctx)` spawns the encounter from here — deterministically for
+ * a fixed recipe (no RNG drawn) or from exactly one bounded roll for `'mixed'`.
+ * `overrides` are forwarded to {@link labInput} (e.g. `{ recipe: 'mixed', seed: 7 }`).
+ */
+export function walkCompleteState(overrides: Partial<LabInput> = {}): SimState {
+  const battlefield = createGrid(content.grid, content.shapes);
+  const state = startState(content, battlefield, labInput(overrides));
+  state.nowMs = content.walkMs;
   return state;
 }
 

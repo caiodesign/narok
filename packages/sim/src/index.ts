@@ -11,3 +11,4 @@ export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
 export { decide, resolveCast } from './actions';
 export { expire } from './effects';
+export { transition, regenerate, finishEncounter, deadline } from './lifecycle';
