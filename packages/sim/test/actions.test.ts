@@ -750,6 +750,35 @@ test('attacking mode falls back to nearest when nobody is hitting that member', 
   expect(state.actors.p2.pendingCast?.targets).toEqual(['e2']);
 });
 
+test('targets-at-least ranks an attacking-mode match ahead of an equally effective enemy', () => {
+  const state = fightFixture();
+  const ctx = context(state, []);
+  useClass(state, 'p2', 'arcanist');
+  place(state, 'p2', 0, 2);
+  place(state, 'e0', 0, 0);
+  place(state, 'e1', 1, 0);
+  place(state, 'e2', 4, 1);
+  setRules(
+    state, 'p2',
+    [{ skillId: 'frost-nova', enabled: true, condition: { kind: 'targets-at-least', value: 2 } }],
+    { kind: 'attacking', partyId: 'p0' },
+  );
+  state.actors.e1.currentTarget = 'p0';
+
+  // Both primaries cover the same pair, and e0 is the nearer and the lower id, so only
+  // the attacking filter can promote e1.
+  const enemies = [state.actors.e0, state.actors.e1, state.actors.e2];
+  expect(ctx.battlefield.affected(state.actors.e0, 'plus', enemies)).toEqual(['e0', 'e1']);
+  expect(ctx.battlefield.affected(state.actors.e1, 'plus', enemies)).toEqual(['e0', 'e1']);
+  expect(ctx.battlefield.distance(state.actors.p2.position, state.actors.e0.position))
+    .toBeLessThan(ctx.battlefield.distance(state.actors.p2.position, state.actors.e1.position));
+
+  decide(state, 'p2', ctx);
+
+  expect(state.actors.p2.pendingCast?.targets).toEqual(['e1']);
+  expect(state.actors.p2.currentTarget).toBe('e1');
+});
+
 test('an out-of-range actor takes one step toward its target', () => {
   const state = fightFixture();
   const events: DomainEvent[] = [];

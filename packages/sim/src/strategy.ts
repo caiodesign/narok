@@ -134,11 +134,16 @@ function evaluateRule(
       const ordered = orderCandidates(
         candidates.map((entry) => entry.enemy), mode, actor, battlefield,
       );
+      // `attacking` mode filters instead of reordering, so candidates it drops are absent
+      // from `ordered`; they rank behind every kept enemy rather than tying with the best
+      // one. Ties end on id so the comparator is total and never leans on sort stability.
       const rank = new Map(ordered.map((entry, index) => [entry.id, index]));
       candidates.sort(
         (left, right) =>
           right.count - left.count ||
-          (rank.get(left.enemy.id) ?? 0) - (rank.get(right.enemy.id) ?? 0),
+          (rank.get(left.enemy.id) ?? ordered.length) -
+            (rank.get(right.enemy.id) ?? ordered.length) ||
+          compareIds(left.enemy.id, right.enemy.id),
       );
       return { primary: candidates[0].enemy, targets: [candidates[0].enemy.id] };
     }
