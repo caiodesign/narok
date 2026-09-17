@@ -1,0 +1,33 @@
+{
+  "name": "narok-idle",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": "24.15.0"
+  },
+  "scripts": {
+    "build:data": "tsx packages/data/scripts/build-content.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --no-error-on-unmatched-pattern packages tools apps e2e",
+    "dev": "pnpm --filter @narok/client dev",
+    "balance": "tsx tools/balance/src/cli.ts",
+    "check": "pnpm build:data && pnpm typecheck && pnpm lint && pnpm test",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.3",
+    "eslint": "10.10.0",
+    "fast-check": "4.10.1",
+    "tsx": "4.23.13",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "5.0.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
