@@ -9,3 +9,5 @@ export type { DamageInput } from './math';
 export { startState, defaultStrategy } from './state';
 export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
+export { decide, resolveCast } from './actions';
+export { expire } from './effects';
