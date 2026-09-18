@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+}
+
+fieldset {
+  margin-block-end: 1rem;
+}
+
+[aria-disabled='true'] {
+  opacity: 0.5;
+}
+
+[role='grid'] {
+  display: inline-block;
+}
+
+[role='row'] {
+  display: flex;
+}
+
+[role='gridcell'] {
+  width: 2.5rem;
+  height: 2.5rem;
+}
