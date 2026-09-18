@@ -6,13 +6,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Content, ClassId, RecipeId } from '@narok/data';
-import type { ActorId, LabInput, PositionId, Strategy } from '@narok/sim';
+import type { ActorId, LabInput, PositionId, Strategy, TargetMode } from '@narok/sim';
 import { defaultStrategy, gridPosition } from '@narok/sim';
 import type { ExperimentStatus } from './useExperiment';
 import { validateLabInput, type ValidationIssue } from './validation';
 
 const CLASS_IDS: ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
 const SPEEDS = [1, 4, 16] as const;
+const PRIORITY_TARGET_KINDS = ['lowest-hp', 'highest-hp', 'highest-level', 'nearest'] as const;
 
 /** Trivial local key -> English lookup. Task 10 replaces this with react-i18next and adds PT-BR. */
 const MESSAGES: Record<string, string> = {
@@ -26,6 +27,7 @@ const MESSAGES: Record<string, string> = {
   'validation.restRange': 'Rest thresholds must be between 0 and 100.',
   'validation.wipeLimit': 'Wipe limit must be at least 1.',
   'validation.ruleThreshold': 'That threshold is outside its allowed range.',
+  'validation.unknownTargetParty': 'That character is no longer in the roster.',
 };
 
 function translate(messageKey: string): string {
@@ -191,6 +193,47 @@ export function ExperimentControls({
         return { ...rule, condition: { ...rule.condition, value } };
       });
       return { ...previous, strategies: { ...previous.strategies, [actorId]: { ...strategy, rules } } };
+    });
+  }, []);
+
+  /** Order IS priority (R28 scans rules in order): move-up/move-down reorders the rules array. */
+  const moveRule = useCallback((actorId: ActorId, ruleIndex: number, direction: -1 | 1) => {
+    setDraft((previous) => {
+      const strategy = previous.strategies[actorId];
+      if (!strategy) return previous;
+      const target = ruleIndex + direction;
+      if (target < 0 || target >= strategy.rules.length) return previous;
+      const rules = [...strategy.rules];
+      const [moved] = rules.splice(ruleIndex, 1);
+      rules.splice(target, 0, moved);
+      return { ...previous, strategies: { ...previous.strategies, [actorId]: { ...strategy, rules } } };
+    });
+  }, []);
+
+  const setTargetKind = useCallback(
+    (actorId: ActorId, kind: TargetMode['kind']) => {
+      setDraft((previous) => {
+        const strategy = previous.strategies[actorId];
+        if (!strategy) return previous;
+        const ids = previous.classes.map((_, index) => `p${index}`);
+        const target: TargetMode =
+          kind === 'attacking'
+            ? { kind: 'attacking', partyId: ids.find((id) => id !== actorId) ?? actorId }
+            : { kind };
+        return { ...previous, strategies: { ...previous.strategies, [actorId]: { ...strategy, target } } };
+      });
+    },
+    [],
+  );
+
+  const setTargetPartyId = useCallback((actorId: ActorId, partyId: ActorId) => {
+    setDraft((previous) => {
+      const strategy = previous.strategies[actorId];
+      if (!strategy || strategy.target.kind !== 'attacking') return previous;
+      return {
+        ...previous,
+        strategies: { ...previous.strategies, [actorId]: { ...strategy, target: { kind: 'attacking', partyId } } },
+      };
     });
   }, []);
 
@@ -364,30 +407,80 @@ export function ExperimentControls({
           const strategy = draft.strategies[actorId];
           if (!strategy) return null;
           return (
-            <div key={actorId}>
+            <div key={actorId} role="group" aria-label={`Strategy: ${actorId}`}>
               <h3>{actorId}</h3>
-              {strategy.rules.map((rule, index) => (
-                <div key={rule.skillId}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={rule.enabled}
-                      onChange={(event) => setRuleEnabled(actorId, index, event.target.checked)}
-                    />
-                    {rule.skillId}
-                  </label>
-                  {'value' in rule.condition && (
+
+              <label htmlFor={`target-kind-${actorId}`}>Target mode</label>
+              <select
+                id={`target-kind-${actorId}`}
+                value={strategy.target.kind}
+                onChange={(event) => setTargetKind(actorId, event.target.value as TargetMode['kind'])}
+              >
+                {PRIORITY_TARGET_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {kind}
+                  </option>
+                ))}
+                <option value="attacking">attacking</option>
+              </select>
+              {strategy.target.kind === 'attacking' && (
+                <>
+                  <label htmlFor={`target-party-${actorId}`}>Watch ally</label>
+                  <select
+                    id={`target-party-${actorId}`}
+                    value={strategy.target.partyId}
+                    onChange={(event) => setTargetPartyId(actorId, event.target.value)}
+                  >
+                    {rosterIds.map((id) => (
+                      <option key={id} value={id}>
+                        {id}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              <ol>
+                {strategy.rules.map((rule, index) => (
+                  <li key={rule.skillId}>
                     <label>
-                      threshold
                       <input
-                        type="number"
-                        value={rule.condition.value}
-                        onChange={(event) => setRuleThreshold(actorId, index, Number(event.target.value))}
+                        type="checkbox"
+                        checked={rule.enabled}
+                        onChange={(event) => setRuleEnabled(actorId, index, event.target.checked)}
                       />
+                      {rule.skillId}
                     </label>
-                  )}
-                </div>
-              ))}
+                    {'value' in rule.condition && (
+                      <label>
+                        threshold
+                        <input
+                          type="number"
+                          value={rule.condition.value}
+                          onChange={(event) => setRuleThreshold(actorId, index, Number(event.target.value))}
+                        />
+                      </label>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Move ${rule.skillId} up for ${actorId}`}
+                      disabled={index === 0}
+                      onClick={() => moveRule(actorId, index, -1)}
+                    >
+                      Move up
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${rule.skillId} down for ${actorId}`}
+                      disabled={index === strategy.rules.length - 1}
+                      onClick={() => moveRule(actorId, index, 1)}
+                    >
+                      Move down
+                    </button>
+                  </li>
+                ))}
+              </ol>
+
               {issuesFor(`strategies.${actorId}`, issues).map((issue, index) => (
                 <p role="alert" key={`${issue.field}-${index}`}>
                   {translate(issue.messageKey)}

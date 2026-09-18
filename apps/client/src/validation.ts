@@ -108,6 +108,9 @@ export function validateLabInput(input: LabInput, content: Content): ValidationI
         });
       }
     });
+    if (strategy.target.kind === 'attacking' && !rosterIds.includes(strategy.target.partyId)) {
+      issues.push({ field: `strategies.${id}.target.partyId`, messageKey: 'validation.unknownTargetParty' });
+    }
   }
 
   return issues;

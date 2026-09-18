@@ -153,6 +153,33 @@ describe('validateLabInput', () => {
     );
   });
 
+  test('rejects an "attacking" target mode whose partyId has fallen out of the roster', () => {
+    const strategies: Record<ActorId, Strategy> = {
+      p0: { ...defaultStrategy('guardian'), target: { kind: 'attacking', partyId: 'p9' } },
+      p1: defaultStrategy('cleric'),
+      p2: defaultStrategy('ranger'),
+    };
+    const input = labInput({ strategies });
+    expect(validateLabInput(input, content)).toContainEqual(
+      expect.objectContaining({
+        field: 'strategies.p0.target.partyId',
+        messageKey: 'validation.unknownTargetParty',
+      }),
+    );
+  });
+
+  test('accepts an "attacking" target mode whose partyId is a current roster member', () => {
+    const strategies: Record<ActorId, Strategy> = {
+      p0: { ...defaultStrategy('guardian'), target: { kind: 'attacking', partyId: 'p1' } },
+      p1: defaultStrategy('cleric'),
+      p2: defaultStrategy('ranger'),
+    };
+    const input = labInput({ strategies });
+    expect(validateLabInput(input, content).some((issue) => issue.messageKey === 'validation.unknownTargetParty')).toBe(
+      false,
+    );
+  });
+
   test('a fully valid default input has no issues', () => {
     expect(validateLabInput(labInput(), content)).toEqual([]);
   });
@@ -256,6 +283,55 @@ describe('ExperimentControls', () => {
     expect(startButton.disabled).toBe(false);
     fireEvent.click(startButton);
     expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  test('each roster member has a target mode selector; choosing "attacking" reveals a roster ally selector', () => {
+    setup();
+    const group = within(screen.getByRole('group', { name: 'Strategy: p0' }));
+    const kindSelect = group.getByLabelText('Target mode') as HTMLSelectElement;
+    // guardian's defaultStrategy() target is { kind: 'nearest' }.
+    expect(kindSelect.value).toBe('nearest');
+
+    expect(group.queryByLabelText('Watch ally')).toBeNull();
+    fireEvent.change(kindSelect, { target: { value: 'attacking' } });
+
+    const allySelect = group.getByLabelText('Watch ally') as HTMLSelectElement;
+    expect(within(allySelect).getAllByRole('option')).toHaveLength(3); // p0, p1, p2
+    expect(allySelect.value).toBe('p1'); // defaults to a roster member other than self
+
+    fireEvent.change(allySelect, { target: { value: 'p2' } });
+    expect(allySelect.value).toBe('p2');
+  });
+
+  test('orphaning an "attacking" target by shrinking the roster surfaces a validation message', () => {
+    setup();
+    const group = within(screen.getByRole('group', { name: 'Strategy: p0' }));
+    fireEvent.change(group.getByLabelText('Target mode'), { target: { value: 'attacking' } });
+    fireEvent.change(group.getByLabelText('Watch ally'), { target: { value: 'p2' } });
+
+    fireEvent.click(screen.getByLabelText('1')); // shrink roster to just p0 -> p2 no longer exists
+    expect(screen.getByText(/no longer in the roster/i)).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test('rule order is reorderable with labelled, keyboard-reachable move buttons; order is priority', () => {
+    setup();
+    const group = within(screen.getByRole('group', { name: 'Strategy: p0' }));
+    const ruleLabel = (): string[] =>
+      group.getAllByRole('checkbox').map((checkbox) => checkbox.closest('label')?.textContent?.trim() ?? '');
+
+    // guardian's defaultStrategy() rules are [taunt, cleave].
+    expect(ruleLabel()).toEqual(['taunt', 'cleave']);
+
+    const moveTauntDown = group.getByRole('button', { name: 'Move taunt down for p0' }) as HTMLButtonElement;
+    expect(moveTauntDown.disabled).toBe(false);
+    expect((group.getByRole('button', { name: 'Move taunt up for p0' }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(moveTauntDown);
+    expect(ruleLabel()).toEqual(['cleave', 'taunt']);
+    // Having moved to the end, taunt can no longer move down, and cleave (now first) can't move up.
+    expect((group.getByRole('button', { name: 'Move taunt down for p0' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((group.getByRole('button', { name: 'Move cleave up for p0' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
 
