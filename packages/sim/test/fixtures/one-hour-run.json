@@ -1,0 +1,62 @@
+{
+  "contentVersion": "d32c6cd45b1ee49eae6ab0f3fa5f1d4b5a1ab657bb9dc18a4db18c7da50816ef",
+  "gridHash": "c2c839371c6faddb0756adef80f3fcb3d17c841fef809acc419dea7ddb43e4b9",
+  "simulationVersion": "a1",
+  "untilMs": 3600000,
+  "input": {
+    "seed": 1,
+    "classes": ["guardian", "cleric", "ranger"],
+    "recipe": "mixed",
+    "placement": { "p0": "2,3", "p1": "1,4", "p2": "3,4" },
+    "strategies": {
+      "p0": {
+        "rules": [
+          { "skillId": "taunt", "enabled": true, "condition": { "kind": "ally-targeted" } },
+          { "skillId": "cleave", "enabled": true, "condition": { "kind": "targets-at-least", "value": 2 } }
+        ],
+        "target": { "kind": "nearest" }
+      },
+      "p1": {
+        "rules": [
+          { "skillId": "heal", "enabled": true, "condition": { "kind": "ally-hp-below", "value": 60 } },
+          { "skillId": "smite", "enabled": true, "condition": { "kind": "always" } }
+        ],
+        "target": { "kind": "lowest-hp" }
+      },
+      "p2": {
+        "rules": [
+          { "skillId": "arrow-rain", "enabled": true, "condition": { "kind": "targets-at-least", "value": 3 } },
+          { "skillId": "double-shot", "enabled": true, "condition": { "kind": "always" } }
+        ],
+        "target": { "kind": "lowest-hp" }
+      }
+    },
+    "rest": { "hpStart": 50, "mpStart": 30 },
+    "wipeLimit": 1
+  },
+  "observed": {
+    "nowMs": 3600000,
+    "phase": "resting",
+    "stopReason": null,
+    "rng": 3151307086,
+    "domainEventCount": 13648,
+    "metrics": {
+      "kills": 519,
+      "wins": 145,
+      "wipes": 0,
+      "rawExp": 13050,
+      "rawGold": 1347,
+      "damageDealt": 63250,
+      "effectiveHealing": 11890,
+      "walkMs": 290000,
+      "fightMs": 1167164,
+      "restMs": 2142836,
+      "respawnMs": 0,
+      "actors": {
+        "p0": { "damageDealt": 21953, "damageReceived": 15272, "healingDone": 0 },
+        "p1": { "damageDealt": 10925, "damageReceived": 1212, "healingDone": 11890 },
+        "p2": { "damageDealt": 30372, "damageReceived": 1518, "healingDone": 0 }
+      }
+    }
+  }
+}

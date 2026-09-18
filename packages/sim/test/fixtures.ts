@@ -1,11 +1,24 @@
-import { content } from '@narok/data';
+import { content, validateContent } from '@narok/data';
 import type { ClassId } from '@narok/data';
-import type { Actor, ActorId, Context, DomainEvent, LabInput, Metrics, SimState, Strategy } from '../src/types';
+import type {
+  Actor,
+  ActorId,
+  AdvanceOptions,
+  AdvanceResult,
+  Context,
+  DomainEvent,
+  LabInput,
+  Metrics,
+  SimState,
+  Simulation,
+  Strategy,
+} from '../src/types';
 import { derive } from '../src/math';
 import { defaultPlacement, gridPosition, createGrid } from '../src/battlefield/grid';
 import { defaultStrategy, startState } from '../src/state';
 import { drawBelow } from '../src/rng';
 import { schedule } from '../src/scheduler';
+import { createSimulation } from '../src/index';
 
 /**
  * Builds a living party Guardian `p0` fixture with preset stats derived from the
@@ -220,4 +233,63 @@ export function context(state: SimState, events: DomainEvent[]): Context {
       events.push({ ...event, seq: state.nextDomainSeq++ });
     },
   };
+}
+
+/**
+ * The public laboratory simulation (ruling R44): validated generated content bound
+ * to its own grid/shapes. Every call returns an independent facade over the same
+ * immutable content, so tests never share mutable simulation state.
+ */
+export function lab(): Simulation {
+  const validated = validateContent(content);
+  return createSimulation(validated, createGrid(validated.grid, validated.shapes));
+}
+
+/**
+ * A default experiment advanced to exactly 2,000 ms (ruling R44): the first walk has
+ * completed and the first encounter has spawned, but the first decisions (2,500 ms)
+ * have not run yet.
+ */
+export function atFight(): SimState {
+  const sim = lab();
+  return runTo(sim, sim.start(labInput()), 2_000).state;
+}
+
+/**
+ * Popped-entry counter used to prove a yielded `advance` iteration made progress.
+ * `nextQueueSeq` only ever grows (one per `schedule`) and `queue.length` only shrinks
+ * by a pop or an epoch prune, so `nextQueueSeq - queue.length` strictly increases
+ * whenever the dispatcher consumed at least one queued entry — which a work-budget
+ * yield always does — and is unchanged by scheduling alone.
+ */
+function poppedCount(state: SimState): number {
+  return state.nextQueueSeq - state.queue.length;
+}
+
+/**
+ * Drives `advance` to an absolute target across work-budget yields (ruling R44),
+ * concatenating the domain events of every segment in order. Throws when an
+ * iteration returns `reachedTarget: false` without consuming a queued entry or
+ * moving the clock, so a budget that cannot make progress fails loudly instead of
+ * spinning.
+ */
+export function runTo(
+  sim: Simulation,
+  state: SimState,
+  untilMs: number,
+  options?: AdvanceOptions,
+): AdvanceResult {
+  const events: DomainEvent[] = [];
+  let current = state;
+  for (;;) {
+    const beforeNowMs = current.nowMs;
+    const beforePopped = poppedCount(current);
+    const result = sim.advance(current, untilMs, options);
+    for (const event of result.events) events.push(event);
+    current = result.state;
+    if (result.reachedTarget) return { state: current, events, reachedTarget: true };
+    if (current.nowMs <= beforeNowMs && poppedCount(current) <= beforePopped) {
+      throw new Error(`advance made no progress at ${current.nowMs} ms toward ${untilMs} ms`);
+    }
+  }
 }

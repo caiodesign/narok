@@ -80,6 +80,9 @@ export interface PublicActor {
   id: ActorId; definitionId: string; side: 'party' | 'enemy'; position: PositionId;
   hp: number; mp: number; maxHp: number; maxMp: number; currentTarget: ActorId | null;
   casting: SkillId | 'basic' | null; targetReason: 'forced' | 'threat' | 'priority' | null;
+  /** Additive per ruling R12/R42: ready-at timestamps, so a client can show factual
+   * remaining cooldown. Already-observed state, never a future outcome. */
+  cooldowns: Partial<Record<SkillId, number>>;
 }
 export interface PublicState {
   nowMs: number; phase: Phase; stopReason: StopReason | null;
