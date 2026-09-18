@@ -9,6 +9,15 @@ const RECIPE_IDS: readonly CliRecipe[] = ['melee', 'ranged', 'clustered', 'mixed
 const MATRIX_RECIPE_IDS: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
 const PLACEMENT_NAMES: readonly PlacementName[] = ['default', 'front', 'spread'];
 const MAX_HOURS = 168;
+/**
+ * Contract §6 fixes the engine-stress fixture's encounter deadline at exactly
+ * 24 hours + 1 ms (see `packages/sim/test/stress-fixture.ts`) — `benchmark` always
+ * runs a stress sample at every requested horizon, so no `benchmark --hours` value
+ * may exceed 24, even though `run`/`matrix` (which never touch the stress fixture)
+ * allow up to `MAX_HOURS` (ruling R72). Milestone A's required benchmark evidence is
+ * `--hours 12,24` (spec §13), so this bound loses nothing needed.
+ */
+const MAX_BENCHMARK_HOURS = 24;
 const MAX_SEED = 4_294_967_295;
 
 /**
@@ -44,26 +53,46 @@ export function parseSeeds(spec: string | undefined): number[] {
   return seeds;
 }
 
-/**
- * `--hours <number>` (rulings R47): a positive finite number, possibly fractional,
- * rejected above 168 hours (one week). `requestedMs = round(hours * 3,600,000)`.
- */
-export function parseHours(spec: string | undefined): number {
-  if (spec === undefined) throw new CliError('--hours is required');
-  const hours = Number(spec);
+/** Shared positive-finite-number parsing for one `--hours` value, with a caller-chosen ceiling. */
+function parseHoursValue(raw: string, maxHours: number, describeExcess: (raw: string) => string): number {
+  const hours = Number(raw);
   if (!Number.isFinite(hours) || hours <= 0) {
-    throw new CliError(`--hours: "${spec}" is not a positive finite number`);
+    throw new CliError(`--hours: "${raw}" is not a positive finite number`);
   }
-  if (hours > MAX_HOURS) {
-    throw new CliError(`--hours: "${spec}" exceeds the ${MAX_HOURS} hour maximum`);
+  if (hours > maxHours) {
+    throw new CliError(describeExcess(raw));
   }
   return hours;
 }
 
-/** `--hours <a,b,...>` for `benchmark` (rulings R47): a comma list, each hour value validated. */
+/**
+ * `--hours <number>` for `run`/`matrix` (rulings R47): a positive finite number,
+ * possibly fractional, rejected above 168 hours (one week) — neither command ever
+ * touches the engine-stress fixture, so `MAX_HOURS` (not the benchmark ceiling)
+ * applies here. `requestedMs = round(hours * 3,600,000)`.
+ */
+export function parseHours(spec: string | undefined): number {
+  if (spec === undefined) throw new CliError('--hours is required');
+  return parseHoursValue(spec, MAX_HOURS, (raw) => `--hours: "${raw}" exceeds the ${MAX_HOURS} hour maximum`);
+}
+
+/**
+ * `--hours <a,b,...>` for `benchmark` (rulings R47/R72): a comma list; each value
+ * must be a positive finite number no greater than the 24-hour engine-stress
+ * ceiling, since every requested horizon also drives one stress sample and that
+ * fixture's own encounter deadline cannot be raised to match a longer request
+ * (contract §6). Rejected without running anything or writing a file.
+ */
 export function parseHoursList(spec: string | undefined): number[] {
   if (spec === undefined || spec.trim() === '') throw new CliError('--hours is required');
-  return spec.split(',').map((raw) => parseHours(raw));
+  return spec.split(',').map((raw) =>
+    parseHoursValue(
+      raw,
+      MAX_BENCHMARK_HOURS,
+      (value) =>
+        `--hours: "${value}" exceeds the ${MAX_BENCHMARK_HOURS}-hour engine-stress ceiling (contract §6)`,
+    ),
+  );
 }
 
 /** `requestedMs = round(hours * 3,600,000)` (rulings R47). */

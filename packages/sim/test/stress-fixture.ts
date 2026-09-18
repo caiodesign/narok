@@ -37,9 +37,15 @@ const STRESS_ATK = 50;
 const STRESS_LEVEL = 1;
 const STRESS_HIT = 999;
 const STRESS_FLEE = 0;
-/** "24 hours + 1 ms" (contract §6): later than any benchmarked horizon (max 24h), so the
- * deadline itself never fires inside a requested run — the requested/simulated horizon is
- * the only thing that can end the fixture's advance loop. */
+/**
+ * Fixed at exactly 24 hours + 1 ms by contract §6 — not a tunable "later than
+ * whatever horizon gets requested" value, and this fixture does not itself enforce
+ * any ceiling on the horizon it is driven to. It only stays clear of the deadline in
+ * practice because `tools/balance/src/args.ts`'s `parseHoursList` rejects any
+ * `benchmark --hours` value above 24 (ruling R72) before this fixture ever runs. A
+ * caller that drives this state directly (bypassing that CLI validation) past 24h
+ * will hit a real `stalemate` stop here, same as any other encounter deadline.
+ */
 export const STRESS_ENCOUNTER_LIMIT_MS = 24 * 60 * 60 * 1000 + 1;
 
 export const STRESS_CONTENT_VERSION = 'engine-stress-1';

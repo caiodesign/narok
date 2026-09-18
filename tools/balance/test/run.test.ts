@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import { labInput } from '../../../packages/sim/test/fixtures';
-import { CliError, parseParty, parsePlacement, parseRecipe, parseSeeds } from '../src/args';
-import { runBatch } from '../src/run';
+import { CliError, parseHours, parseHoursList, parseParty, parsePlacement, parseRecipe, parseSeeds } from '../src/args';
+import { classifyShort } from '../src/benchmark';
+import { buildLabInput, runBatch } from '../src/run';
 
 test('same seeds yield identical gameplay metrics', () => {
   const rows = runBatch(labInput(), [1, 1], 60_000);
@@ -12,14 +13,22 @@ test('same seeds yield identical gameplay metrics', () => {
   expect(rows[0].kills_per_hour).toBe(expected);
 });
 
-test('an early-stopped run reports elapsed_ms below the requested horizon', () => {
-  // A one-millisecond horizon never even reaches the first decision, so the run
-  // still completes normally (reachedTarget) with elapsed_ms === requested_ms; this
-  // just pins that requested/elapsed can differ in general via the <= assertion
-  // above and gives a second, independent data point at a different horizon.
-  const rows = runBatch(labInput(), [2], 1_000);
-  expect(rows[0].elapsed_ms).toBeLessThanOrEqual(rows[0].requested_ms);
-  expect(rows[0].requested_ms).toBe(1_000);
+test('a solo cleric wipes against the melee recipe well before its 1 hour horizon', () => {
+  // Ruling R73: a genuine early stop, not a synthetic one. A lone cleric (no tank
+  // to hold threat, no offense of its own) reliably loses its single life to the
+  // melee recipe. Confirmed deterministic and reproducible for seed 1: wipe-limit
+  // at nowMs 14,307 ms, well inside the requested 3,600,000 ms (1 hour) horizon —
+  // proving `elapsed_ms` really is "the simulated nowMs reached, never the
+  // requested horizon after an early stop" (rulings R48), and that `classifyShort`
+  // agrees with a real early-stopped row rather than only synthetic numbers.
+  const input = buildLabInput(1, ['cleric'], 'melee', 'default');
+  const row = runBatch(input, [1], 3_600_000)[0];
+
+  expect(row.stop_reason).toBe('wipe-limit');
+  expect(row.wipes).toBe(1);
+  expect(row.elapsed_ms).toBe(14_307);
+  expect(row.elapsed_ms).toBeLessThan(row.requested_ms);
+  expect(classifyShort(row.requested_ms, row.elapsed_ms)).toBe(true);
 });
 
 test('kills_per_hour is null (an empty CSV field) at zero elapsed time', () => {
@@ -100,4 +109,32 @@ test('parsePlacement rejects an unknown placement', () => {
 
 test('parsePlacement defaults to default', () => {
   expect(parsePlacement(undefined)).toBe('default');
+});
+
+// --- --hours bound: 168h for run/matrix, 24h for benchmark (rulings R47/R72) ---
+
+test('parseHours (run/matrix) accepts up to 168 hours', () => {
+  expect(parseHours('168')).toBe(168);
+});
+
+test('parseHours (run/matrix) rejects above 168 hours', () => {
+  expect(() => parseHours('168.01')).toThrow(CliError);
+});
+
+test('parseHoursList (benchmark) accepts up to 24 hours, including spec §13\'s 12,24 evidence pair', () => {
+  expect(parseHoursList('12,24')).toEqual([12, 24]);
+});
+
+test('parseHoursList (benchmark) rejects any value above the 24-hour engine-stress ceiling', () => {
+  // The engine-stress fixture's encounter deadline is fixed at 24h + 1ms (contract
+  // §6); benchmark always runs a stress sample at every requested horizon, so no
+  // benchmark horizon may exceed 24h even though run/matrix allow up to 168
+  // (ruling R72). A demonstrated real case: `--hours 25` used to produce a stress
+  // record with stopReason "stalemate" and short: true instead of being rejected.
+  expect(() => parseHoursList('25')).toThrow(CliError);
+  expect(() => parseHoursList('12,25')).toThrow(CliError);
+});
+
+test('parseHoursList (benchmark) names the engine-stress 24-hour ceiling in its error', () => {
+  expect(() => parseHoursList('25')).toThrow(/24-hour engine-stress/);
 });
