@@ -1,0 +1,13 @@
+{
+  "name": "@narok/balance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@narok/data": "workspace:*",
+    "@narok/sim": "workspace:*"
+  }
+}

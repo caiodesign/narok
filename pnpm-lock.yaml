@@ -38,6 +38,15 @@ importers:
         specifier: workspace:*
         version: link:../data
 
+  tools/balance:
+    dependencies:
+      '@narok/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      '@narok/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
+
 packages:
 
   '@cacheable/memory@2.2.0':
