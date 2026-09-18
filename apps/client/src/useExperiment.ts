@@ -53,6 +53,17 @@ const EVENT_HISTORY_LIMIT = 500;
 const BUFFER_MS = 2000;
 const ALLOWED_SPEEDS = new Set([1, 4, 16]);
 
+/**
+ * Ruling R79: the outstanding-request marker is tied to request identity
+ * (generation, plus the target for an advance) rather than a bare boolean, and
+ * `stop` participates in it — so a frame only clears the marker (and only
+ * decides what to send next) for the request it actually answers.
+ */
+type PendingRequest =
+  | { kind: 'start'; generation: number }
+  | { kind: 'advance'; generation: number; untilMs: number }
+  | { kind: 'stop'; generation: number };
+
 export interface UseExperimentOptions {
   driver?: ClockDriver;
   createWorker?: () => WorkerLike;
@@ -84,7 +95,8 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
   const workerRef = useRef<WorkerLike | null>(null);
   const generationRef = useRef(0);
   const inputRef = useRef<LabInput | null>(null);
-  const pendingRef = useRef(false);
+  const pendingRef = useRef<PendingRequest | null>(null);
+  const stopRequestedRef = useRef(false);
   const lastRequestedRef = useRef(0);
   const clockRef = useRef<PlaybackClock>({
     realAnchorMs: 0,
@@ -124,8 +136,16 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
     const worker = workerRef.current;
     if (!worker) return;
     lastRequestedRef.current = target;
-    pendingRef.current = true;
+    pendingRef.current = { kind: 'advance', generation: generationRef.current, untilMs: target };
     worker.postMessage({ type: 'advance', generation: generationRef.current, untilMs: target });
+  }, []);
+
+  const sendStopNow = useCallback(() => {
+    const worker = workerRef.current;
+    if (!worker) return;
+    stopRequestedRef.current = false;
+    pendingRef.current = { kind: 'stop', generation: generationRef.current };
+    worker.postMessage({ type: 'stop', generation: generationRef.current });
   }, []);
 
   const handleMessage = useCallback(
@@ -136,7 +156,8 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
       if (message.generation !== generationRef.current) return;
 
       if (message.type === 'error') {
-        pendingRef.current = false;
+        pendingRef.current = null;
+        stopRequestedRef.current = false;
         setStatusBoth('error');
         return;
       }
@@ -147,14 +168,23 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
         return;
       }
 
-      // Consume the frame first (state, events, metrics), then clear pending, and
-      // only then decide what to send next (ruling R54).
+      // Consume the frame first (state, events, metrics) regardless of whether
+      // it answers something this hook is currently tracking as pending — the
+      // data is real and current for this generation either way.
       setState(message.state);
       setEvents((previous) => {
         const merged = previous.concat(message.events);
         return merged.length > EVENT_HISTORY_LIMIT ? merged.slice(merged.length - EVENT_HISTORY_LIMIT) : merged;
       });
-      pendingRef.current = false;
+
+      // Ruling R79: only clear the pending marker — and only decide what to
+      // send next — for the request this frame actually answers. An unexpected
+      // frame (nothing currently tracked as pending) is applied above but
+      // otherwise ignored: this hook never issued the request that produced it,
+      // so it has no outstanding intent to reconcile.
+      const pending = pendingRef.current;
+      if (pending === null) return;
+      pendingRef.current = null;
 
       const terminal = message.state.phase === 'stopped' || message.state.stopReason !== null;
       if (terminal) {
@@ -169,19 +199,27 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
             metrics: message.state.metrics,
           });
         }
+        stopRequestedRef.current = false;
         setStatusBoth('stopped');
         return;
       }
 
-      if (!message.reachedTarget) {
+      // A stop requested while this request was in flight takes priority over
+      // continuing to chase an advance target.
+      if (stopRequestedRef.current) {
+        sendStopNow();
+        return;
+      }
+
+      if (pending.kind === 'advance' && !message.reachedTarget) {
         sendAdvance(lastRequestedRef.current);
       }
     },
-    [pushSummary, sendAdvance, setStatusBoth],
+    [pushSummary, sendAdvance, sendStopNow, setStatusBoth],
   );
 
   const tick = useCallback(() => {
-    if (statusRef.current === 'running' && !pendingRef.current) {
+    if (statusRef.current === 'running' && pendingRef.current === null) {
       const target = Math.max(horizon(clockRef.current, driver.now()), lastRequestedRef.current);
       if (target > lastRequestedRef.current) {
         sendAdvance(target);
@@ -207,7 +245,8 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
       const worker = createWorker();
       worker.onmessage = handleMessage;
       worker.onerror = () => {
-        pendingRef.current = false;
+        pendingRef.current = null;
+        stopRequestedRef.current = false;
         setStatusBoth('error');
       };
       workerRef.current = worker;
@@ -216,7 +255,8 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
       const generation = generationRef.current;
       inputRef.current = input;
       lastRequestedRef.current = 0;
-      pendingRef.current = true;
+      stopRequestedRef.current = false;
+      pendingRef.current = { kind: 'start', generation };
       clockRef.current = {
         realAnchorMs: driver.now(),
         simAnchorMs: 0,
@@ -245,11 +285,18 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
   }, [driver, setStatusBoth]);
 
   const stop = useCallback(() => {
-    const worker = workerRef.current;
-    if (!worker) return;
+    if (!workerRef.current) return;
     if (statusRef.current === 'idle' || statusRef.current === 'stopped') return;
-    worker.postMessage({ type: 'stop', generation: generationRef.current });
-  }, []);
+    // Ruling R79: stop participates in the same single-outstanding-request
+    // marker as advance. If something is already in flight, defer — the
+    // deferred stop fires as soon as that request's own frame is consumed,
+    // taking priority over resending an incomplete advance.
+    if (pendingRef.current === null) {
+      sendStopNow();
+    } else {
+      stopRequestedRef.current = true;
+    }
+  }, [sendStopNow]);
 
   const setSpeed = useCallback(
     (speed: number) => {

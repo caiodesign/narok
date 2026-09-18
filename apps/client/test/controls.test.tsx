@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { content } from '@narok/data';
-import { defaultStrategy, gridPosition } from '@narok/sim';
+import { content, validateContent } from '@narok/data';
+import { createGrid, createSimulation, defaultStrategy, gridPosition, SimError } from '@narok/sim';
 import type { ActorId, LabInput, Metrics, PublicState, Strategy } from '@narok/sim';
 import { ExperimentControls } from '../src/ExperimentControls';
 import { validateLabInput } from '../src/validation';
@@ -120,19 +120,68 @@ describe('validateLabInput', () => {
     );
   });
 
-  test('rejects rest thresholds outside 0..100', () => {
+  test('rejects rest thresholds outside their sim-enforced bounds (R76: hpStart 0..89, mpStart 0..79)', () => {
     expect(validateLabInput(labInput({ rest: { hpStart: -1, mpStart: 30 } }), content)).toContainEqual(
       expect.objectContaining({ field: 'rest.hpStart', messageKey: 'validation.restRange' }),
     );
-    expect(validateLabInput(labInput({ rest: { hpStart: 50, mpStart: 101 } }), content)).toContainEqual(
+    expect(
+      validateLabInput(labInput({ rest: { hpStart: 89, mpStart: 30 } }), content).some(
+        (issue) => issue.field === 'rest.hpStart',
+      ),
+    ).toBe(false);
+    expect(validateLabInput(labInput({ rest: { hpStart: 90, mpStart: 30 } }), content)).toContainEqual(
+      expect.objectContaining({ field: 'rest.hpStart', messageKey: 'validation.restRange' }),
+    );
+    expect(
+      validateLabInput(labInput({ rest: { hpStart: 50, mpStart: 79 } }), content).some(
+        (issue) => issue.field === 'rest.mpStart',
+      ),
+    ).toBe(false);
+    expect(validateLabInput(labInput({ rest: { hpStart: 50, mpStart: 80 } }), content)).toContainEqual(
       expect.objectContaining({ field: 'rest.mpStart', messageKey: 'validation.restRange' }),
     );
   });
 
-  test('rejects wipeLimit < 1', () => {
+  test('rejects a wipeLimit outside its sim-enforced bounds (R76: 1..5)', () => {
     expect(validateLabInput(labInput({ wipeLimit: 0 }), content)).toContainEqual(
       expect.objectContaining({ field: 'wipeLimit', messageKey: 'validation.wipeLimit' }),
     );
+    expect(validateLabInput(labInput({ wipeLimit: 5 }), content).some((issue) => issue.field === 'wipeLimit')).toBe(
+      false,
+    );
+    expect(validateLabInput(labInput({ wipeLimit: 6 }), content)).toContainEqual(
+      expect.objectContaining({ field: 'wipeLimit', messageKey: 'validation.wipeLimit' }),
+    );
+  });
+
+  test('R76: client rest/wipeLimit bounds agree with the real sim at every boundary, so they cannot silently drift apart', () => {
+    const validated = validateContent(content);
+    const sim = createSimulation(validated, createGrid(validated.grid, validated.shapes));
+
+    function simRejects(candidate: LabInput, field: string): boolean {
+      try {
+        sim.start(candidate);
+        return false;
+      } catch (error) {
+        return error instanceof SimError && error.field === field;
+      }
+    }
+
+    for (let value = -1; value <= 100; value += 1) {
+      const hpCandidate = labInput({ rest: { hpStart: value, mpStart: 30 } });
+      const clientRejectsHp = validateLabInput(hpCandidate, content).some((issue) => issue.field === 'rest.hpStart');
+      expect(clientRejectsHp).toBe(simRejects(hpCandidate, 'input.rest.hpStart'));
+
+      const mpCandidate = labInput({ rest: { hpStart: 50, mpStart: value } });
+      const clientRejectsMp = validateLabInput(mpCandidate, content).some((issue) => issue.field === 'rest.mpStart');
+      expect(clientRejectsMp).toBe(simRejects(mpCandidate, 'input.rest.mpStart'));
+    }
+
+    for (let value = -1; value <= 8; value += 1) {
+      const candidate = labInput({ wipeLimit: value });
+      const clientRejects = validateLabInput(candidate, content).some((issue) => issue.field === 'wipeLimit');
+      expect(clientRejects).toBe(simRejects(candidate, 'input.wipeLimit'));
+    }
   });
 
   test('rejects a rule threshold outside its declared range', () => {
@@ -236,27 +285,71 @@ describe('ExperimentControls', () => {
     expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  test('placement is operable by keyboard: arrow keys move focus, Enter places the selected character', () => {
+  test('R77: the placement grid is reachable by Tab alone from a cold page load', () => {
+    setup();
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const cells = within(grid).getAllByRole('gridcell');
+
+    // Roving tabindex: exactly one cell is in the page's tab sequence. If that
+    // cell is a native-disabled (or aria-disabled) enemy-row cell, a real Tab
+    // press skips the whole grid entirely -- there is no other way in.
+    const tabbable = cells.filter((cell) => cell.getAttribute('tabindex') === '0');
+    expect(tabbable).toHaveLength(1);
+    const [entryPoint] = tabbable;
+    expect((entryPoint as HTMLButtonElement).disabled).toBe(false);
+    expect(entryPoint.getAttribute('aria-disabled')).not.toBe('true');
+
+    // Prove it with REAL focus (not a hand-picked node + a synthetic event):
+    // this is exactly what pressing Tab from outside the grid would land on.
+    entryPoint.focus();
+    expect(document.activeElement).toBe(entryPoint);
+  });
+
+  test('R77: arrow-key navigation moves real DOM focus and never lands on a disabled cell', () => {
+    setup();
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const entryPoint = within(grid).getAllByRole('gridcell').find((cell) => cell.getAttribute('tabindex') === '0');
+    if (!entryPoint) throw new Error('no tabbable cell found');
+    entryPoint.focus();
+    expect(document.activeElement).toBe(entryPoint);
+
+    // Party rows are [3, 4] (enemyRows = [0, 1]): moving "up" from the first
+    // party row must clamp within party rows, not walk onto a disabled cell.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowUp' });
+    expect((document.activeElement as HTMLButtonElement).disabled).toBe(false);
+    expect(document.activeElement?.getAttribute('aria-disabled')).not.toBe('true');
+
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowDown' });
+    const afterDown = document.activeElement as HTMLButtonElement;
+    expect(afterDown.disabled).toBe(false);
+    expect(afterDown.getAttribute('aria-disabled')).not.toBe('true');
+    expect(afterDown).not.toBe(entryPoint); // actually moved to the other party row
+
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowRight' });
+    expect((document.activeElement as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test('placement is operable by keyboard: real Tab-reachable focus, arrow keys, Enter places the selected character', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
 
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const entryPoint = within(grid).getAllByRole('gridcell').find((cell) => cell.getAttribute('tabindex') === '0');
+    if (!entryPoint) throw new Error('no tabbable cell found');
+    entryPoint.focus();
+    expect(document.activeElement).toBe(entryPoint); // real focus, not a hand-picked node
+
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowDown' });
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Enter' });
+
     const rows = within(grid).getAllByRole('row');
-    const origin = within(rows[0]).getAllByRole('gridcell')[0];
-    origin.focus();
-
-    // Move from (0,0) down to row 4 (a party row) via ArrowDown x4, then Enter to place.
-    fireEvent.keyDown(origin, { key: 'ArrowDown' });
-    const afterRows = within(grid).getAllByRole('row');
-    let focused = document.activeElement as HTMLElement;
-    for (let i = 0; i < 3; i += 1) {
-      fireEvent.keyDown(focused, { key: 'ArrowDown' });
-      focused = document.activeElement as HTMLElement;
-    }
-    fireEvent.keyDown(focused, { key: 'Enter' });
-
-    const targetCell = within(afterRows[4]).getAllByRole('gridcell')[0];
-    expect(targetCell.textContent).toBe('p0');
+    const placedInRow3 = within(rows[3])
+      .getAllByRole('gridcell')
+      .some((cell) => cell.textContent === 'p0');
+    const placedInRow4 = within(rows[4])
+      .getAllByRole('gridcell')
+      .some((cell) => cell.textContent === 'p0');
+    expect(placedInRow3 || placedInRow4).toBe(true);
   });
 
   test('roster sizes 1 and 3 are accepted (no roster-size validation message)', () => {
@@ -283,6 +376,30 @@ describe('ExperimentControls', () => {
     expect(startButton.disabled).toBe(false);
     fireEvent.click(startButton);
     expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  test('R80: the speed control resyncs to 1x on a new start (the hook always starts a fresh run at 1x)', () => {
+    const { onStart } = setup();
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const rows = within(grid).getAllByRole('row');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+    fireEvent.click(within(rows[3]).getAllByRole('gridcell')[2]);
+    fireEvent.click(screen.getByRole('button', { name: 'Select p1' }));
+    fireEvent.click(within(rows[4]).getAllByRole('gridcell')[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Select p2' }));
+    fireEvent.click(within(rows[4]).getAllByRole('gridcell')[3]);
+
+    const speed16 = screen.getByRole('radio', { name: '16x' }) as HTMLInputElement;
+    fireEvent.click(speed16);
+    expect(speed16.checked).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+
+    const speed1 = screen.getByRole('radio', { name: '1x' }) as HTMLInputElement;
+    expect(speed1.checked).toBe(true);
+    expect((screen.getByRole('radio', { name: '16x' }) as HTMLInputElement).checked).toBe(false);
   });
 
   test('each roster member has a target mode selector; choosing "attacking" reveals a roster ally selector', () => {
@@ -559,5 +676,42 @@ describe('useExperiment', () => {
     expect(result.current.comparisonB?.nowMs).toBe(200);
     expect(result.current.comparisonA?.nowMs).toBe(100);
     void pump;
+  });
+
+  test('R79: stop() participates in the pending marker instead of firing regardless of an outstanding advance', () => {
+    const { driver, setNow, pump } = createManualDriver();
+    const { result } = renderHook(() => useExperiment({ driver, createWorker }));
+
+    act(() => result.current.start(labInput()));
+    const worker = workers[0];
+    act(() => worker.respond({ type: 'frame', generation: 1, state: publicState(), events: [], reachedTarget: true }));
+
+    setNow(5000);
+    act(() => pump()); // sends the first advance; still unanswered
+    expect(worker.sent).toHaveLength(2);
+    expect(worker.sent[1]).toMatchObject({ type: 'advance', generation: 1 });
+
+    act(() => result.current.stop());
+    // The outstanding advance hasn't been answered yet -- a correctly-gated
+    // stop must not fire alongside it (tied to request identity, not a bare
+    // boolean that stop ignores).
+    expect(worker.sent).toHaveLength(2);
+
+    act(() =>
+      worker.respond({
+        type: 'frame',
+        generation: 1,
+        state: publicState({ nowMs: 1000 }),
+        events: [],
+        reachedTarget: false,
+      }),
+    );
+    // The outstanding advance's own response arrives, reporting incomplete
+    // work. The deferred stop must be sent now -- and the advance must NOT be
+    // resent even though reachedTarget was false, because a frame only clears
+    // the pending marker for the request it actually answers, and a stop is
+    // what's actually pending by the time this frame lands.
+    expect(worker.sent).toHaveLength(3);
+    expect(worker.sent[2]).toEqual({ type: 'stop', generation: 1 });
   });
 });

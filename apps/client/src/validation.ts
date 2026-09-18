@@ -24,6 +24,21 @@ const RULE_VALUE_RANGES: Partial<Record<string, [number, number]>> = {
   'frost-nova': [1, 5],
 };
 
+/**
+ * Ruling R76 (binding, supersedes R55 on these bounds): `packages/sim` is the
+ * source of truth and is not exported/importable here, so these are duplicated
+ * from `packages/sim/src/state.ts`'s `validateLabInput` (lines ~196-200) —
+ * `requireInt(restRecord.hpStart, ..., 0, 89)`, `requireInt(restRecord.mpStart,
+ * ..., 0, 79)`, `requireInt(record.wipeLimit, ..., 1, 5)`. The fixed rest EXIT
+ * threshold is 90/80 (R34): a start threshold at or above exit would begin
+ * resting and immediately exit. Wipe limit is "default one, configurable 1-5"
+ * per realm-ui-spec §9. `test/controls.test.tsx`'s sweep test calls the real sim
+ * at every boundary so this cannot silently drift from `state.ts` again.
+ */
+const REST_HP_START_RANGE: readonly [number, number] = [0, 89];
+const REST_MP_START_RANGE: readonly [number, number] = [0, 79];
+const WIPE_LIMIT_RANGE: readonly [number, number] = [1, 5];
+
 function parsePosition(position: string): { column: number; row: number } | null {
   const match = POSITION_PATTERN.exec(position);
   if (!match) return null;
@@ -81,14 +96,26 @@ export function validateLabInput(input: LabInput, content: Content): ValidationI
     }
   }
 
-  if (input.rest.hpStart < 0 || input.rest.hpStart > 100) {
+  if (
+    !Number.isInteger(input.rest.hpStart) ||
+    input.rest.hpStart < REST_HP_START_RANGE[0] ||
+    input.rest.hpStart > REST_HP_START_RANGE[1]
+  ) {
     issues.push({ field: 'rest.hpStart', messageKey: 'validation.restRange' });
   }
-  if (input.rest.mpStart < 0 || input.rest.mpStart > 100) {
+  if (
+    !Number.isInteger(input.rest.mpStart) ||
+    input.rest.mpStart < REST_MP_START_RANGE[0] ||
+    input.rest.mpStart > REST_MP_START_RANGE[1]
+  ) {
     issues.push({ field: 'rest.mpStart', messageKey: 'validation.restRange' });
   }
 
-  if (!Number.isInteger(input.wipeLimit) || input.wipeLimit < 1) {
+  if (
+    !Number.isInteger(input.wipeLimit) ||
+    input.wipeLimit < WIPE_LIMIT_RANGE[0] ||
+    input.wipeLimit > WIPE_LIMIT_RANGE[1]
+  ) {
     issues.push({ field: 'wipeLimit', messageKey: 'validation.wipeLimit' });
   }
 

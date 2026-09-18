@@ -24,8 +24,8 @@ const MESSAGES: Record<string, string> = {
   'validation.unknownPlacement': 'Every roster member needs a placement.',
   'validation.duplicatePlacement': 'Two members cannot share a cell.',
   'validation.invalidCell': 'That cell is outside the party zone.',
-  'validation.restRange': 'Rest thresholds must be between 0 and 100.',
-  'validation.wipeLimit': 'Wipe limit must be at least 1.',
+  'validation.restRange': 'Rest HP must be 0-89% and rest MP must be 0-79%.',
+  'validation.wipeLimit': 'Wipe limit must be between 1 and 5.',
   'validation.ruleThreshold': 'That threshold is outside its allowed range.',
   'validation.unknownTargetParty': 'That character is no longer in the roster.',
 };
@@ -80,7 +80,14 @@ export function ExperimentControls({
 }: ExperimentControlsProps): React.JSX.Element {
   const [draft, setDraft] = useState<LabInput>(defaultDraft);
   const [selectedActorId, setSelectedActorId] = useState<ActorId | null>(null);
-  const [focusedCell, setFocusedCell] = useState<{ column: number; row: number }>({ column: 0, row: 0 });
+  // Ruling R77: default focus must land on a real, reachable party cell -- (0,0)
+  // is an enemy-row cell whenever row 0 isn't a party row, and a disabled cell
+  // with the roving tabindex's only tabIndex={0} makes the whole grid
+  // unreachable by Tab.
+  const [focusedCell, setFocusedCell] = useState<{ column: number; row: number }>(() => ({
+    column: 0,
+    row: [...content.grid.playerRows].sort((a, b) => a - b)[0] ?? 0,
+  }));
   const [speed, setLocalSpeed] = useState<number>(1);
   const cellRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -135,13 +142,25 @@ export function ExperimentControls({
   );
 
   const moveFocus = useCallback(
+    // Ruling R77: row movement is clamped to party rows, never landing focus on
+    // a disabled (non-party) cell -- vertical arrow presses step between party
+    // rows only; column movement stays within the grid width on the same row.
     (deltaColumn: number, deltaRow: number) => {
-      setFocusedCell((previous) => ({
-        column: Math.min(content.grid.width - 1, Math.max(0, previous.column + deltaColumn)),
-        row: Math.min(content.grid.height - 1, Math.max(0, previous.row + deltaRow)),
-      }));
+      setFocusedCell((previous) => {
+        if (deltaRow !== 0) {
+          const partyRows = [...content.grid.playerRows].sort((a, b) => a - b);
+          const currentIndex = partyRows.indexOf(previous.row);
+          const fromIndex = currentIndex === -1 ? (deltaRow > 0 ? -1 : partyRows.length) : currentIndex;
+          const nextIndex = Math.min(partyRows.length - 1, Math.max(0, fromIndex + deltaRow));
+          return { column: previous.column, row: partyRows[nextIndex] ?? previous.row };
+        }
+        return {
+          row: previous.row,
+          column: Math.min(content.grid.width - 1, Math.max(0, previous.column + deltaColumn)),
+        };
+      });
     },
-    [content.grid.height, content.grid.width],
+    [content.grid.playerRows, content.grid.width],
   );
 
   const onCellKeyDown = useCallback(
@@ -348,7 +367,6 @@ export function ExperimentControls({
                     }}
                     tabIndex={isFocused ? 0 : -1}
                     aria-disabled={!isPartyCell}
-                    disabled={!isPartyCell}
                     onFocus={() => setFocusedCell({ column, row })}
                     onClick={() => placeSelectedAt(column, row)}
                     onKeyDown={(event) => onCellKeyDown(event, column, row)}
@@ -493,7 +511,18 @@ export function ExperimentControls({
 
       <fieldset>
         <legend>Run</legend>
-        <button type="button" disabled={!canStart} onClick={() => onStart(draft)}>
+        <button
+          type="button"
+          disabled={!canStart}
+          onClick={() => {
+            onStart(draft);
+            // Ruling R80: useExperiment.start() always begins a fresh generation's
+            // clock at speed 1x, so the radio group must resync here -- otherwise
+            // it can misreport (e.g. still showing 16x from a previous run) the
+            // speed the new experiment is actually running at.
+            setLocalSpeed(1);
+          }}
+        >
           Start
         </button>
         <button type="button" disabled={status !== 'running'} onClick={onPause}>
