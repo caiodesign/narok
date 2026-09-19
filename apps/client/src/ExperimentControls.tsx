@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, ClassId, RecipeId } from '@narok/data';
 import type { ActorId, LabInput, PositionId, Strategy, TargetMode } from '@narok/sim';
-import { defaultStrategy, gridPosition } from '@narok/sim';
+import { defaultPlacement, defaultStrategy, gridPosition } from '@narok/sim';
 import { formatNumber, type Translate } from './i18n';
 import type { ExperimentStatus } from './useExperiment';
 import { validateLabInput, type ValidationIssue } from './validation';
@@ -24,7 +24,59 @@ function cellId(column: number, row: number): PositionId {
   return gridPosition(column, row);
 }
 
-function defaultDraft(): LabInput {
+/** Every party cell in row-major order; the last-resort source of a free seat. */
+function partyCells(grid: Content['grid']): PositionId[] {
+  const cells: PositionId[] = [];
+  for (const row of [...grid.playerRows].sort((a, b) => a - b)) {
+    for (let column = 0; column < grid.width; column++) cells.push(cellId(column, row));
+  }
+  return cells;
+}
+
+/**
+ * Seats every roster member (Task 11 fix). Cells the user chose are kept as they
+ * are; anyone still unseated takes spec §8's default seat — `defaultPlacement`,
+ * the same rule the CLI's `default` placement uses — or, if a retained placement
+ * already holds that cell, the first free party cell.
+ *
+ * Before this existed the draft opened with `placement: {}`, so a cold page load
+ * raised "Every roster member needs a placement" and disabled "Start experiment"
+ * before the user had touched anything; the Playwright smoke could not start a
+ * run at all. Growing the roster left the new member unseated for the same
+ * reason.
+ */
+function seatRoster(
+  classes: ClassId[],
+  grid: Content['grid'],
+  existing: Record<ActorId, PositionId> = {},
+): Record<ActorId, PositionId> {
+  const ids = classes.map((_classId, index) => `p${index}`);
+  const preferred = defaultPlacement(classes);
+  const taken = new Set<PositionId>();
+  const placement: Record<ActorId, PositionId> = {};
+  for (const id of ids) {
+    const kept = existing[id];
+    if (kept !== undefined && !taken.has(kept)) {
+      placement[id] = kept;
+      taken.add(kept);
+    }
+  }
+  for (const id of ids) {
+    if (placement[id] !== undefined) continue;
+    const seat =
+      preferred[id] !== undefined && !taken.has(preferred[id])
+        ? preferred[id]
+        : partyCells(grid).find((cell) => !taken.has(cell));
+    // A 5x5 board has ten party cells against a roster of at most three, so this
+    // cannot run out; if a future grid did, validation reports the gap.
+    if (seat === undefined) continue;
+    placement[id] = seat;
+    taken.add(seat);
+  }
+  return placement;
+}
+
+function defaultDraft(grid: Content['grid']): LabInput {
   const classes: ClassId[] = ['guardian', 'cleric', 'ranger'];
   const strategies: Record<ActorId, Strategy> = {};
   classes.forEach((classId, index) => {
@@ -34,7 +86,7 @@ function defaultDraft(): LabInput {
     seed: 1,
     classes,
     recipe: 'mixed',
-    placement: {},
+    placement: seatRoster(classes, grid),
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
     wipeLimit: 1,
@@ -68,7 +120,7 @@ export function ExperimentControls({
   const t = rawT as unknown as Translate;
   const language = i18n.language;
 
-  const [draft, setDraft] = useState<LabInput>(defaultDraft);
+  const [draft, setDraft] = useState<LabInput>(() => defaultDraft(content.grid));
   const [selectedActorId, setSelectedActorId] = useState<ActorId | null>(null);
   // Ruling R77: default focus must land on a real, reachable party cell -- (0,0)
   // is an enemy-row cell whenever row 0 isn't a party row, and a disabled cell
@@ -89,22 +141,28 @@ export function ExperimentControls({
     cellRefs.current[key]?.focus();
   }, [focusedCell]);
 
-  const setRosterSize = useCallback((size: number) => {
-    setDraft((previous) => {
-      const classes = [...previous.classes];
-      while (classes.length < size) classes.push('guardian');
-      classes.length = size;
-      const ids = classes.map((_, index) => `p${index}`);
-      const strategies: Record<ActorId, Strategy> = {};
-      const placement: Record<ActorId, PositionId> = {};
-      ids.forEach((id, index) => {
-        strategies[id] = previous.strategies[id] ?? defaultStrategy(classes[index]);
-        if (previous.placement[id]) placement[id] = previous.placement[id];
+  const setRosterSize = useCallback(
+    (size: number) => {
+      setDraft((previous) => {
+        const classes = [...previous.classes];
+        while (classes.length < size) classes.push('guardian');
+        classes.length = size;
+        const ids = classes.map((_, index) => `p${index}`);
+        const strategies: Record<ActorId, Strategy> = {};
+        ids.forEach((id, index) => {
+          strategies[id] = previous.strategies[id] ?? defaultStrategy(classes[index]);
+        });
+        // Seats the grown roster instead of leaving the new member unplaced:
+        // cells the user already chose are kept, and anyone still unseated takes
+        // a free default seat, so the start control never disables itself over a
+        // placement the user was never asked for.
+        const placement = seatRoster(classes, content.grid, previous.placement);
+        return { ...previous, classes, strategies, placement };
       });
-      return { ...previous, classes, strategies, placement };
-    });
-    setSelectedActorId(null);
-  }, []);
+      setSelectedActorId(null);
+    },
+    [content.grid],
+  );
 
   const setActorClass = useCallback((actorId: ActorId, classId: ClassId) => {
     setDraft((previous) => {

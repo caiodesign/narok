@@ -1,13 +1,14 @@
 import fc from 'fast-check';
 import { expect, test } from 'vitest';
 import { content } from '@narok/data';
-import { gridPosition } from '../src/battlefield/grid';
+import { gridCoordinates, gridPosition } from '../src/battlefield/grid';
 import { SimError } from '../src/errors';
 import { derive } from '../src/math';
+import { finishEncounter } from '../src/lifecycle';
 import { schedule } from '../src/scheduler';
 import { defaultStrategy } from '../src/state';
 import type { Actor, LabInput, Metrics, PositionId, SimState } from '../src/types';
-import { actor, lab, labInput, runTo } from './fixtures';
+import { actor, context, fightFixture, lab, labInput, runTo } from './fixtures';
 
 /** Highest seed `validateLabInput` accepts (a nonzero uint32). */
 const MAX_SEED = 4_294_967_295;
@@ -351,6 +352,133 @@ test('incompatible states and targets are rejected with documented codes', () =>
     'INVALID_INPUT',
     'options.collect',
   );
+});
+
+// ---------------------------------------------------------------------------
+// Spec section 13 exact-boundary coverage not already proven elsewhere (R70).
+//
+// Already covered, and deliberately not duplicated here:
+//   status expiry  - 'a stun expiring exactly at a cast completion lets the cast
+//                    resolve' / '... one millisecond later postpones the whole
+//                    cast' (this file) and effects.test.ts 'expire drops records
+//                    at their expiry and keeps later ones'
+//   cast completion- the same two stun-boundary tests, plus actions.test.ts
+//                    'a stun at completion postpones the cast, keeping its token,
+//                    MP and cooldown'
+//   encounter timeout- 'a kill resolving exactly at the encounter deadline wins'
+//                    and 'an undecided encounter at the exact deadline stops as a
+//                    stalemate after its resolutions' (this file)
+//   rest exit      - lifecycle.test.ts 'rest exit requires 90% hp: 89% does not
+//                    exit, 90% does' and '... 80% mp: 79% does not exit, 80% does'
+//   overlapping live units - 'resource, occupancy and queue invariants are
+//                    asserted after each dispatch' (this file) and lifecycle.test.ts
+//                    'R92: a win revives a corpse an ally stands on without
+//                    stacking two living actors'
+//   wrapping shapes- grid.test.ts 'square clips at the right edge without wrapping'
+//                    and actions.test.ts 'frost nova clips its plus shape ...' /
+//                    'cleave clips at the board edge ...'
+//   work-budget yield - 'any seed agrees across summary collection and a one-event
+//                    work budget' (this file), which compares the encoded state,
+//                    RNG included, and the full ordered event log
+// ---------------------------------------------------------------------------
+
+test('the regen tick applies at exactly its instant, never a millisecond early', () => {
+  const state = duelState(4_000, 500);
+  const wounded = state.actors.p0.stats.maxHp - 50;
+  state.actors.p0.hp = wounded;
+  schedule(state, { at: content.regenMs, kind: 'regen', actorId: '', epoch: null, token: null });
+
+  const early = sim.advance(state, content.regenMs - 1);
+  expect(early.events).toEqual([]);
+  expect(early.state.actors.p0.hp).toBe(wounded);
+
+  const onTick = sim.advance(early.state, content.regenMs);
+  expect(onTick.events.map((event) => [event.kind, event.at, event.reason])).toEqual([
+    ['regen', content.regenMs, 'hp'],
+  ]);
+  expect(onTick.state.actors.p0.hp).toBe(wounded + (onTick.events[0].amount ?? 0));
+  // The successor tick is booked exactly one interval on, not relative to the target.
+  expect(onTick.state.queue.some((event) => event.kind === 'regen' && event.at === 2 * content.regenMs)).toBe(true);
+});
+
+test('a hit that brings HP to exactly zero is a death; one point short is not', () => {
+  // The Cleric's basic is magic: it always lands and, from a fixed RNG state,
+  // deals a fixed amount that does not depend on the defender's HP total — so
+  // the same resolution can be replayed against two totals one point apart.
+  const probeState = duelState(2_999, 10_000);
+  armBasic(probeState, 3_000);
+  const probe = sim.advance(probeState, 3_000);
+  const dealt = probe.events.find((event) => event.kind === 'damage')?.amount ?? 0;
+  expect(dealt).toBeGreaterThan(0);
+
+  const survivesState = duelState(2_999, dealt + 1);
+  armBasic(survivesState, 3_000);
+  const survives = sim.advance(survivesState, 3_000);
+  expect(survives.state.actors.e0.hp).toBe(1);
+  expect(survives.events.some((event) => event.kind === 'death')).toBe(false);
+  expect(survives.state.phase).toBe('fighting');
+  expect(survives.state.metrics.kills).toBe(0);
+
+  const diesState = duelState(2_999, dealt);
+  armBasic(diesState, 3_000);
+  const dies = sim.advance(diesState, 3_000);
+  expect(dies.events.filter((event) => event.kind === 'death').map((event) => [event.actorId, event.at])).toEqual([
+    ['e0', 3_000],
+  ]);
+  expect(dies.state.metrics.kills).toBe(1);
+  // The last enemy died, so the encounter is decided and its actor is cleared.
+  expect(Object.hasOwn(dies.state.actors, 'e0')).toBe(false);
+  expect(dies.state.metrics.wins).toBe(1);
+});
+
+test('a respawn completes at exactly its instant, not a millisecond before', () => {
+  const state = fightFixture();
+  state.input.wipeLimit = 2; // not the final wipe, so the party respawns instead of stopping
+  for (const id of ['p0', 'p1', 'p2'] as const) state.actors[id].hp = 0;
+  finishEncounter(state, context(state, []));
+  expect(state.phase).toBe('respawning');
+
+  const respawnAt = state.nowMs + content.respawnMs;
+  expect(state.queue.some((event) => event.kind === 'transition' && event.at === respawnAt)).toBe(true);
+
+  const early = sim.advance(state, respawnAt - 1);
+  expect(early.state.phase).toBe('respawning');
+  expect(early.state.actors.p0.hp).toBe(0);
+  // Regen ticks keep firing while respawning but restore nothing (spec section 10).
+  expect(early.events).toEqual([]);
+
+  const onTime = sim.advance(early.state, respawnAt);
+  expect(onTime.state.phase).toBe('walking');
+  expect(onTime.events.map((event) => [event.kind, event.at, event.reason])).toEqual([
+    ['phase', respawnAt, 'walking'],
+  ]);
+  for (const id of ['p0', 'p1', 'p2'] as const) {
+    const member = onTime.state.actors[id];
+    expect(member.hp).toBe(member.stats.maxHp);
+    expect(member.mp).toBe(member.stats.maxMp);
+  }
+});
+
+test('combat APIs publish opaque cell ids, never coordinates', () => {
+  const run = runTo(sim, sim.start(labInput()), PROPERTY_HORIZON);
+
+  const located = run.events.filter((event) => event.position !== null);
+  expect(located.length).toBeGreaterThan(0);
+  for (const event of located) {
+    const position = event.position as PositionId;
+    expect(typeof position).toBe('string');
+    // Only the grid adapter converts: a published id round-trips through it, and
+    // the event itself never carries the column/row the adapter works in.
+    const { column, row } = gridCoordinates(position);
+    expect(gridPosition(column, row)).toBe(position);
+  }
+  for (const event of run.events) {
+    expect(Object.keys(event).filter((key) => key === 'column' || key === 'row')).toEqual([]);
+  }
+  for (const entry of sim.project(run.state).actors) {
+    expect(typeof entry.position).toBe('string');
+    expect(Object.keys(entry).filter((key) => key === 'column' || key === 'row')).toEqual([]);
+  }
 });
 
 test('advancing to the current time is a legal no-op', () => {

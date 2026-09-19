@@ -363,6 +363,49 @@ describe('ExperimentControls', () => {
     expect(screen.queryByText(/roster must have/i)).toBeNull();
   });
 
+  // Task 11: the Playwright smoke found the laboratory unusable on a cold load --
+  // the draft shipped with `placement: {}`, so "Every roster member needs a
+  // placement" was raised immediately and "Start experiment" was disabled before
+  // the user had touched anything. Spec section 8 defines the default seating and
+  // `defaultPlacement` already implements it (the CLI's `default` placement uses
+  // the same function), so the draft opens there.
+  test('Task 11: a cold load is startable, seated at the spec section 8 default placement', () => {
+    setup();
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const rows = within(grid).getAllByRole('row');
+
+    expect(within(rows[3]).getAllByRole('gridcell')[2].textContent).toBe('p0'); // (2,3)
+    expect(within(rows[4]).getAllByRole('gridcell')[1].textContent).toBe('p1'); // (1,4)
+    expect(within(rows[4]).getAllByRole('gridcell')[3].textContent).toBe('p2'); // (3,4)
+    expect(screen.queryByText(/needs a placement/i)).toBeNull();
+    expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test('Task 11: growing the roster seats the new members instead of disabling the start control', () => {
+    setup();
+    fireEvent.click(screen.getByLabelText('1'));
+    expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByLabelText('3'));
+    expect(screen.queryByText(/needs a placement/i)).toBeNull();
+    expect(screen.queryByText(/two members cannot share a cell/i)).toBeNull();
+    expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test('Task 11: a member seated by hand keeps its cell when the roster grows around it', () => {
+    setup();
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const rows = within(grid).getAllByRole('row');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+    fireEvent.click(within(rows[3]).getAllByRole('gridcell')[0]); // move p0 to (0,3)
+    fireEvent.click(screen.getByLabelText('1'));
+    fireEvent.click(screen.getByLabelText('3'));
+
+    expect(within(rows[3]).getAllByRole('gridcell')[0].textContent).toBe('p0');
+    expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   test('a fully valid setup enables the start control, which hands the draft to onStart', () => {
     const { onStart } = setup();
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
@@ -434,29 +477,45 @@ describe('ExperimentControls', () => {
     expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  // The two tests below used to assert that *no* cell anywhere held `p0`. That
+  // held only because the board opened empty, and Task 11 seats the draft at the
+  // spec section 8 default so the laboratory is startable from a cold load. The
+  // premise is gone; the property R85 protects is not. What a disabled cell must
+  // never do is receive a placement, so both now assert it directly: the board is
+  // byte-for-byte unchanged by the interaction, p0 is still on the seat it
+  // occupied beforehand, and the enemy cell still shows the invalid mark rather
+  // than an occupant. Drop the party-row guard in `placeSelectedAt` and p0 moves
+  // onto the enemy cell, emptying its seat -- both assertions fail again.
   test('R85: clicking an aria-disabled enemy cell places nothing', () => {
     setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
-
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
     const rows = within(grid).getAllByRole('row');
+    const seat = within(rows[3]).getAllByRole('gridcell')[2]; // p0's default seat (2,3)
+    expect(seat.textContent).toBe('p0');
+    const boardBefore = within(grid).getAllByRole('gridcell').map((cell) => cell.textContent);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+
     const enemyCell = within(rows[0]).getAllByRole('gridcell')[0]; // row 0 is an enemy row
     expect(enemyCell.getAttribute('aria-disabled')).toBe('true');
 
     fireEvent.click(enemyCell);
+
     expect(enemyCell.textContent).toBe('×');
-    const placedAnywhere = within(grid)
-      .getAllByRole('gridcell')
-      .some((cell) => cell.textContent === 'p0');
-    expect(placedAnywhere).toBe(false);
+    expect(seat.textContent).toBe('p0');
+    expect(within(grid).getAllByRole('gridcell').map((cell) => cell.textContent)).toEqual(boardBefore);
   });
 
   test('R85: Enter on a directly-focused disabled cell places nothing', () => {
     setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
-
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
     const rows = within(grid).getAllByRole('row');
+    const seat = within(rows[3]).getAllByRole('gridcell')[2]; // p0's default seat (2,3)
+    expect(seat.textContent).toBe('p0');
+    const boardBefore = within(grid).getAllByRole('gridcell').map((cell) => cell.textContent);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+
     const enemyCell = within(rows[1]).getAllByRole('gridcell')[2] as HTMLButtonElement; // (2,1)
 
     // Focus it directly, the way a pointer or a screen reader can, bypassing the
@@ -466,7 +525,8 @@ describe('ExperimentControls', () => {
     fireEvent.keyDown(enemyCell, { key: 'Enter' });
 
     expect(enemyCell.textContent).toBe('×');
-    expect(within(grid).getAllByRole('gridcell').some((cell) => cell.textContent === 'p0')).toBe(false);
+    expect(seat.textContent).toBe('p0');
+    expect(within(grid).getAllByRole('gridcell').map((cell) => cell.textContent)).toEqual(boardBefore);
   });
 
   test('R85: focus stays on the placed cell across the re-render a placement causes', () => {

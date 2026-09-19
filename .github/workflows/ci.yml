@@ -1,0 +1,63 @@
+# Milestone A continuous integration (plan task 11, ruling R69).
+#
+# Runs the whole automated gate on every push and pull request, in the same
+# order the repository's own `pnpm check` uses, then the browser smoke.
+#
+# Node is pinned to the repo's `engines.node` (24.15.0) and pnpm to its
+# `packageManager` field (pnpm@10.34.5) — `pnpm/action-setup` reads that field
+# rather than taking a second, driftable copy of the version here.
+#
+# The `pnpm balance` commands are deliberately absent: they are minutes-long
+# evidence runs producing `artifacts/**`, not gates. No secret is referenced by
+# this workflow, and it needs no write access to the repository.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: build, typecheck, lint, test, browser smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Before setup-node, so its pnpm cache resolution finds the store.
+      - name: Set up pnpm from the packageManager field
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node from the engines field
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate content
+        run: pnpm build:data
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit and integration tests
+        run: pnpm test
+
+      # Chromium only: the spec asks for a smoke, not a browser matrix.
+      - name: Install the Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the client
+        run: pnpm --filter @narok/client build
+
+      - name: Browser smoke
+        run: pnpm test:e2e
