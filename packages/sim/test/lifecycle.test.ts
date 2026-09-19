@@ -1,13 +1,14 @@
 import { expect, test } from 'vitest';
 import { content } from '@narok/data';
-import type { RecipeId } from '@narok/data';
+import type { ClassId, RecipeId } from '@narok/data';
 import { transition, regenerate, finishEncounter, deadline } from '../src/lifecycle';
 import { drawBelow } from '../src/rng';
 import { schedule } from '../src/scheduler';
 import { encodeSnapshot, decodeSnapshot } from '../src/snapshot';
 import { gridPosition } from '../src/battlefield/grid';
 import { derive } from '../src/math';
-import { fightFixture, walkCompleteState, context, actor, lab, labInput } from './fixtures';
+import { defaultStrategy } from '../src/state';
+import { fightFixture, walkCompleteState, context, actor, lab, labInput, runTo } from './fixtures';
 import type { Actor, ActorId, DomainEvent, Metrics, Phase, SimState } from '../src/types';
 
 function summary(events: DomainEvent[]): unknown[][] {
@@ -345,6 +346,51 @@ test('R92: a respawn after two members die on one cell restores them to separate
   const cells = livingCells(respawned);
   expect(new Set(cells).size).toBe(cells.length);
   const encoded = sim.encode(respawned);
+  expect(sim.encode(sim.decode(encoded))).toBe(encoded);
+});
+
+/**
+ * Ruling R100. The two tests above reproduce the *state* ruling R92 describes;
+ * this one replays the *sequence*. Every step is executed by the engine itself,
+ * including step 2 of the chain — `executeMove` permitting a step onto a corpse
+ * — which is the behaviour that makes the whole bug possible and which a
+ * hand-built precondition never exercises.
+ *
+ * The input is R92's own reproduction, the balance-matrix cell that aborted:
+ * seed 4, two Guardians, the `melee` recipe and the CLI's `front` placement
+ * ((1,3) and (2,3) in roster order). Two Guardians converge on the same front
+ * cell, which is exactly the geometry that puts a corpse under an ally. Before
+ * the fix this threw `INVALID_STATE actors.pN.position "shares a cell with pM"`
+ * advancing past `nowMs` 121,980.
+ *
+ * `tools/balance`'s `buildLabInput` is deliberately not imported: `packages/sim`
+ * must not gain a dependency on `tools/`, so the equivalent input is built here
+ * from the same rest thresholds and wipe limit that CLI uses.
+ */
+test('R100: R92\'s own reproduction runs past the instant it used to abort on', () => {
+  const sim = lab();
+  const classes: ClassId[] = ['guardian', 'guardian'];
+  const input = labInput({
+    seed: 4,
+    classes,
+    recipe: 'melee',
+    placement: { p0: gridPosition(1, 3), p1: gridPosition(2, 3) },
+    strategies: { p0: defaultStrategy('guardian'), p1: defaultStrategy('guardian') },
+  });
+
+  // Summary collection keeps a two-minute drive cheap; `runTo` drains any
+  // work-budget yield to the same absolute target.
+  let state = sim.start(input);
+  for (let target = 5_000; target <= 130_000; target += 5_000) {
+    state = runTo(sim, state, target, { collect: 'summary' }).state;
+  }
+
+  expect(state.nowMs).toBe(130_000);
+  expect(state.metrics.wins).toBe(2);
+  expect(state.stopReason).toBeNull();
+  const cells = livingCells(state);
+  expect(new Set(cells).size).toBe(cells.length);
+  const encoded = sim.encode(state);
   expect(sim.encode(sim.decode(encoded))).toBe(encoded);
 });
 
