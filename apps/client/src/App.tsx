@@ -33,9 +33,21 @@ import { useExperiment } from './useExperiment';
  * Ruling R84: milestone A has no passive skills, so the five states below are the
  * complete reachable set. Everything is derived from `PublicActor` alone — the
  * cast in flight, the additive `cooldowns` ready-at stamps (R12/R42) and the
- * actor's MP against the skill's cost. `active` is a committed instantaneous
- * skill (`baseCastMs === 0`) resolving this instant; `casting` is one with a real
- * cast bar in flight.
+ * actor's MP against the skill's cost.
+ *
+ * `active` and `casting` are the same projected field (`actor.casting`) split by
+ * whether there is a cast bar worth drawing. Nothing in this engine is
+ * instantaneous (ruling R87): `castDuration` in `packages/sim/src/actions.ts:36-37`
+ * is `Math.max(1, Math.ceil((baseCastMs * (150 - min(dex, 99))) / 150))`, so a
+ * `baseCastMs === 0` skill (taunt, cleave, double-shot) still occupies a 1 ms
+ * cast — too short to render a bar against, but a real, observable commitment.
+ * `casting` is a skill with a non-zero `baseCastMs` (heal 800, smite 600,
+ * arrow-rain 700, fire-bolt 900, frost-nova 900) whose bar is meaningful.
+ *
+ * `active` is rare but genuinely reachable, so this branch is not dead code: a
+ * controller probe sampling the projection at every millisecond across 300,000 ms
+ * of a real seed-1 run observed it 55 times out of 27,027 casting observations
+ * (~0.2%), covering all three zero-cast skills. Do not "optimize it away".
  */
 export type SkillActivity = 'casting' | 'active' | 'cooldown' | 'unavailable' | 'ready';
 

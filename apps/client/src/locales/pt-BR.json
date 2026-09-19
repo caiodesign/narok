@@ -174,7 +174,7 @@
     "hint": "Combate automático. Selecione uma habilidade para inspecionar por que ela está esperando; inspecionar nunca a usa.",
     "heading": "{{skill}} — {{state}}",
     "ready": "Fora de recarga e com MP suficiente. A estratégia decide quando usá-la.",
-    "active": "Comprometida agora: esta habilidade está resolvendo neste instante.",
+    "active": "Comprometida: a conjuração desta habilidade tem piso de 1 ms, então ela resolve um milissegundo depois e não há barra de conjuração a exibir.",
     "casting": "Uma conjuração está em andamento e resolverá ao terminar.",
     "cooldown": "Em recarga por mais {{remaining}}.",
     "unavailable": "Precisa de {{cost}} MP; {{actor}} tem {{mp}} MP.",

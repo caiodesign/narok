@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 // PixiJS cannot initialise a renderer in jsdom (R58). The board's own lifecycle
 // is covered in battlefield.test.tsx; here the Application is stubbed so the
@@ -60,8 +60,35 @@ vi.mock('pixi.js', () => ({
 const { App } = await import('../src/App');
 const { default: i18n, LANGUAGE_STORAGE_KEY, resources } = await import('../src/i18n');
 
+/**
+ * The hook builds a real `Worker` on start, which jsdom has no implementation
+ * for. Only the constructor needs to exist: `start` transitions to `running` the
+ * moment it posts, and pause/resume are pure playback-clock operations that never
+ * touch the worker at all (contract §7). Nothing here answers a frame, so no
+ * simulation data is faked.
+ */
+class StubWorker {
+  postMessage = vi.fn();
+  terminate = vi.fn();
+  onmessage: unknown = null;
+  onerror: unknown = null;
+}
+
+/** Fills the default guardian/cleric/ranger roster's placement so Start enables. */
+function placeWholeRoster(): void {
+  const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+  const rows = within(grid).getAllByRole('row');
+  fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+  fireEvent.click(within(rows[3]).getAllByRole('gridcell')[2]); // (2,3)
+  fireEvent.click(screen.getByRole('button', { name: 'Select p1' }));
+  fireEvent.click(within(rows[4]).getAllByRole('gridcell')[1]); // (1,4)
+  fireEvent.click(screen.getByRole('button', { name: 'Select p2' }));
+  fireEvent.click(within(rows[4]).getAllByRole('gridcell')[3]); // (3,4)
+}
+
 afterEach(async () => {
   cleanup();
+  vi.unstubAllGlobals();
   await act(async () => {
     await i18n.changeLanguage('en');
   });
@@ -85,10 +112,25 @@ describe('laboratory shell', () => {
     expect(elapsed[0]).toHaveTextContent('0 s');
   });
 
-  test('R81: the playback status readout is translated and reads "Paused" in EN when paused', () => {
+  test('R81: the playback status readout is translated and renders exactly "Paused" in EN once paused', () => {
+    vi.stubGlobal('Worker', StubWorker);
     render(<App />);
-    expect(screen.getByTestId('playback-status')).toHaveTextContent('Idle');
-    expect(resources.en.translation.status.paused).toBe('Paused');
+    const readout = screen.getByTestId('playback-status');
+    expect(readout).toHaveTextContent('Idle');
+
+    placeWholeRoster();
+    fireEvent.click(screen.getByRole('button', { name: 'Start experiment' }));
+    expect(readout).toHaveTextContent('Running');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    // Task 11's smoke asserts toHaveText('Paused'), which is an exact match on
+    // the element's whole text -- so assert the rendered string, not a substring.
+    expect(readout.textContent).toBe('Paused');
+    expect(readout.textContent).toBe(resources.en.translation.status.paused);
+
+    // Resuming must leave the paused state again, not stick.
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(readout.textContent).toBe(resources.en.translation.status.running);
   });
 
   test('the playback pause is explicitly labelled as a laboratory pause, not an offline cap', () => {

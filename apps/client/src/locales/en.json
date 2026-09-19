@@ -174,7 +174,7 @@
     "hint": "Automatic combat. Select a skill to inspect why it is waiting; inspecting never casts it.",
     "heading": "{{skill}} — {{state}}",
     "ready": "Off cooldown with enough MP. The strategy decides when it is cast.",
-    "active": "Committed now: this skill is resolving this instant.",
+    "active": "Committed: this skill's cast is floored to 1 ms, so it resolves a millisecond from now and there is no cast bar to show.",
     "casting": "A cast is in flight and will resolve when it completes.",
     "cooldown": "On cooldown for another {{remaining}}.",
     "unavailable": "Needs {{cost}} MP; {{actor}} has {{mp}} MP.",
