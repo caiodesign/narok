@@ -5,6 +5,9 @@ import { content, validateContent } from '@narok/data';
 import { createGrid, createSimulation, defaultStrategy, gridPosition, SimError } from '@narok/sim';
 import type { ActorId, LabInput, Metrics, PublicState, Strategy } from '@narok/sim';
 import { ExperimentControls } from '../src/ExperimentControls';
+// Ruling R60: every control label now comes from `t()`, so the resources must be
+// initialised before any control is rendered.
+import '../src/i18n';
 import { validateLabInput } from '../src/validation';
 import { useExperiment, type ClockDriver, type WorkerLike } from '../src/useExperiment';
 import type { WorkerRequest, WorkerResponse } from '../src/worker-contract';
@@ -267,10 +270,10 @@ describe('ExperimentControls', () => {
     setup();
     expect(screen.getByText(/no character selected/i)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
-    expect(screen.getByText('Selected: guardian (p0)')).toBeTruthy();
+    expect(screen.getByText('Selected: Guardian (p0)')).toBeTruthy();
   });
 
-  test('duplicate placement cells are rejected and disable Start', () => {
+  test('duplicate placement cells are rejected and disable the start control', () => {
     setup();
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
     const rows = within(grid).getAllByRole('row');
@@ -282,7 +285,7 @@ describe('ExperimentControls', () => {
     fireEvent.click(partyCell);
 
     expect(screen.getByText(/two members cannot share a cell/i)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   test('R77: the placement grid is reachable by Tab alone from a cold page load', () => {
@@ -360,7 +363,7 @@ describe('ExperimentControls', () => {
     expect(screen.queryByText(/roster must have/i)).toBeNull();
   });
 
-  test('a fully valid setup enables Start, and Start hands the draft to onStart', () => {
+  test('a fully valid setup enables the start control, which hands the draft to onStart', () => {
     const { onStart } = setup();
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
     const rows = within(grid).getAllByRole('row');
@@ -372,7 +375,7 @@ describe('ExperimentControls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select p2' }));
     fireEvent.click(within(rows[4]).getAllByRole('gridcell')[3]); // (3,4)
 
-    const startButton = screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement;
+    const startButton = screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement;
     expect(startButton.disabled).toBe(false);
     fireEvent.click(startButton);
     expect(onStart).toHaveBeenCalledTimes(1);
@@ -394,7 +397,7 @@ describe('ExperimentControls', () => {
     fireEvent.click(speed16);
     expect(speed16.checked).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start experiment' }));
     expect(onStart).toHaveBeenCalledTimes(1);
 
     const speed1 = screen.getByRole('radio', { name: '1x' }) as HTMLInputElement;
@@ -428,7 +431,73 @@ describe('ExperimentControls', () => {
 
     fireEvent.click(screen.getByLabelText('1')); // shrink roster to just p0 -> p2 no longer exists
     expect(screen.getByText(/no longer in the roster/i)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test('R85: clicking an aria-disabled enemy cell places nothing', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const rows = within(grid).getAllByRole('row');
+    const enemyCell = within(rows[0]).getAllByRole('gridcell')[0]; // row 0 is an enemy row
+    expect(enemyCell.getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(enemyCell);
+    expect(enemyCell.textContent).toBe('×');
+    const placedAnywhere = within(grid)
+      .getAllByRole('gridcell')
+      .some((cell) => cell.textContent === 'p0');
+    expect(placedAnywhere).toBe(false);
+  });
+
+  test('R85: Enter on a directly-focused disabled cell places nothing', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const rows = within(grid).getAllByRole('row');
+    const enemyCell = within(rows[1]).getAllByRole('gridcell')[2] as HTMLButtonElement; // (2,1)
+
+    // Focus it directly, the way a pointer or a screen reader can, bypassing the
+    // arrow-key clamping that normally keeps focus on party rows.
+    enemyCell.focus();
+    expect(document.activeElement).toBe(enemyCell);
+    fireEvent.keyDown(enemyCell, { key: 'Enter' });
+
+    expect(enemyCell.textContent).toBe('×');
+    expect(within(grid).getAllByRole('gridcell').some((cell) => cell.textContent === 'p0')).toBe(false);
+  });
+
+  test('R85: focus stays on the placed cell across the re-render a placement causes', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
+
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+    const entry = within(grid).getAllByRole('gridcell').find((cell) => cell.getAttribute('tabindex') === '0');
+    if (!entry) throw new Error('no tabbable cell found');
+    entry.focus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Enter' });
+
+    // The draft changed and the whole grid re-rendered; focus must not fall to <body>.
+    expect(document.activeElement).not.toBe(document.body);
+    const focused = document.activeElement as HTMLElement;
+    expect(focused.getAttribute('role')).toBe('gridcell');
+    expect(focused.textContent).toBe('p0');
+  });
+
+  test('R85: after a roster-size change exactly one cell keeps the roving tabindex, and it is reachable', () => {
+    setup();
+    const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
+
+    for (const size of ['3', '1', '2']) {
+      fireEvent.click(screen.getByLabelText(size));
+      const cells = within(grid).getAllByRole('gridcell');
+      const tabbable = cells.filter((cell) => cell.getAttribute('tabindex') === '0');
+      expect(tabbable, `roster size ${size}`).toHaveLength(1);
+      expect((tabbable[0] as HTMLButtonElement).disabled).toBe(false);
+      expect(tabbable[0].getAttribute('aria-disabled')).not.toBe('true');
+    }
   });
 
   test('rule order is reorderable with labelled, keyboard-reachable move buttons; order is priority', () => {
@@ -438,17 +507,17 @@ describe('ExperimentControls', () => {
       group.getAllByRole('checkbox').map((checkbox) => checkbox.closest('label')?.textContent?.trim() ?? '');
 
     // guardian's defaultStrategy() rules are [taunt, cleave].
-    expect(ruleLabel()).toEqual(['taunt', 'cleave']);
+    expect(ruleLabel()).toEqual(['Taunt', 'Cleave']);
 
-    const moveTauntDown = group.getByRole('button', { name: 'Move taunt down for p0' }) as HTMLButtonElement;
+    const moveTauntDown = group.getByRole('button', { name: 'Move Taunt down for p0' }) as HTMLButtonElement;
     expect(moveTauntDown.disabled).toBe(false);
-    expect((group.getByRole('button', { name: 'Move taunt up for p0' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((group.getByRole('button', { name: 'Move Taunt up for p0' }) as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(moveTauntDown);
-    expect(ruleLabel()).toEqual(['cleave', 'taunt']);
+    expect(ruleLabel()).toEqual(['Cleave', 'Taunt']);
     // Having moved to the end, taunt can no longer move down, and cleave (now first) can't move up.
-    expect((group.getByRole('button', { name: 'Move taunt down for p0' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((group.getByRole('button', { name: 'Move cleave up for p0' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((group.getByRole('button', { name: 'Move Taunt down for p0' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((group.getByRole('button', { name: 'Move Cleave up for p0' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

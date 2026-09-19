@@ -1,38 +1,24 @@
 /**
  * Setup and run controls (ruling R55). Edits a draft `LabInput` separately from
  * whatever experiment is currently running — changing the draft never mutates a
- * running experiment; pressing "Start" hands the draft to `onStart`, which the
- * hook turns into a new generation.
+ * running experiment; pressing "Start experiment" hands the draft to `onStart`,
+ * which the hook turns into a new generation.
+ *
+ * Every visible string comes from `t()` (ruling R60); the run buttons carry the
+ * accessible names ruling R81 fixes for the Task 11 smoke test.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Content, ClassId, RecipeId } from '@narok/data';
 import type { ActorId, LabInput, PositionId, Strategy, TargetMode } from '@narok/sim';
 import { defaultStrategy, gridPosition } from '@narok/sim';
+import { formatNumber, type Translate } from './i18n';
 import type { ExperimentStatus } from './useExperiment';
 import { validateLabInput, type ValidationIssue } from './validation';
 
 const CLASS_IDS: ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
 const SPEEDS = [1, 4, 16] as const;
 const PRIORITY_TARGET_KINDS = ['lowest-hp', 'highest-hp', 'highest-level', 'nearest'] as const;
-
-/** Trivial local key -> English lookup. Task 10 replaces this with react-i18next and adds PT-BR. */
-const MESSAGES: Record<string, string> = {
-  'validation.rosterSize': 'Roster must have 1 to 3 members.',
-  'validation.unknownClass': 'Unknown class.',
-  'validation.seedRange': 'Seed must be an integer between 1 and 4,294,967,295.',
-  'validation.unknownRecipe': 'Unknown recipe.',
-  'validation.unknownPlacement': 'Every roster member needs a placement.',
-  'validation.duplicatePlacement': 'Two members cannot share a cell.',
-  'validation.invalidCell': 'That cell is outside the party zone.',
-  'validation.restRange': 'Rest HP must be 0-89% and rest MP must be 0-79%.',
-  'validation.wipeLimit': 'Wipe limit must be between 1 and 5.',
-  'validation.ruleThreshold': 'That threshold is outside its allowed range.',
-  'validation.unknownTargetParty': 'That character is no longer in the roster.',
-};
-
-function translate(messageKey: string): string {
-  return MESSAGES[messageKey] ?? messageKey;
-}
 
 function cellId(column: number, row: number): PositionId {
   return gridPosition(column, row);
@@ -78,6 +64,10 @@ export function ExperimentControls({
   onStop,
   onSpeedChange,
 }: ExperimentControlsProps): React.JSX.Element {
+  const { t: rawT, i18n } = useTranslation();
+  const t = rawT as unknown as Translate;
+  const language = i18n.language;
+
   const [draft, setDraft] = useState<LabInput>(defaultDraft);
   const [selectedActorId, setSelectedActorId] = useState<ActorId | null>(null);
   // Ruling R77: default focus must land on a real, reachable party cell -- (0,0)
@@ -257,37 +247,44 @@ export function ExperimentControls({
   }, []);
 
   const selectedLabel = selectedActorId
-    ? `Selected: ${draft.classes[Number(selectedActorId.slice(1))]} (${selectedActorId})`
-    : 'No character selected.';
+    ? t('controls.selected', {
+        class: t(`class.${draft.classes[Number(selectedActorId.slice(1))]}`),
+        actor: selectedActorId,
+      })
+    : t('controls.selectedNone');
 
   const placementIssues = issuesFor('placement', issues);
   const canStart = issues.length === 0;
 
   return (
-    <section aria-label="Experiment controls">
+    <section className="win panel controls-panel" aria-label={t('controls.section')}>
+      <h2 className="win-title">{t('app.setup')}</h2>
+
       <fieldset>
-        <legend>Roster</legend>
-        {[1, 2, 3].map((size) => (
-          <label key={size}>
-            <input
-              type="radio"
-              name="roster-size"
-              value={size}
-              checked={draft.classes.length === size}
-              onChange={() => setRosterSize(size)}
-            />
-            {size}
-          </label>
-        ))}
+        <legend>{t('controls.roster')}</legend>
+        <div className="row" role="group" aria-label={t('controls.rosterSize')}>
+          {[1, 2, 3].map((size) => (
+            <label key={size} className="chip">
+              <input
+                type="radio"
+                name="roster-size"
+                value={size}
+                checked={draft.classes.length === size}
+                onChange={() => setRosterSize(size)}
+              />
+              {formatNumber(size, language)}
+            </label>
+          ))}
+        </div>
         {issuesFor('classes', issues).map((issue, index) => (
-          <p role="alert" key={`${issue.field}-${index}`}>
-            {translate(issue.messageKey)}
+          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+            {t(issue.messageKey)}
           </p>
         ))}
-        <ul>
+        <ul className="roster">
           {rosterIds.map((actorId, index) => (
             <li key={actorId}>
-              <label htmlFor={`class-${actorId}`}>{actorId}</label>
+              <label htmlFor={`class-${actorId}`}>{t('controls.member', { actor: actorId })}</label>
               <select
                 id={`class-${actorId}`}
                 value={draft.classes[index]}
@@ -295,12 +292,17 @@ export function ExperimentControls({
               >
                 {CLASS_IDS.map((classId) => (
                   <option key={classId} value={classId}>
-                    {classId}
+                    {t(`class.${classId}`)}
                   </option>
                 ))}
               </select>
-              <button type="button" aria-pressed={selectedActorId === actorId} onClick={() => setSelectedActorId(actorId)}>
-                Select {actorId}
+              <button
+                type="button"
+                className="ghost-button"
+                aria-pressed={selectedActorId === actorId}
+                onClick={() => setSelectedActorId(actorId)}
+              >
+                {t('controls.selectCharacter', { actor: actorId })}
               </button>
             </li>
           ))}
@@ -308,8 +310,8 @@ export function ExperimentControls({
       </fieldset>
 
       <fieldset>
-        <legend>Recipe and seed</legend>
-        <label htmlFor="recipe">Recipe</label>
+        <legend>{t('controls.recipeAndSeed')}</legend>
+        <label htmlFor="recipe">{t('controls.recipe')}</label>
         <select
           id="recipe"
           value={draft.recipe}
@@ -317,39 +319,43 @@ export function ExperimentControls({
         >
           {[...Object.keys(content.recipes), 'mixed'].map((recipeId) => (
             <option key={recipeId} value={recipeId}>
-              {recipeId}
+              {t(`recipe.${recipeId}`)}
             </option>
           ))}
         </select>
         {issuesFor('recipe', issues).map((issue, index) => (
-          <p role="alert" key={`${issue.field}-${index}`}>
-            {translate(issue.messageKey)}
+          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+            {t(issue.messageKey)}
           </p>
         ))}
 
-        <label htmlFor="seed">Seed</label>
+        <label htmlFor="seed">{t('controls.seed')}</label>
         <input
           id="seed"
           type="number"
+          className="num"
           value={draft.seed}
           onChange={(event) => setDraft((previous) => ({ ...previous, seed: Number(event.target.value) }))}
         />
         {issuesFor('seed', issues).map((issue, index) => (
-          <p role="alert" key={`${issue.field}-${index}`}>
-            {translate(issue.messageKey)}
+          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+            {t(issue.messageKey)}
           </p>
         ))}
       </fieldset>
 
       <fieldset>
-        <legend>Placement</legend>
-        <p aria-live="polite">{selectedLabel}</p>
+        <legend>{t('controls.placement')}</legend>
+        <p className="help">{t('controls.placementHelp')}</p>
+        <p aria-live="polite" className="selection">
+          {selectedLabel}
+        </p>
         {placementIssues.map((issue, index) => (
-          <p role="alert" key={`${issue.field}-${index}`}>
-            {translate(issue.messageKey)}
+          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+            {t(issue.messageKey)}
           </p>
         ))}
-        <div role="grid" aria-label="Battlefield placement grid">
+        <div role="grid" className="place-grid" aria-label={t('controls.placementGrid')}>
           {Array.from({ length: content.grid.height }, (_, row) => (
             <div role="row" key={row}>
               {Array.from({ length: content.grid.width }, (_, column) => {
@@ -362,6 +368,8 @@ export function ExperimentControls({
                     type="button"
                     role="gridcell"
                     key={id}
+                    className={isPartyCell ? 'cell cell--party' : 'cell cell--invalid'}
+                    title={isPartyCell ? t('board.cell', { position: id }) : t('controls.invalidCell')}
                     ref={(node) => {
                       cellRefs.current[id] = node;
                     }}
@@ -371,7 +379,7 @@ export function ExperimentControls({
                     onClick={() => placeSelectedAt(column, row)}
                     onKeyDown={(event) => onCellKeyDown(event, column, row)}
                   >
-                    {isPartyCell ? occupant ?? '' : '×'}
+                    {isPartyCell ? occupant ?? '' : t('controls.invalidCellMark')}
                   </button>
                 );
               })}
@@ -381,54 +389,58 @@ export function ExperimentControls({
       </fieldset>
 
       <fieldset>
-        <legend>Rest and wipe limit</legend>
-        <label htmlFor="rest-hp">Rest HP %</label>
+        <legend>{t('controls.restAndWipe')}</legend>
+        <label htmlFor="rest-hp">{t('controls.restHp')}</label>
         <input
           id="rest-hp"
           type="number"
+          className="num"
           value={draft.rest.hpStart}
           onChange={(event) =>
             setDraft((previous) => ({ ...previous, rest: { ...previous.rest, hpStart: Number(event.target.value) } }))
           }
         />
-        <label htmlFor="rest-mp">Rest MP %</label>
+        <label htmlFor="rest-mp">{t('controls.restMp')}</label>
         <input
           id="rest-mp"
           type="number"
+          className="num"
           value={draft.rest.mpStart}
           onChange={(event) =>
             setDraft((previous) => ({ ...previous, rest: { ...previous.rest, mpStart: Number(event.target.value) } }))
           }
         />
         {issuesFor('rest', issues).map((issue, index) => (
-          <p role="alert" key={`${issue.field}-${index}`}>
-            {translate(issue.messageKey)}
+          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+            {t(issue.messageKey)}
           </p>
         ))}
-        <label htmlFor="wipe-limit">Wipe limit</label>
+        <label htmlFor="wipe-limit">{t('controls.wipeLimit')}</label>
         <input
           id="wipe-limit"
           type="number"
+          className="num"
           value={draft.wipeLimit}
           onChange={(event) => setDraft((previous) => ({ ...previous, wipeLimit: Number(event.target.value) }))}
         />
         {issuesFor('wipeLimit', issues).map((issue, index) => (
-          <p role="alert" key={`${issue.field}-${index}`}>
-            {translate(issue.messageKey)}
+          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+            {t(issue.messageKey)}
           </p>
         ))}
       </fieldset>
 
       <fieldset>
-        <legend>Strategy rules</legend>
+        <legend>{t('controls.strategy')}</legend>
+        <p className="help">{t('controls.ruleOrderHelp')}</p>
         {rosterIds.map((actorId) => {
           const strategy = draft.strategies[actorId];
           if (!strategy) return null;
           return (
-            <div key={actorId} role="group" aria-label={`Strategy: ${actorId}`}>
-              <h3>{actorId}</h3>
+            <div key={actorId} role="group" className="strategy" aria-label={t('controls.strategyFor', { actor: actorId })}>
+              <h3>{t('controls.member', { actor: actorId })}</h3>
 
-              <label htmlFor={`target-kind-${actorId}`}>Target mode</label>
+              <label htmlFor={`target-kind-${actorId}`}>{t('controls.targetMode')}</label>
               <select
                 id={`target-kind-${actorId}`}
                 value={strategy.target.kind}
@@ -436,14 +448,14 @@ export function ExperimentControls({
               >
                 {PRIORITY_TARGET_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
-                    {kind}
+                    {t(`targetMode.${kind}`)}
                   </option>
                 ))}
-                <option value="attacking">attacking</option>
+                <option value="attacking">{t('targetMode.attacking')}</option>
               </select>
               {strategy.target.kind === 'attacking' && (
                 <>
-                  <label htmlFor={`target-party-${actorId}`}>Watch ally</label>
+                  <label htmlFor={`target-party-${actorId}`}>{t('controls.watchAlly')}</label>
                   <select
                     id={`target-party-${actorId}`}
                     value={strategy.target.partyId}
@@ -458,22 +470,23 @@ export function ExperimentControls({
                 </>
               )}
 
-              <ol>
+              <ol className="rules">
                 {strategy.rules.map((rule, index) => (
-                  <li key={rule.skillId}>
+                  <li key={rule.skillId} id={`rule-${actorId}-${rule.skillId}`}>
                     <label>
                       <input
                         type="checkbox"
                         checked={rule.enabled}
                         onChange={(event) => setRuleEnabled(actorId, index, event.target.checked)}
                       />
-                      {rule.skillId}
+                      {t(`skill.${rule.skillId}`)}
                     </label>
                     {'value' in rule.condition && (
                       <label>
-                        threshold
+                        {t('controls.ruleThreshold')}
                         <input
                           type="number"
+                          className="num"
                           value={rule.condition.value}
                           onChange={(event) => setRuleThreshold(actorId, index, Number(event.target.value))}
                         />
@@ -481,27 +494,29 @@ export function ExperimentControls({
                     )}
                     <button
                       type="button"
-                      aria-label={`Move ${rule.skillId} up for ${actorId}`}
+                      className="ghost-button"
+                      aria-label={t('controls.moveRuleUp', { skill: t(`skill.${rule.skillId}`), actor: actorId })}
                       disabled={index === 0}
                       onClick={() => moveRule(actorId, index, -1)}
                     >
-                      Move up
+                      ↑
                     </button>
                     <button
                       type="button"
-                      aria-label={`Move ${rule.skillId} down for ${actorId}`}
+                      className="ghost-button"
+                      aria-label={t('controls.moveRuleDown', { skill: t(`skill.${rule.skillId}`), actor: actorId })}
                       disabled={index === strategy.rules.length - 1}
                       onClick={() => moveRule(actorId, index, 1)}
                     >
-                      Move down
+                      ↓
                     </button>
                   </li>
                 ))}
               </ol>
 
               {issuesFor(`strategies.${actorId}`, issues).map((issue, index) => (
-                <p role="alert" key={`${issue.field}-${index}`}>
-                  {translate(issue.messageKey)}
+                <p role="alert" className="alert" key={`${issue.field}-${index}`}>
+                  {t(issue.messageKey)}
                 </p>
               ))}
             </div>
@@ -510,47 +525,58 @@ export function ExperimentControls({
       </fieldset>
 
       <fieldset>
-        <legend>Run</legend>
-        <button
-          type="button"
-          disabled={!canStart}
-          onClick={() => {
-            onStart(draft);
-            // Ruling R80: useExperiment.start() always begins a fresh generation's
-            // clock at speed 1x, so the radio group must resync here -- otherwise
-            // it can misreport (e.g. still showing 16x from a previous run) the
-            // speed the new experiment is actually running at.
-            setLocalSpeed(1);
-          }}
-        >
-          Start
-        </button>
-        <button type="button" disabled={status !== 'running'} onClick={onPause}>
-          Pause
-        </button>
-        <button type="button" disabled={status !== 'paused'} onClick={onResume}>
-          Resume
-        </button>
-        <button type="button" disabled={status === 'idle' || status === 'stopped'} onClick={onStop}>
-          Stop
-        </button>
+        <legend>{t('controls.run')}</legend>
+        <p className="help">{t('controls.startHelp')}</p>
+        <div className="row">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={!canStart}
+            onClick={() => {
+              onStart(draft);
+              // Ruling R80: useExperiment.start() always begins a fresh generation's
+              // clock at speed 1x, so the radio group must resync here -- otherwise
+              // it can misreport (e.g. still showing 16x from a previous run) the
+              // speed the new experiment is actually running at.
+              setLocalSpeed(1);
+            }}
+          >
+            {t('controls.start')}
+          </button>
+          <button type="button" className="ghost-button" disabled={status !== 'running'} onClick={onPause}>
+            {t('controls.pause')}
+          </button>
+          <button type="button" className="ghost-button" disabled={status !== 'paused'} onClick={onResume}>
+            {t('controls.resume')}
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
+            disabled={status === 'idle' || status === 'stopped'}
+            onClick={onStop}
+          >
+            {t('controls.stop')}
+          </button>
+        </div>
         <fieldset>
-          <legend>Speed</legend>
-          {SPEEDS.map((value) => (
-            <label key={value}>
-              <input
-                type="radio"
-                name="speed"
-                value={value}
-                checked={speed === value}
-                onChange={() => {
-                  setLocalSpeed(value);
-                  onSpeedChange(value);
-                }}
-              />
-              {value}x
-            </label>
-          ))}
+          <legend>{t('playback.speed')}</legend>
+          <div className="row">
+            {SPEEDS.map((value) => (
+              <label key={value} className="chip">
+                <input
+                  type="radio"
+                  name="speed"
+                  value={value}
+                  checked={speed === value}
+                  onChange={() => {
+                    setLocalSpeed(value);
+                    onSpeedChange(value);
+                  }}
+                />
+                {t('playback.speedOption', { value: formatNumber(value, language) })}
+              </label>
+            ))}
+          </div>
         </fieldset>
       </fieldset>
     </section>

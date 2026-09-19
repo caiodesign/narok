@@ -1,0 +1,280 @@
+{
+  "app": {
+    "title": "Laboratório de combate Narok",
+    "tagline": "Arredores do Prado · experimento de combate isolado",
+    "setup": "Configuração do experimento",
+    "board": "Campo de batalha",
+    "session": "Leitura da sessão",
+    "skills": "Atividade automática de habilidades",
+    "log": "Registro de eventos",
+    "scope": "Este laboratório observa apenas o combate. Saque, carteira, inventário, distribuição de atributos e relatórios de ausência não fazem parte desta versão."
+  },
+  "language": {
+    "label": "Idioma",
+    "en": "English",
+    "pt-BR": "Português (Brasil)"
+  },
+  "status": {
+    "label": "Estado da reprodução",
+    "idle": "Ocioso",
+    "running": "Em execução",
+    "paused": "Pausado",
+    "stopped": "Parado",
+    "error": "Erro"
+  },
+  "playback": {
+    "elapsed": "Tempo simulado",
+    "phase": "Fase",
+    "note": "A pausa congela o relógio de reprodução do laboratório. Não é um limite de tempo offline e não liquida nada.",
+    "speed": "Velocidade",
+    "speedOption": "{{value}}x"
+  },
+  "controls": {
+    "section": "Controles do experimento",
+    "roster": "Grupo",
+    "rosterSize": "Tamanho do grupo",
+    "member": "Personagem {{actor}}",
+    "selectCharacter": "Selecionar {{actor}}",
+    "selected": "Selecionado: {{class}} ({{actor}})",
+    "selectedNone": "Nenhum personagem selecionado.",
+    "recipeAndSeed": "Receita e semente",
+    "recipe": "Receita",
+    "seed": "Semente",
+    "placement": "Posicionamento",
+    "placementGrid": "Grade de posicionamento do campo de batalha",
+    "placementHelp": "Selecione um personagem e escolha uma célula nas fileiras do grupo com o clique ou com as setas e Enter.",
+    "invalidCell": "Fora da zona do grupo",
+    "invalidCellMark": "×",
+    "restAndWipe": "Descanso e limite de derrotas",
+    "restHp": "HP de descanso %",
+    "restMp": "MP de descanso %",
+    "wipeLimit": "Limite de derrotas totais",
+    "strategy": "Regras de estratégia",
+    "strategyFor": "Estratégia: {{actor}}",
+    "targetMode": "Modo de alvo",
+    "watchAlly": "Aliado observado",
+    "ruleThreshold": "limite",
+    "moveRuleUp": "Mover {{skill}} para cima em {{actor}}",
+    "moveRuleDown": "Mover {{skill}} para baixo em {{actor}}",
+    "ruleOrderHelp": "As regras são verificadas em ordem; a primeira cuja condição for verdadeira é usada.",
+    "run": "Execução",
+    "start": "Iniciar experimento",
+    "pause": "Pausar",
+    "resume": "Retomar",
+    "stop": "Parar experimento",
+    "startHelp": "Iniciar entrega a configuração atual a um novo experimento. A execução anterior fica retida como comparação A."
+  },
+  "validation": {
+    "rosterSize": "O grupo precisa ter de 1 a 3 integrantes.",
+    "unknownClass": "Classe desconhecida.",
+    "seedRange": "A semente precisa ser um inteiro entre 1 e 4.294.967.295.",
+    "unknownRecipe": "Receita desconhecida.",
+    "unknownPlacement": "Cada integrante do grupo precisa de um posicionamento.",
+    "duplicatePlacement": "Dois integrantes não podem ocupar a mesma célula.",
+    "invalidCell": "Essa célula está fora da zona do grupo.",
+    "restRange": "O HP de descanso deve ficar entre 0 e 89% e o MP entre 0 e 79%.",
+    "wipeLimit": "O limite de derrotas totais deve ficar entre 1 e 5.",
+    "ruleThreshold": "Esse limite está fora do intervalo permitido.",
+    "unknownTargetParty": "Esse personagem não está mais no grupo."
+  },
+  "class": {
+    "guardian": "Guardião",
+    "cleric": "Clérigo",
+    "ranger": "Patrulheiro",
+    "arcanist": "Arcanista"
+  },
+  "skill": {
+    "basic": "Ataque básico",
+    "taunt": "Provocar",
+    "cleave": "Talho",
+    "heal": "Cura",
+    "smite": "Castigo",
+    "double-shot": "Tiro Duplo",
+    "arrow-rain": "Chuva de Flechas",
+    "fire-bolt": "Dardo de Fogo",
+    "frost-nova": "Nova Gélida"
+  },
+  "monster": {
+    "briar-boar": "Javali Espinhoso",
+    "reed-slinger": "Fundeiro de Junco",
+    "mossling": "Musguinho"
+  },
+  "recipe": {
+    "melee": "Corpo a corpo",
+    "ranged": "À distância",
+    "clustered": "Agrupado",
+    "mixed": "Misto"
+  },
+  "targetMode": {
+    "lowest-hp": "Menor HP",
+    "highest-hp": "Maior HP",
+    "highest-level": "Maior nível",
+    "nearest": "Mais próximo",
+    "attacking": "Atacando um aliado escolhido"
+  },
+  "targetReason": {
+    "forced": "Provocado por {{source}}",
+    "priorityUnknown": "Escolhido pela estratégia",
+    "threat": "Maior ameaça",
+    "priority": "{{mode}}"
+  },
+  "phase": {
+    "walking": "Caminhando",
+    "fighting": "Em combate",
+    "resting": "Descansando",
+    "respawning": "Ressurgindo",
+    "stopped": "Parado"
+  },
+  "stopReason": {
+    "wipe-limit": "Limite de derrotas atingido",
+    "stalemate": "Limite de tempo do encontro atingido",
+    "operator": "Parado pelo operador",
+    "none": "Nenhuma parada registrada"
+  },
+  "error": {
+    "title": "O experimento relatou um erro",
+    "INVALID_CONTENT": "O conteúdo vinculado não passou na validação.",
+    "INVALID_INPUT": "A configuração do experimento foi rejeitada.",
+    "INVALID_STATE": "O estado do experimento foi rejeitado.",
+    "WRONG_VERSION": "Esse instantâneo foi criado por outra versão da simulação.",
+    "TIME_REWIND": "O tempo solicitado é anterior ao tempo já simulado.",
+    "UNSAFE_INTEGER": "Um valor saiu do intervalo seguro de inteiros.",
+    "LOOP_DETECTED": "A simulação detectou um laço sem progresso.",
+    "STALE_GENERATION": "Essa resposta pertencia a um experimento que não está mais em execução.",
+    "PROTOCOL": "O worker quebrou o contrato de mensagens.",
+    "INTERNAL": "O worker falhou de forma inesperada."
+  },
+  "board": {
+    "summary": "Atores do campo de batalha",
+    "empty": "Nenhum experimento carregado. Inicie um para preencher o tabuleiro.",
+    "partyZone": "Fileiras do grupo",
+    "enemyZone": "Fileiras inimigas",
+    "cell": "Célula {{position}}",
+    "actor": "{{name}} {{id}} — HP {{hp}}/{{maxHp}}, MP {{mp}}/{{maxMp}}, célula {{position}}"
+  },
+  "unit": {
+    "party": "Grupo",
+    "enemies": "Inimigos",
+    "hp": "HP",
+    "mp": "MP",
+    "target": "Alvo",
+    "noTarget": "Sem alvo",
+    "casting": "Conjurando {{skill}}",
+    "notCasting": "Sem conjuração",
+    "empty": "Nenhum ator ainda."
+  },
+  "skillState": {
+    "ready": "Pronta",
+    "active": "Ativa",
+    "cooldown": "Recarga",
+    "casting": "Conjurando",
+    "unavailable": "MP insuficiente"
+  },
+  "inspect": {
+    "hint": "Combate automático. Selecione uma habilidade para inspecionar por que ela está esperando; inspecionar nunca a usa.",
+    "heading": "{{skill}} — {{state}}",
+    "ready": "Fora de recarga e com MP suficiente. A estratégia decide quando usá-la.",
+    "active": "Comprometida agora: esta habilidade está resolvendo neste instante.",
+    "casting": "Uma conjuração está em andamento e resolverá ao terminar.",
+    "cooldown": "Em recarga por mais {{remaining}}.",
+    "unavailable": "Precisa de {{cost}} MP; {{actor}} tem {{mp}} MP.",
+    "cost": "Custo de MP: {{cost}}",
+    "editRule": "Editar a regra de {{skill}}",
+    "noSelection": "Nenhuma habilidade selecionada."
+  },
+  "event": {
+    "move": "{{actor}} move-se para a célula {{position}}.",
+    "cast": {
+      "withTarget": "{{actor}} começa {{skill}} em {{target}}.",
+      "noTarget": "{{actor}} começa {{skill}}."
+    },
+    "damage": {
+      "normal": "{{actor}} acerta {{target}} com {{skill}} causando {{amount}}.",
+      "critical": "{{actor}} acerta criticamente {{target}} com {{skill}} causando {{amount}}."
+    },
+    "miss": {
+      "normal": "{{actor}} erra {{target}} com {{skill}}.",
+      "fizzle": "{{actor}} não encontra alvo válido para {{skill}}."
+    },
+    "heal": "{{actor}} restaura {{amount}} de HP em {{target}} com {{skill}}.",
+    "death": "{{actor}} é derrotado por {{target}}.",
+    "status": {
+      "slow": "{{actor}} é retardado por {{target}}.",
+      "other": "{{actor}} é afetado por {{target}}."
+    },
+    "taunt": "{{actor}} provoca {{target}} gerando {{amount}} de ameaça.",
+    "phase": {
+      "walking": "O grupo caminha até o próximo encontro.",
+      "fighting": "Um encontro começa.",
+      "resting": "O grupo descansa.",
+      "respawning": "O grupo está ressurgindo.",
+      "stopped": "O experimento está parado.",
+      "other": "O grupo muda de fase."
+    },
+    "spawn": "{{actor}} surge na célula {{position}}.",
+    "regen": {
+      "hp": "{{actor}} recupera {{amount}} de HP.",
+      "mp": "{{actor}} recupera {{amount}} de MP.",
+      "other": "{{actor}} recupera {{amount}}."
+    },
+    "win": "O encontro foi vencido.",
+    "wipe": "O grupo foi derrotado por completo.",
+    "stop": {
+      "wipe-limit": "O experimento parou: o limite de derrotas foi atingido.",
+      "stalemate": "O experimento parou: o encontro atingiu seu limite de tempo.",
+      "operator": "O experimento foi parado pelo operador.",
+      "other": "O experimento parou."
+    }
+  },
+  "log": {
+    "tabs": "Abas do registro de eventos",
+    "combat": "Combate",
+    "system": "Sistema",
+    "rows": "Linhas de evento",
+    "empty": "Nenhum evento ainda.",
+    "returnToLatest": "Voltar ao mais recente",
+    "cap": "Mostrando os {{limit}} eventos mais recentes."
+  },
+  "actor": {
+    "label": "{{name}} {{id}}",
+    "unknown": "{{id}}"
+  },
+  "comparison": {
+    "heading": "Comparações retidas",
+    "slotA": "Comparação A (execução anterior)",
+    "slotB": "Comparação B (execução mais recente)",
+    "empty": "Nenhuma execução retida neste espaço ainda. Pare ou conclua um experimento para preenchê-lo.",
+    "roster": "Grupo",
+    "window": "Medido ao longo de {{duration}} de tempo simulado.",
+    "windowNone": "Nenhum tempo simulado decorreu, então nenhuma taxa pode ser medida."
+  },
+  "metrics": {
+    "elapsed": "Tempo simulado",
+    "kills": "Abates",
+    "killsPerHour": "Abates / hora",
+    "wins": "Encontros vencidos",
+    "wipes": "Derrotas totais",
+    "stopReason": "Motivo da parada",
+    "damageDealt": "Dano causado",
+    "effectiveHealing": "Cura efetiva",
+    "rawExp": "Oportunidade de EXP bruta",
+    "rawGold": "Oportunidade de ouro bruta",
+    "rawExpPerHour": "EXP bruta / hora",
+    "rawGoldPerHour": "Ouro bruto / hora",
+    "walkMs": "Tempo caminhando",
+    "fightMs": "Tempo em combate",
+    "restMs": "Tempo descansando",
+    "respawnMs": "Tempo ressurgindo",
+    "seed": "Semente",
+    "recipe": "Receita"
+  },
+  "duration": {
+    "seconds": "{{value}} s",
+    "minutesSeconds": "{{minutes}} min {{seconds}} s",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "none": "—"
+  },
+  "value": {
+    "none": "—"
+  }
+}

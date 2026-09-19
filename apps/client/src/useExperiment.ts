@@ -16,6 +16,12 @@ export interface Summary {
   nowMs: number;
   stopReason: StopReason | null;
   metrics: Metrics;
+  /**
+   * The exact projection the run ended on. `Comparison.tsx` takes
+   * `{input, state: PublicState}` pairs (contract §7), so retaining the real
+   * frame keeps every reported figure measured rather than reconstructed.
+   */
+  state: PublicState;
 }
 
 /** Injectable real-time source and frame scheduler (ruling R53) — every test drives this by hand. */
@@ -197,6 +203,7 @@ export function useExperiment(options: UseExperimentOptions = {}): UseExperiment
             nowMs: message.state.nowMs,
             stopReason: message.state.stopReason,
             metrics: message.state.metrics,
+            state: message.state,
           });
         }
         stopRequestedRef.current = false;

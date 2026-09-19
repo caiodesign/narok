@@ -1,0 +1,280 @@
+{
+  "app": {
+    "title": "Narok combat laboratory",
+    "tagline": "Meadow Outskirts · isolated combat experiment",
+    "setup": "Experiment setup",
+    "board": "Battlefield",
+    "session": "Session readout",
+    "skills": "Automatic skill activity",
+    "log": "Event log",
+    "scope": "This laboratory observes combat only. Loot, wallet, inventory, attribute allocation and away reports are not part of this build."
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "pt-BR": "Português (Brasil)"
+  },
+  "status": {
+    "label": "Playback status",
+    "idle": "Idle",
+    "running": "Running",
+    "paused": "Paused",
+    "stopped": "Stopped",
+    "error": "Error"
+  },
+  "playback": {
+    "elapsed": "Simulated elapsed",
+    "phase": "Phase",
+    "note": "Pause freezes the laboratory playback clock. It is not an offline cap and it does not settle anything.",
+    "speed": "Speed",
+    "speedOption": "{{value}}x"
+  },
+  "controls": {
+    "section": "Experiment controls",
+    "roster": "Roster",
+    "rosterSize": "Roster size",
+    "member": "Character {{actor}}",
+    "selectCharacter": "Select {{actor}}",
+    "selected": "Selected: {{class}} ({{actor}})",
+    "selectedNone": "No character selected.",
+    "recipeAndSeed": "Recipe and seed",
+    "recipe": "Recipe",
+    "seed": "Seed",
+    "placement": "Placement",
+    "placementGrid": "Battlefield placement grid",
+    "placementHelp": "Select a character, then choose a cell in the party rows by click or by arrow keys and Enter.",
+    "invalidCell": "Outside the party zone",
+    "invalidCellMark": "×",
+    "restAndWipe": "Rest and wipe limit",
+    "restHp": "Rest HP %",
+    "restMp": "Rest MP %",
+    "wipeLimit": "Wipe limit",
+    "strategy": "Strategy rules",
+    "strategyFor": "Strategy: {{actor}}",
+    "targetMode": "Target mode",
+    "watchAlly": "Watch ally",
+    "ruleThreshold": "threshold",
+    "moveRuleUp": "Move {{skill}} up for {{actor}}",
+    "moveRuleDown": "Move {{skill}} down for {{actor}}",
+    "ruleOrderHelp": "Rules are scanned in order; the first one whose condition holds is cast.",
+    "run": "Run",
+    "start": "Start experiment",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop experiment",
+    "startHelp": "Starting hands the current setup to a new experiment. The previous run is retained as comparison A."
+  },
+  "validation": {
+    "rosterSize": "Roster must have 1 to 3 members.",
+    "unknownClass": "Unknown class.",
+    "seedRange": "Seed must be an integer between 1 and 4,294,967,295.",
+    "unknownRecipe": "Unknown recipe.",
+    "unknownPlacement": "Every roster member needs a placement.",
+    "duplicatePlacement": "Two members cannot share a cell.",
+    "invalidCell": "That cell is outside the party zone.",
+    "restRange": "Rest HP must be 0-89% and rest MP must be 0-79%.",
+    "wipeLimit": "Wipe limit must be between 1 and 5.",
+    "ruleThreshold": "That threshold is outside its allowed range.",
+    "unknownTargetParty": "That character is no longer in the roster."
+  },
+  "class": {
+    "guardian": "Guardian",
+    "cleric": "Cleric",
+    "ranger": "Ranger",
+    "arcanist": "Arcanist"
+  },
+  "skill": {
+    "basic": "Basic attack",
+    "taunt": "Taunt",
+    "cleave": "Cleave",
+    "heal": "Heal",
+    "smite": "Smite",
+    "double-shot": "Double Shot",
+    "arrow-rain": "Arrow Rain",
+    "fire-bolt": "Fire Bolt",
+    "frost-nova": "Frost Nova"
+  },
+  "monster": {
+    "briar-boar": "Briar Boar",
+    "reed-slinger": "Reed Slinger",
+    "mossling": "Mossling"
+  },
+  "recipe": {
+    "melee": "Melee",
+    "ranged": "Ranged",
+    "clustered": "Clustered",
+    "mixed": "Mixed"
+  },
+  "targetMode": {
+    "lowest-hp": "Lowest HP",
+    "highest-hp": "Highest HP",
+    "highest-level": "Highest level",
+    "nearest": "Nearest",
+    "attacking": "Attacking a chosen ally"
+  },
+  "targetReason": {
+    "forced": "Taunted by {{source}}",
+    "threat": "Highest threat",
+    "priority": "{{mode}}",
+    "priorityUnknown": "Chosen by the strategy"
+  },
+  "phase": {
+    "walking": "Walking",
+    "fighting": "Fighting",
+    "resting": "Resting",
+    "respawning": "Respawning",
+    "stopped": "Stopped"
+  },
+  "stopReason": {
+    "wipe-limit": "Wipe limit reached",
+    "stalemate": "Encounter time limit reached",
+    "operator": "Stopped by the operator",
+    "none": "No stop recorded"
+  },
+  "error": {
+    "title": "The experiment reported an error",
+    "INVALID_CONTENT": "The bound content failed validation.",
+    "INVALID_INPUT": "The experiment setup was rejected.",
+    "INVALID_STATE": "The experiment state was rejected.",
+    "WRONG_VERSION": "That snapshot was made by a different simulation version.",
+    "TIME_REWIND": "The requested time is earlier than the time already simulated.",
+    "UNSAFE_INTEGER": "A value left the safe integer range.",
+    "LOOP_DETECTED": "The simulation detected a non-progressing loop.",
+    "STALE_GENERATION": "That response belonged to an experiment that is no longer running.",
+    "PROTOCOL": "The worker broke its message contract.",
+    "INTERNAL": "The worker failed unexpectedly."
+  },
+  "board": {
+    "summary": "Battlefield actors",
+    "empty": "No experiment is loaded. Start one to populate the board.",
+    "partyZone": "Party rows",
+    "enemyZone": "Enemy rows",
+    "cell": "Cell {{position}}",
+    "actor": "{{name}} {{id}} — HP {{hp}}/{{maxHp}}, MP {{mp}}/{{maxMp}}, cell {{position}}"
+  },
+  "unit": {
+    "party": "Party",
+    "enemies": "Enemies",
+    "hp": "HP",
+    "mp": "MP",
+    "target": "Target",
+    "noTarget": "No target",
+    "casting": "Casting {{skill}}",
+    "notCasting": "Not casting",
+    "empty": "No actors yet."
+  },
+  "skillState": {
+    "ready": "Ready",
+    "active": "Active",
+    "cooldown": "Cooldown",
+    "casting": "Casting",
+    "unavailable": "Not enough MP"
+  },
+  "inspect": {
+    "hint": "Automatic combat. Select a skill to inspect why it is waiting; inspecting never casts it.",
+    "heading": "{{skill}} — {{state}}",
+    "ready": "Off cooldown with enough MP. The strategy decides when it is cast.",
+    "active": "Committed now: this skill is resolving this instant.",
+    "casting": "A cast is in flight and will resolve when it completes.",
+    "cooldown": "On cooldown for another {{remaining}}.",
+    "unavailable": "Needs {{cost}} MP; {{actor}} has {{mp}} MP.",
+    "cost": "MP cost: {{cost}}",
+    "editRule": "Edit the rule for {{skill}}",
+    "noSelection": "No skill selected."
+  },
+  "event": {
+    "move": "{{actor}} moves to cell {{position}}.",
+    "cast": {
+      "withTarget": "{{actor}} begins {{skill}} on {{target}}.",
+      "noTarget": "{{actor}} begins {{skill}}."
+    },
+    "damage": {
+      "normal": "{{actor}} hits {{target}} with {{skill}} for {{amount}}.",
+      "critical": "{{actor}} critically hits {{target}} with {{skill}} for {{amount}}."
+    },
+    "miss": {
+      "normal": "{{actor}} misses {{target}} with {{skill}}.",
+      "fizzle": "{{actor}} finds no valid target for {{skill}}."
+    },
+    "heal": "{{actor}} restores {{amount}} HP to {{target}} with {{skill}}.",
+    "death": "{{actor}} is defeated by {{target}}.",
+    "status": {
+      "slow": "{{actor}} is slowed by {{target}}.",
+      "other": "{{actor}} is affected by {{target}}."
+    },
+    "taunt": "{{actor}} taunts {{target}} for {{amount}} threat.",
+    "phase": {
+      "walking": "The party walks towards the next encounter.",
+      "fighting": "An encounter begins.",
+      "resting": "The party rests.",
+      "respawning": "The party is respawning.",
+      "stopped": "The experiment is stopped.",
+      "other": "The party changes phase."
+    },
+    "spawn": "{{actor}} appears at cell {{position}}.",
+    "regen": {
+      "hp": "{{actor}} recovers {{amount}} HP.",
+      "mp": "{{actor}} recovers {{amount}} MP.",
+      "other": "{{actor}} recovers {{amount}}."
+    },
+    "win": "The encounter is won.",
+    "wipe": "The party is wiped out.",
+    "stop": {
+      "wipe-limit": "The experiment stopped: the wipe limit was reached.",
+      "stalemate": "The experiment stopped: the encounter reached its time limit.",
+      "operator": "The experiment was stopped by the operator.",
+      "other": "The experiment stopped."
+    }
+  },
+  "log": {
+    "tabs": "Event log tabs",
+    "combat": "Combat",
+    "system": "System",
+    "rows": "Event rows",
+    "empty": "No events yet.",
+    "returnToLatest": "Return to latest",
+    "cap": "Showing the most recent {{limit}} events."
+  },
+  "actor": {
+    "label": "{{name}} {{id}}",
+    "unknown": "{{id}}"
+  },
+  "comparison": {
+    "heading": "Retained comparisons",
+    "slotA": "Comparison A (earlier run)",
+    "slotB": "Comparison B (latest run)",
+    "empty": "No run retained in this slot yet. Stop or finish an experiment to fill it.",
+    "roster": "Roster",
+    "window": "Measured over {{duration}} of simulated time.",
+    "windowNone": "No simulated time elapsed, so no rate can be measured."
+  },
+  "metrics": {
+    "elapsed": "Simulated elapsed",
+    "kills": "Kills",
+    "killsPerHour": "Kills / hour",
+    "wins": "Encounters won",
+    "wipes": "Wipes",
+    "stopReason": "Stop reason",
+    "damageDealt": "Damage dealt",
+    "effectiveHealing": "Effective healing",
+    "rawExp": "Raw EXP opportunity",
+    "rawGold": "Raw gold opportunity",
+    "rawExpPerHour": "Raw EXP / hour",
+    "rawGoldPerHour": "Raw gold / hour",
+    "walkMs": "Walking time",
+    "fightMs": "Fighting time",
+    "restMs": "Resting time",
+    "respawnMs": "Respawning time",
+    "seed": "Seed",
+    "recipe": "Recipe"
+  },
+  "duration": {
+    "seconds": "{{value}} s",
+    "minutesSeconds": "{{minutes}} min {{seconds}} s",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "none": "—"
+  },
+  "value": {
+    "none": "—"
+  }
+}

@@ -1,30 +1,787 @@
+/*
+ * Realm Refined tokens and frames, adapted to the combat laboratory.
+ *
+ * Shared tokens rather than five copied inline stylesheets (realm-ui-spec §10).
+ * No @import, no CDN, no Google Fonts link: the typeface stack names Alegreya SC
+ * and Alegreya Sans first and degrades to legible local families, so the page
+ * makes no network request at runtime (R51/R59). Body copy is 14px, secondary
+ * copy 12-13px, and dense figures use tabular numerals.
+ */
+
 :root {
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
+  color-scheme: dark;
+
+  --iron-0: #0b0d10;
+  --iron-1: #171a1f;
+  --iron-2: #242930;
+  --iron-3: #343a43;
+  --steel: #9cc0dc;
+  --steel-dim: #5d7a93;
+  --bronze-dark: #4a3722;
+  --bronze: #8d6b41;
+  --bronze-lit: #dcb67c;
+  --ember: #ff8a3d;
+  --ember-hot: #ffc46b;
+  --ember-deep: #b5401a;
+  --vellum: #eee5d2;
+  --vellum-dim: #b9ae98;
+
+  --hp-ally: #62c26f;
+  --hp-foe: #d8483a;
+  --mp: #4f92e6;
+  --warn: #ff6b57;
+
+  --school-guardian: #3f5d78;
+  --school-cleric: #8a7433;
+  --school-ranger: #3d6b4c;
+  --school-arcanist: #6a4a7a;
+
+  --display: 'Alegreya SC', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+  --text: 'Alegreya Sans', 'Segoe UI', 'Gill Sans', 'Trebuchet MS', sans-serif;
+
+  --gutter: 16px;
+
+  --corner-tl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3C/svg%3E");
+  --corner-tr: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 1 26 0)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-bl: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(1 0 0 -1 0 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  --corner-br: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Cg transform='matrix(-1 0 0 -1 26 26)'%3E%3Cpath d='M2.5 24V9L9 2.5h15' fill='none' stroke='%23d9b47a' stroke-width='1.6'/%3E%3Cpath d='M6 24V10.5L10.5 6H24' fill='none' stroke='%234a3722' stroke-width='1.2'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  padding: 1rem;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #1a2029 0, var(--iron-0) 70%),
+    var(--iron-0);
+  color: var(--vellum);
+  font-family: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
-fieldset {
-  margin-block-end: 1rem;
+h1,
+h2,
+h3,
+p,
+ul,
+ol,
+li,
+dl,
+dd,
+dt {
+  margin: 0;
+  padding: 0;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* Dense figures never jitter their column (realm-ui-spec §3). */
+.num,
+input[type='number'] {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #b8dcf4;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ---------- shell ---------- */
+
+.realm {
+  display: grid;
+  gap: var(--gutter);
+  padding: var(--gutter);
+  max-width: 1760px;
+  margin: 0 auto;
+}
+
+.realm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bronze-dark);
+}
+
+.realm-head h1 {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: var(--bronze-lit);
+}
+
+.tagline,
+.help,
+.scope-note,
+.playback-key,
+.log-cap,
+.slot-window {
+  font-size: 12px;
+  color: var(--vellum-dim);
+}
+
+.playback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.playback-item {
+  display: grid;
+  gap: 2px;
+}
+
+.playback-item strong {
+  font-family: var(--display);
+  font-size: 16px;
+  color: var(--ember-hot);
+}
+
+.languages {
+  display: flex;
+  gap: 6px;
+}
+
+.playback-note {
+  font-size: 12px;
+  color: var(--vellum-dim);
+  border-left: 2px solid var(--bronze);
+  padding-left: 10px;
+}
+
+.scope-note {
+  border-top: 1px solid var(--bronze-dark);
+  padding-top: 8px;
+}
+
+.realm-body {
+  display: grid;
+  gap: var(--gutter);
+  grid-template-columns: minmax(230px, 1fr) minmax(400px, 2fr) minmax(280px, 1.1fr);
+  align-items: start;
+}
+
+.col {
+  display: grid;
+  gap: var(--gutter);
+  min-width: 0;
+}
+
+/* ---------- window frames ---------- */
+
+.win {
+  position: relative;
+  background: linear-gradient(180deg, rgba(52, 58, 67, 0.9) 0, rgba(28, 32, 38, 0.93) 34px, rgba(18, 21, 25, 0.95) 100%);
+  border: 1px solid #5c4529;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 196, 0.12),
+    inset 0 0 22px rgba(0, 0, 0, 0.55),
+    0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.win::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background:
+    var(--corner-tl) top left / 26px 26px no-repeat,
+    var(--corner-tr) top right / 26px 26px no-repeat,
+    var(--corner-bl) bottom left / 26px 26px no-repeat,
+    var(--corner-br) bottom right / 26px 26px no-repeat;
+}
+
+.panel {
+  padding: 0 0 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.win-title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  color: var(--bronze-lit);
+  padding: 7px 14px 6px;
+  border-bottom: 1px solid var(--bronze-dark);
+}
+
+.panel > *:not(.win-title) {
+  margin-inline: 12px;
+}
+
+/* ---------- buttons ---------- */
+
+.primary-button,
+.ghost-button {
+  font: inherit;
+  color: var(--vellum);
+  background: linear-gradient(180deg, #2c323a, #1a1e23);
+  border: 1px solid #5c4529;
+  border-radius: 3px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.primary-button {
+  color: #1a1208;
+  background: linear-gradient(180deg, var(--bronze-lit), var(--bronze));
+  font-weight: 700;
+}
+
+.ghost-button[aria-pressed='true'] {
+  color: var(--bronze-lit);
+  border-color: var(--bronze-lit);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--iron-3);
+  border-radius: 999px;
+}
+
+.alert {
+  color: #ffd2c8;
+  background: rgba(150, 40, 30, 0.25);
+  border: 1px solid #7a2c24;
+  border-radius: 3px;
+  padding: 5px 9px;
+  font-size: 13px;
+}
+
+/* ---------- unit frames ---------- */
+
+.units {
+  display: grid;
+  gap: 10px;
+}
+
+.unit {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--iron-3);
+  border-left: 3px solid var(--steel-dim);
+  border-radius: 3px;
+  background: rgba(10, 13, 16, 0.55);
+}
+
+.units--foe .unit {
+  border-left-color: var(--ember-deep);
+}
+
+.unit-name {
+  font-family: var(--display);
+  font-size: 15px;
+  color: var(--vellum);
+}
+
+.unit-id,
+.unit-line {
+  font-size: 12px;
+  color: var(--vellum-dim);
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.meter-track {
+  position: relative;
+  height: 9px;
+  border-radius: 2px;
+  background: #06070a;
+  box-shadow: inset 0 0 0 1px #2a241c;
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--hp-ally);
+}
+
+.meter--mp .meter-fill {
+  background: var(--mp);
+}
+
+/* ---------- board ---------- */
+
+.board-panel {
+  min-height: 320px;
+}
+
+.board-host {
+  height: clamp(300px, 42vh, 520px);
+  border: 1px solid var(--iron-3);
+  border-radius: 3px;
+  background: var(--iron-0);
+  overflow: hidden;
+}
+
+.board-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.board-empty {
+  font-size: 13px;
+  color: var(--vellum-dim);
+}
+
+/* ---------- skills ---------- */
+
+.skillsets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.skillset-owner {
+  font-family: var(--display);
+  font-size: 13.5px;
+  color: var(--vellum-dim);
+  margin-bottom: 4px;
+}
+
+.slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.slot {
+  position: relative;
+  display: grid;
+  gap: 1px;
+  width: 104px;
+  padding: 6px 7px;
+  text-align: left;
+  font: inherit;
+  color: var(--vellum);
+  border-radius: 3px;
+  border: 1px solid #000;
+  background: radial-gradient(circle at 50% 22%, var(--school-guardian) 0, #10141a 80%);
+  box-shadow: 0 0 0 2px #7a5c36;
+  cursor: pointer;
+}
+
+.slot-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Every state carries a text cue, so none of them depends on hue (§3). */
+.slot-state {
+  font-size: 12px;
+  color: var(--vellum-dim);
+}
+
+.slot-cost {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 11px;
+  color: var(--mp);
+}
+
+.slot--ready {
+  box-shadow: 0 0 0 2px #c29a60;
+}
+
+.slot--active {
+  box-shadow: 0 0 0 2px var(--steel);
+}
+
+.slot--active .slot-state {
+  color: var(--steel);
+}
+
+.slot--cooldown {
+  box-shadow: 0 0 0 2px var(--iron-3);
+}
+
+.slot--cooldown .slot-name {
+  text-decoration: line-through;
+}
+
+.slot--casting {
+  box-shadow: 0 0 0 2px #ffab5a;
+}
+
+.slot--casting .slot-state {
+  color: var(--ember-hot);
+}
+
+.slot--unavailable {
+  box-shadow: 0 0 0 2px #7a2c24;
+}
+
+.slot--unavailable .slot-state {
+  color: #e39a8e;
+}
+
+.slot[aria-pressed='true'] {
+  outline: 2px solid var(--bronze-lit);
+  outline-offset: 2px;
+}
+
+.inspection {
+  display: grid;
+  gap: 3px;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: rgba(12, 15, 19, 0.95);
+  border: 1px solid #6b5435;
+  border-radius: 3px;
+}
+
+.inspection-head {
+  font-family: var(--display);
+  color: var(--bronze-lit);
+}
+
+.rule-link {
+  color: #ecd09a;
+  font-size: 12px;
+}
+
+/* ---------- figures ---------- */
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px 14px;
+}
+
+.figure {
+  display: grid;
+  gap: 1px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(90, 70, 42, 0.35);
+}
+
+.figure dt {
+  font-size: 12px;
+  color: var(--vellum-dim);
+}
+
+.figure dd {
+  font-size: 15px;
+  color: var(--vellum);
+}
+
+/* ---------- event log ---------- */
+
+.tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.tab {
+  font: inherit;
+  font-family: var(--display);
+  font-weight: 700;
+  padding: 4px 12px 3px;
+  color: #a99c85;
+  background: linear-gradient(180deg, #23272d, #16191d);
+  border: 1px solid #0a0b0d;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  color: var(--bronze-lit);
+  background: linear-gradient(180deg, #3a3f47, #1e2227);
+  border-color: #5c4529;
+}
+
+.tab .count {
+  font-family: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  color: #1a1208;
+  background: var(--bronze-lit);
+  border-radius: 7px;
+  padding: 0 5px;
+  margin-left: 5px;
+}
+
+.log-scroll {
+  height: 220px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  background: rgba(8, 10, 13, 0.7);
+  border: 1px solid var(--iron-3);
+  border-radius: 0 3px 3px 3px;
+  font-size: 13px;
+}
+
+.log-rows {
+  display: grid;
+  gap: 2px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 8px;
+  color: #d8cfbd;
+}
+
+.log-time {
+  color: #8d8676;
+  font-size: 12px;
+}
+
+.log-row--death .log-text,
+.log-row--wipe .log-text {
+  color: #c99c8a;
+  font-style: italic;
+}
+
+.log-row--heal .log-text {
+  color: var(--hp-ally);
+}
+
+.log-row--cast .log-text {
+  color: var(--ember);
+}
+
+.log-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------- comparison ---------- */
+
+.comparison {
+  display: grid;
+  gap: 10px;
+}
+
+.comparison-heading {
+  font-family: var(--display);
+  font-size: 17px;
+  color: var(--bronze-lit);
+}
+
+.comparison-slots {
+  display: grid;
+  gap: var(--gutter);
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+}
+
+.slot-empty {
+  font-size: 13px;
+  color: var(--vellum-dim);
+}
+
+.slot-setup {
+  font-size: 13px;
+}
+
+/* ---------- controls ---------- */
+
+.controls-panel fieldset {
+  border: 1px solid var(--bronze-dark);
+  border-radius: 3px;
+  padding: 8px 10px 10px;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.controls-panel legend {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--bronze-lit);
+  padding: 0 5px;
+}
+
+.controls-panel label {
+  font-size: 13px;
+}
+
+.controls-panel select,
+.controls-panel input[type='number'] {
+  font: inherit;
+  color: var(--vellum);
+  background: #10141a;
+  border: 1px solid var(--iron-3);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+
+.controls-panel input[type='number'] {
+  width: 8ch;
+}
+
+.roster li,
+.rules li,
+.strategy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.strategy {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(90, 70, 42, 0.35);
+}
+
+.strategy h3 {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--vellum-dim);
+}
+
+.rules {
+  display: grid;
+  gap: 4px;
+}
+
+.selection {
+  font-size: 13px;
+  color: var(--bronze-lit);
+}
+
+.place-grid {
+  display: inline-grid;
+  gap: 3px;
+  padding: 6px;
+  background: rgba(8, 10, 13, 0.7);
+  border: 1px solid var(--iron-3);
+  border-radius: 3px;
+}
+
+.place-grid [role='row'] {
+  display: flex;
+  gap: 3px;
+}
+
+.cell {
+  width: 2.6rem;
+  height: 2.6rem;
+  font: inherit;
+  font-size: 12px;
+  color: var(--vellum);
+  border: 1px solid var(--iron-3);
+  border-radius: 2px;
+  background: #1d232a;
+  cursor: pointer;
+}
+
+.cell--party {
+  background: #24301f;
+  border-color: var(--steel-dim);
+}
+
+/* Invalid cells are marked with a glyph as well as a tone, never colour alone. */
+.cell--invalid {
+  background: #191b1f;
+  color: #8a8175;
+  cursor: not-allowed;
 }
 
 [aria-disabled='true'] {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
-[role='grid'] {
-  display: inline-block;
+/* ---------- composition ---------- */
+
+@media (max-width: 1280px) {
+  .realm-body {
+    grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.8fr);
+  }
+
+  .col--right {
+    grid-column: 1 / -1;
+  }
 }
 
-[role='row'] {
-  display: flex;
+@media (max-width: 1100px) {
+  .realm-body {
+    grid-template-columns: 1fr;
+  }
+
+  .col--right {
+    grid-column: auto;
+  }
+
+  .playback {
+    margin-left: 0;
+  }
 }
 
-[role='gridcell'] {
-  width: 2.5rem;
-  height: 2.5rem;
+/* Reduced motion removes movement, never information: every cue above is a
+   static shape, colour or word that is always rendered. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
