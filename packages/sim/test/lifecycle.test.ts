@@ -7,7 +7,7 @@ import { schedule } from '../src/scheduler';
 import { encodeSnapshot, decodeSnapshot } from '../src/snapshot';
 import { gridPosition } from '../src/battlefield/grid';
 import { derive } from '../src/math';
-import { fightFixture, walkCompleteState, context, actor, labInput } from './fixtures';
+import { fightFixture, walkCompleteState, context, actor, lab, labInput } from './fixtures';
 import type { Actor, ActorId, DomainEvent, Metrics, Phase, SimState } from '../src/types';
 
 function summary(events: DomainEvent[]): unknown[][] {
@@ -243,6 +243,109 @@ test('30-second respawn: wipe schedules a respawn transition, which fully restor
     at: state.nowMs + content.walkMs, actorId: '', epoch: null, token: null,
   });
   expect(events.some((e) => e.kind === 'phase' && e.reason === 'walking')).toBe(true);
+});
+
+// ---------------------------------------------------------------------------
+// finishEncounter: re-seating the party so a revival cannot stack live actors
+// ---------------------------------------------------------------------------
+
+/** Every cell held by a living actor, so a duplicate is visible as a shorter set. */
+function livingCells(state: SimState): string[] {
+  return Object.values(state.actors)
+    .filter((entry) => entry.hp > 0)
+    .map((entry) => entry.position as string);
+}
+
+/**
+ * Regression for ruling R92. A corpse does not occupy its cell — `executeMove`
+ * tests occupancy with `livingActors` and `assertInvariants` skips any actor at
+ * `hp <= 0` — so an ally may legally step onto a fallen member. Reviving that
+ * member *in place* then left two living actors on one cell and the next
+ * `assertInvariants` threw `INVALID_STATE actors.pN.position "shares a cell with
+ * pM"`; it aborted `pnpm balance matrix` on 934 of 30,600 cells. Encounter exit
+ * now re-seats the party at `input.placement`, which `startState` validated
+ * collision-free, exactly as `spawnEncounter` already did.
+ */
+test('R92: a win revives a corpse an ally stands on without stacking two living actors', () => {
+  const sim = lab();
+  const state = fightFixture();
+  const placement = state.input.placement;
+
+  // p0 (Guardian) fell on its own seat (2,3) and p1 (Cleric) stepped onto the
+  // corpse; only e0 is still standing, one point from death.
+  state.actors.p0.hp = 0;
+  state.actors.p1.position = placement.p0;
+  state.actors.e1.hp = 0;
+  state.actors.e2.hp = 0;
+  state.actors.e0.hp = 1;
+
+  // The Cleric's basic is magic, so the killing blow never depends on an
+  // accuracy roll; (2,3) to e0's (2,1) is two cells, inside its four-cell range.
+  state.actors.p1.actionToken = 1;
+  state.actors.p1.currentTarget = 'e0';
+  state.actors.p1.pendingCast = {
+    skillId: 'basic', targets: ['e0'], startedAt: 2_000, completesAt: 2_100, token: 1,
+  };
+  schedule(state, { at: 2_100, kind: 'resolve', actorId: 'p1', epoch: 0, token: 1 });
+
+  const result = sim.advance(state, 2_100);
+
+  expect(result.state.metrics.wins).toBe(1);
+  expect(result.state.actors.p0.hp).toBe(Math.floor(state.actors.p0.stats.maxHp / 10));
+  const cells = livingCells(result.state);
+  expect(new Set(cells).size).toBe(cells.length);
+  for (const id of ['p0', 'p1', 'p2'] as const) {
+    expect(result.state.actors[id].position).toBe(placement[id]);
+  }
+  // Re-seating is a teleport, matching spawnEncounter: no move event is emitted.
+  expect(result.events.some((event) => event.kind === 'move')).toBe(false);
+
+  // Ruling R96: `validateSimState` enforces the same rule independently
+  // (`duplicate live position with <id>`), so the overlap also broke snapshot
+  // decode — browser export/import and every checkpoint/restore path — for a
+  // state captured between the revive and the next spawn. It must round-trip.
+  const encoded = sim.encode(result.state);
+  expect(sim.encode(sim.decode(encoded))).toBe(encoded);
+});
+
+/**
+ * The wipe path had the same shape (ruling R92): two members can die on one cell
+ * for the same reason, and `completeRespawn` restored both to full HP without
+ * touching position. Re-seating at encounter exit covers it, so the respawn
+ * transition can no longer resurrect a stack.
+ */
+test('R92: a respawn after two members die on one cell restores them to separate cells', () => {
+  const sim = lab();
+  const state = fightFixture();
+  state.input.wipeLimit = 2; // not the final wipe, so it respawns instead of stopping
+  const placement = state.input.placement;
+
+  // p2 died first; p1 stepped onto the corpse and died there too.
+  for (const id of ['p0', 'p1', 'p2'] as const) state.actors[id].hp = 0;
+  state.actors.p1.position = placement.p2;
+
+  // e0's basic resolves onto the already-dead p0 and decides the encounter.
+  state.actors.e0.position = gridPosition(2, 2);
+  state.actors.e0.actionToken = 1;
+  state.actors.e0.currentTarget = 'p0';
+  state.actors.e0.pendingCast = {
+    skillId: 'basic', targets: ['p0'], startedAt: 2_000, completesAt: 2_100, token: 1,
+  };
+  schedule(state, { at: 2_100, kind: 'resolve', actorId: 'e0', epoch: 0, token: 1 });
+
+  const wiped = sim.advance(state, 2_100).state;
+  expect(wiped.phase).toBe('respawning');
+
+  const respawned = sim.advance(wiped, 2_100 + content.respawnMs).state;
+  expect(respawned.phase).toBe('walking');
+  for (const id of ['p0', 'p1', 'p2'] as const) {
+    expect(respawned.actors[id].hp).toBe(respawned.actors[id].stats.maxHp);
+    expect(respawned.actors[id].position).toBe(placement[id]);
+  }
+  const cells = livingCells(respawned);
+  expect(new Set(cells).size).toBe(cells.length);
+  const encoded = sim.encode(respawned);
+  expect(sim.encode(sim.decode(encoded))).toBe(encoded);
 });
 
 // ---------------------------------------------------------------------------

@@ -295,6 +295,17 @@ export function finishEncounter(state: SimState, ctx: Context): void {
   pruneStaleEpochEntries(state);
   for (const id of partyIds(state)) {
     const member = state.actors[id];
+    // Ruling R92: re-seat before anything revives. A corpse does not occupy its
+    // cell (`executeMove` tests occupancy with `livingActors`, and
+    // `assertInvariants`/`validateSimState` both skip actors at `hp <= 0`), so an
+    // ally may legally step onto a fallen member — and two members may die on one
+    // cell. Reviving in place, here on the win branch or later in
+    // `completeRespawn`, then put two *living* actors on one cell and tripped both
+    // occupancy checks. `input.placement` is the same source `spawnEncounter` uses
+    // and `startState` validated it collision-free, so this makes the party-reset
+    // sites consistent instead of inventing a placement rule. It is a teleport,
+    // not a step: no `move` event, and no RNG is drawn.
+    member.position = state.input.placement[id];
     member.statuses = [];
     member.pendingCast = null;
     member.currentTarget = null;
