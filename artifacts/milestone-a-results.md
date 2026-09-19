@@ -417,30 +417,54 @@ the dropped ones were guardian-heavy — exactly the melee-clustering compositio
 question is about. A conclusion drawn from a sample that discarded the hardest cases for being
 broken is selection bias, so it was recomputed from scratch rather than reconciled.
 
-Primary metric is **mean kills in the fixed one-hour horizon** over the 100 seeds of a cell. A run
-that wipes out early stops accumulating, so this already penalises a placement that gets the party
-killed; `kills_per_hour` (normalised by *elapsed* time, so it rewards a short violent run) is
-carried as a cross-check and agrees with it on every aggregate winner.
+### 7.0 Which metric every table below compares (R102)
 
-**Aggregate, per recipe, all 34 rosters × 100 seeds pooled:**
+**Primary comparator: `mean kills/hour`** — a run's kills divided by the simulated time it actually
+reached. Every table in this section and in `artifacts/placement-analysis.md` names its metric; none
+switches comparator silently.
+
+Kills/hour is primary rather than raw kills because **5,201 of 30,600 matrix runs (17.0%) stopped
+early on `wipe-limit`**, and raw kills scores those truncated runs against a full hour they never
+simulated — which biases the comparison toward whichever placement *survives longest* rather than
+whichever *kills faster*. Raw kills is kept as a labelled **secondary** cut rather than dropped,
+because it carries the opposite bias (a rate flatters a run that was violent for two minutes and
+then wiped). Both are shown, with the share of seeds that survived the full hour alongside, so
+neither bias is invisible.
+
+**Aggregate, per recipe, all 34 rosters × 100 seeds pooled — PRIMARY, mean kills/hour:**
 
 | Recipe | default | front | spread | Winner | Margin over runner-up |
 |---|---|---|---|---|---|
-| melee | **244.42** | 219.26 | 210.66 | default | +11.47% over front |
-| ranged | **283.23** | 258.28 | 270.13 | default | +4.85% over spread |
-| clustered | **539.41** | 515.40 | 519.87 | default | +3.76% over spread |
+| melee | **269.99** | 250.83 | 240.40 | default | +7.64% over front |
+| ranged | **315.78** | 291.46 | 301.44 | default | +4.75% over spread |
+| clustered | **593.48** | 561.62 | 577.02 | default | +2.85% over spread |
 
-**Per composition × recipe (102 cells, each 100 seeds):**
+*Secondary, mean raw kills, same pooling:* melee default 244.42 / front 219.26 / spread 210.66;
+ranged default 283.23 / spread 270.13 / front 258.28; clustered default 539.41 / spread 519.87 /
+front 515.40. The two metrics agree on the winner **and** the runner-up in all three recipes.
+
+**Per composition × recipe (102 cells, each 100 seeds) — PRIMARY, ranked by mean kills/hour:**
 
 | Placement | Cells won | melee | ranged | clustered |
 |---|---|---|---|---|
-| default | 54 | 24 | 18 | 12 |
-| front | 20 | 7 | 4 | 9 |
-| spread | 27 | 3 | 11 | 13 |
+| default | 51 | 20 | 18 | 13 |
+| front | 19 | 8 | 4 | 7 |
+| spread | 31 | 6 | 11 | 14 |
 | exact tie | 1 | 0 | 1 | 0 |
 
-**Seed-paired (10,200 independent roster × recipe × seed comparisons):** default 4,646 (45.55%),
-spread 2,816 (27.61%), front 1,920 (18.82%), tie 818 (8.02%).
+**Secondary, the same 102 cells ranked by mean raw kills:** default 54, spread 27, front 20, tie 1.
+
+The two metrics **disagree on 11 of the 102 cells**, and they disagree about which placement is
+runner-up overall (spread 31 by rate, versus front 20 → spread 27 by raw kills). They agree on
+everything the conclusion rests on: `default` wins all three recipes in aggregate under either, and
+is beaten in roughly half the individual cells under either — **50 of 102** by kills/hour, 47 by
+raw kills. The eleven disagreements are listed in `artifacts/placement-analysis.md` §3.2 and are
+all cells where the placements trade survival against rate.
+
+**Seed-paired (10,200 independent roster × recipe × seed comparisons) — PRIMARY, kills/hour:**
+default 4,628 (45.37%), spread 2,920 (28.63%), front 2,139 (20.97%), tie 513 (5.03%).
+*Secondary, raw kills:* default 4,646 (45.55%), spread 2,816 (27.61%), front 1,920 (18.82%),
+tie 818 (8.02%).
 
 ### 7.1 The gate sentence, and why it needs two answers
 
@@ -450,12 +474,14 @@ The complete data answers the two available readings differently, and both are s
 reporting only the favourable one would be the selection bias R97 exists to prevent:
 
 - **Reading A — a different placement wins a different recipe.** **Not satisfied.** The class-aware
-  `default` placement wins all three recipes outright, on mean kills and on kills/hour alike.
+  `default` placement wins all three recipes outright, on kills/hour and on raw kills alike.
 - **Reading B — more than one placement holds an advantage somewhere across the three recipes.**
-  **Satisfied.** All three placements win cells: default 54, spread 27, front 20 of 102. The
-  `default` placement is beaten by one of the two fixed alternatives in **47 of 102** cells, and the
-  differences are frequently large, not marginal — `ranger` in `clustered` goes 10.23 → 50.15 mean
-  kills moving from default to spread; `arcanist,arcanist` in `clustered` goes 205.62 → 365.28.
+  **Satisfied.** All three placements win cells: on the primary metric, default 51, spread 31,
+  front 19 of 102, with one exact tie. The `default` placement is beaten by one of the two fixed
+  alternatives in **50 of 102** cells, and the differences are frequently large, not marginal —
+  `arcanist,arcanist` in `clustered` goes 205.62 → 365.28 kills/hour moving from default to spread
+  (+77.65%); `guardian,guardian,arcanist` in `ranged` goes 141.35 (front) → 257.75 (default),
+  +82.35% over the runner-up, the widest finite margin in the sweep.
 
 Note that `default` is not a neutral control: it is the sim's own class-aware `defaultPlacement`,
 which deliberately seats a Guardian at the front-centre cell. Reading A therefore says something
@@ -463,12 +489,30 @@ narrower than "placement does not matter" — it says the designed default is th
 choice at every recipe, while Reading B says the right choice for a *specific* party is often one
 of the others.
 
-The composition the defect used to kill also carries the widest measurable margin in the sweep:
-`guardian,guardian` in `melee` scores 85.95 mean kills from the default placement and survives the
-hour on 42% of seeds, against 13.08 kills / 0% from `front` and 23.79 kills / 1% from `spread` —
-+261.29% over the runner-up. That row exists only because the R92 fix let those runs complete, and
-it is a direct illustration of why the pre-fix exclusion could not be reconciled: the strongest
-placement signal in the data was inside the sample that had been dropped.
+### 7.2 What the metric choice changes, on the one composition that matters most
+
+`guardian,guardian` in `melee` — the exact cell the R92 defect used to abort on — is the clearest
+case for naming the metric, and it corrects a claim an earlier draft of this report made:
+
+| `guardian,guardian`, `melee` | default | front | spread |
+|---|---|---|---|
+| mean kills/hour (primary) | 142.9 | 136.9 | 134.9 |
+| mean raw kills (secondary) | 85.95 | 13.08 | 23.79 |
+| share of seeds surviving the full hour | 42% | 0% | 1% |
+
+On raw kills the default placement looks **+261% better than the runner-up** — the widest margin in
+the whole sweep. On kills/hour the three placements are within 6% of each other. Both numbers are
+correct; they measure different things. The party kills at almost the same *rate* wherever it is
+seated, and what the placement actually changes is **how long it stays alive** — 42% of seeds reach
+the hour from the default seating, essentially none from either fixed alternative. The raw-kills
+figure was folding that survival difference into what looked like a throughput difference, which is
+precisely the bias R102 identifies and the reason kills/hour is primary.
+
+The honest description of this cell is therefore: a very large *survival* effect of placement, and
+almost no *rate* effect. It is still the sharpest placement signal in the data, and it still exists
+only because the R92 fix let those runs complete — a direct illustration of why the pre-fix
+exclusion could not be reconciled, since the strongest signal was inside the sample that had been
+dropped for crashing.
 
 ---
 
@@ -504,7 +548,7 @@ numbers came from.
 | `artifacts/batch-100-h24-c16.json` | 26,032 B | `sha256:be35cdedae11e389e30b07fddd9d515fea8c3380137c92ea05319f89e5942690` |
 | `artifacts/batch-100-h12-c1.json` | 25,898 B | `sha256:c1486ea094203e11a42e6d3138ecbe344a5313436c4d8f20dd69532acc55026d` |
 | `artifacts/batch-100.mjs` (the batch harness written for §6.4) | 5,501 B | `sha256:5c8f8fad106eb55532ba214e69210292a5c2879cb85d301433e81c4610d42c83` |
-| `artifacts/analyze-matrix.mjs` (the §7 analysis script) | 14,991 B | `sha256:939f6a98bb3b49e37be9aeb3934bc0f732d25836df2dd02189192075069e3701` |
+| `artifacts/analyze-matrix.mjs` (the §7 analysis script) | 21,095 B | `sha256:cbf4f4b7b1a3b2ddff2f0fb58bfe16ebeef98a1ea220a7ab24308bd2c35e3d9d` |
 | `artifacts/placement-names.json` (placement-string → preset-name map) | 4,275 B | `sha256:c492755f73c72a5fd0e3687f66cd8d513b1cf429215e18c625d58b2fd1f89c34` |
 
 Console output of every command is under `artifacts/run-11b/` (`check`, `build`, `e2e`, `baseline`,
@@ -588,8 +632,9 @@ any expansion, and both come out of §7:
 
 1. Under the stricter reading of §13's own gate sentence, the measured half **fails**: the
    class-aware default placement wins all three fixed recipes outright, so no *recipe* is a reason
-   to place differently. Under the looser reading it passes, because the default is beaten in 47 of
-   102 composition × recipe cells and often by a wide margin. §13 says that if either gate fails the
+   to place differently. Under the looser reading it passes, because the default is beaten in 50 of
+   102 composition × recipe cells by mean kills/hour (47 by raw kills, secondary) and often by a wide
+   margin. §13 says that if either gate fails the
    recommendation is simplify/revise and a repeat of a focused experiment before adding maps. Which
    reading the project intends is a decision for the owner, not for this report, and it changes the
    answer — so the report states both rather than choosing the convenient one.
