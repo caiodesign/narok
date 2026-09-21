@@ -62,7 +62,11 @@
     "pause": "Pausar",
     "resume": "Retomar",
     "stop": "Parar experimento",
-    "startHelp": "Iniciar entrega a configuração atual a um novo experimento. A execução anterior fica retida como comparação A."
+    "startHelp": "Iniciar entrega a configuração atual a um novo experimento. A execução anterior fica retida como comparação A.",
+    "orders": "Ordens da execução",
+    "openSetup": "Abrir configuração",
+    "edit": "Editar",
+    "closeSetup": "Fechar configuração"
   },
   "validation": {
     "rosterSize": "O grupo precisa ter de 1 a 3 integrantes.",
@@ -157,8 +161,11 @@
     "enemies": "Inimigos",
     "hp": "HP",
     "mp": "MP",
+    "mpLow": "Baixo",
     "target": "Alvo",
     "noTarget": "Sem alvo",
+    "attacking": "Atacando",
+    "percent": "{{value}}%",
     "casting": "Conjurando {{skill}}",
     "notCasting": "Sem conjuração",
     "empty": "Nenhum ator ainda."
@@ -169,6 +176,14 @@
     "cooldown": "Recarga",
     "casting": "Conjurando",
     "unavailable": "MP insuficiente"
+  },
+  "castbar": {
+    "text": "{{actor}}: {{skill}}",
+    "label": "{{actor}} está conjurando {{skill}}."
+  },
+  "hotbar": {
+    "auto": "AUTO",
+    "owner": "Habilidades de {{actor}}"
   },
   "inspect": {
     "hint": "Combate automático. Selecione uma habilidade para inspecionar por que ela está esperando; inspecionar nunca a usa.",
@@ -246,7 +261,18 @@
     "empty": "Nenhuma execução retida neste espaço ainda. Pare ou conclua um experimento para preenchê-lo.",
     "roster": "Grupo",
     "window": "Medido ao longo de {{duration}} de tempo simulado.",
-    "windowNone": "Nenhum tempo simulado decorreu, então nenhuma taxa pode ser medida."
+    "windowNone": "Nenhum tempo simulado decorreu, então nenhuma taxa pode ser medida.",
+    "older": "Antes nesta sessão",
+    "nameA": "Comparação A",
+    "nameB": "Comparação B"
+  },
+  "compass": {
+    "label": "Mapa e estado da caçada",
+    "minimap": "Minimapa do campo de batalha",
+    "gridRange": "{{width}} × {{height}} células",
+    "noRun": "Nenhuma execução",
+    "noRunRange": "Nenhuma receita vinculada ainda",
+    "wipes": "{{used}} de {{limit}} derrotas totais"
   },
   "metrics": {
     "elapsed": "Tempo simulado",
@@ -261,6 +287,7 @@
     "rawGold": "Oportunidade de ouro bruta",
     "rawExpPerHour": "EXP bruta / hora",
     "rawGoldPerHour": "Ouro bruto / hora",
+    "damagePerHour": "Dano / hora",
     "walkMs": "Tempo caminhando",
     "fightMs": "Tempo em combate",
     "restMs": "Tempo descansando",
@@ -274,7 +301,24 @@
     "hoursMinutes": "{{hours}} h {{minutes}} min",
     "none": "—"
   },
+  "session": {
+    "title": "Sessão"
+  },
   "value": {
     "none": "—"
+  },
+  "export": {
+    "label": "Exportação da sessão",
+    "button": "Exportar sessão",
+    "hint": "Baixa um arquivo JSON com a configuração, o registro de eventos e as duas execuções comparadas."
+  },
+  "battlefield": {
+    "title": "Campo de batalha: {{party}} membros do grupo contra {{enemies}} inimigos, {{phase}}.",
+    "titleFocus": "{{sentence}} Alvo atual: {{name}} com {{percent}} por cento de vida.",
+    "token": "{{name}} {{id}}, {{percent}} por cento de vida",
+    "tokenTarget": "{{label}}, alvo atual",
+    "tokenCasting": "{{label}}, conjurando {{skill}}",
+    "critical": "Crítico",
+    "laneNeutral": "Faixa neutra, sem surgimentos"
   }
 }

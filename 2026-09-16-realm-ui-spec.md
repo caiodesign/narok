@@ -141,7 +141,7 @@ Keep the timeline visible at 1440×900; allow obvious internal scroll at shorter
 
 ## 10. Implementation and acceptance
 
-Implement reusable window frames, unit frames, resource bars, skill state displays, inventory tiles, item comparisons and draft controls using the existing React/PixiJS architecture. Share tokens rather than copying five inline stylesheets. Preserve visual identity while keeping simulation/state transitions outside rendering.
+Implement reusable window frames, unit frames, resource bars, skill state displays, inventory tiles, item comparisons and draft controls using the existing React/SVG architecture (see the milestone A spec's amended renderer note). Share tokens rather than copying five inline stylesheets. Preserve visual identity while keeping simulation/state transitions outside rendering.
 
 Required checks at the milestone where the behavior ships:
 

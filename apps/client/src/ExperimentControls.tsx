@@ -105,6 +105,19 @@ export interface ExperimentControlsProps {
   onResume: () => void;
   onStop: () => void;
   onSpeedChange: (speed: number) => void;
+  /**
+   * The Realm HUD promotes start/pause/stop into the `.orders` window, where the
+   * reference puts a hunt's primary action. Two copies of a button would give the
+   * page two controls sharing one accessible name, so the HUD passes `false` and
+   * owns the transport itself. Rendered on its own the component keeps them,
+   * which is what this component's own tests exercise.
+   */
+  showRunControls?: boolean;
+  /**
+   * Reports the draft and whether it is startable, so the Orders window can start
+   * the run this form describes without owning the form's state.
+   */
+  onDraftChange?: (draft: LabInput, canStart: boolean) => void;
 }
 
 export function ExperimentControls({
@@ -115,6 +128,8 @@ export function ExperimentControls({
   onResume,
   onStop,
   onSpeedChange,
+  showRunControls = true,
+  onDraftChange,
 }: ExperimentControlsProps): React.JSX.Element {
   const { t: rawT, i18n } = useTranslation();
   const t = rawT as unknown as Translate;
@@ -314,9 +329,79 @@ export function ExperimentControls({
   const placementIssues = issuesFor('placement', issues);
   const canStart = issues.length === 0;
 
+  // Publish the draft so a transport rendered outside this form (the HUD's
+  // `.orders` window) starts exactly the run the form currently describes.
+  useEffect(() => {
+    onDraftChange?.(draft, canStart);
+  }, [draft, canStart, onDraftChange]);
+
   return (
     <section className="win panel controls-panel" aria-label={t('controls.section')}>
       <h2 className="win-title">{t('app.setup')}</h2>
+
+      {/*
+       * Transport first. In the HUD the setup form lives in a rail that
+       * scrolls, and start/pause/stop are the controls an operator reaches
+       * for most; putting them at the foot of a long form would have put
+       * them off screen. The setup that feeds the *next* run follows.
+       */}
+      {showRunControls ? (
+      <fieldset>
+        <legend>{t('controls.run')}</legend>
+        <p className="help">{t('controls.startHelp')}</p>
+        <div className="row">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={!canStart}
+            onClick={() => {
+              onStart(draft);
+              // Ruling R80: useExperiment.start() always begins a fresh generation's
+              // clock at speed 1x, so the radio group must resync here -- otherwise
+              // it can misreport (e.g. still showing 16x from a previous run) the
+              // speed the new experiment is actually running at.
+              setLocalSpeed(1);
+            }}
+          >
+            {t('controls.start')}
+          </button>
+          <button type="button" className="ghost-button" disabled={status !== 'running'} onClick={onPause}>
+            {t('controls.pause')}
+          </button>
+          <button type="button" className="ghost-button" disabled={status !== 'paused'} onClick={onResume}>
+            {t('controls.resume')}
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
+            disabled={status === 'idle' || status === 'stopped'}
+            onClick={onStop}
+          >
+            {t('controls.stop')}
+          </button>
+        </div>
+        <fieldset>
+          <legend>{t('playback.speed')}</legend>
+          <div className="row">
+            {SPEEDS.map((value) => (
+              <label key={value} className="chip">
+                <input
+                  type="radio"
+                  name="speed"
+                  value={value}
+                  checked={speed === value}
+                  onChange={() => {
+                    setLocalSpeed(value);
+                    onSpeedChange(value);
+                  }}
+                />
+                {t('playback.speedOption', { value: formatNumber(value, language) })}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </fieldset>
+      ) : null}
 
       <fieldset>
         <legend>{t('controls.roster')}</legend>
@@ -580,62 +665,6 @@ export function ExperimentControls({
             </div>
           );
         })}
-      </fieldset>
-
-      <fieldset>
-        <legend>{t('controls.run')}</legend>
-        <p className="help">{t('controls.startHelp')}</p>
-        <div className="row">
-          <button
-            type="button"
-            className="primary-button"
-            disabled={!canStart}
-            onClick={() => {
-              onStart(draft);
-              // Ruling R80: useExperiment.start() always begins a fresh generation's
-              // clock at speed 1x, so the radio group must resync here -- otherwise
-              // it can misreport (e.g. still showing 16x from a previous run) the
-              // speed the new experiment is actually running at.
-              setLocalSpeed(1);
-            }}
-          >
-            {t('controls.start')}
-          </button>
-          <button type="button" className="ghost-button" disabled={status !== 'running'} onClick={onPause}>
-            {t('controls.pause')}
-          </button>
-          <button type="button" className="ghost-button" disabled={status !== 'paused'} onClick={onResume}>
-            {t('controls.resume')}
-          </button>
-          <button
-            type="button"
-            className="ghost-button"
-            disabled={status === 'idle' || status === 'stopped'}
-            onClick={onStop}
-          >
-            {t('controls.stop')}
-          </button>
-        </div>
-        <fieldset>
-          <legend>{t('playback.speed')}</legend>
-          <div className="row">
-            {SPEEDS.map((value) => (
-              <label key={value} className="chip">
-                <input
-                  type="radio"
-                  name="speed"
-                  value={value}
-                  checked={speed === value}
-                  onChange={() => {
-                    setLocalSpeed(value);
-                    onSpeedChange(value);
-                  }}
-                />
-                {t('playback.speedOption', { value: formatNumber(value, language) })}
-              </label>
-            ))}
-          </div>
-        </fieldset>
       </fieldset>
     </section>
   );

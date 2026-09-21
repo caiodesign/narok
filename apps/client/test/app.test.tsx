@@ -2,6 +2,8 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { gridPosition, type PublicActor } from '@narok/sim';
+import type { ArtEntry } from '../src/art-manifest';
 
 // PixiJS cannot initialise a renderer in jsdom (R58). The board's own lifecycle
 // is covered in battlefield.test.tsx; here the Application is stubbed so the
@@ -44,6 +46,9 @@ class StubApplication {
   stage = new StubDisplay();
   canvas = globalThis.document.createElement('canvas');
   renderer = { resize: vi.fn() };
+  // The board registers one ticker callback for the animated cues; jsdom never
+  // runs it, which is the point (R58) — the curves it drives are tested pure.
+  ticker = { add: vi.fn(), remove: vi.fn() };
   destroy = vi.fn();
   init(): Promise<void> {
     return Promise.resolve();
@@ -58,7 +63,10 @@ vi.mock('pixi.js', () => ({
 }));
 
 const { App } = await import('../src/App');
+const { isLowMp } = await import('../src/hud/model');
+const { entryViewBox } = await import('../src/art-manifest');
 const { default: i18n, LANGUAGE_STORAGE_KEY, resources } = await import('../src/i18n');
+const { artManifest } = await import('../src/art-manifest');
 
 /**
  * The hook builds a real `Worker` on start, which jsdom has no implementation
@@ -158,5 +166,129 @@ describe('laboratory shell', () => {
     expect(screen.getByRole('button', { name: resources['pt-BR'].translation.controls.start })).toBeInTheDocument();
     expect(globalThis.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('pt-BR');
     expect(Object.keys(globalThis.localStorage)).toEqual([LANGUAGE_STORAGE_KEY]);
+  });
+});
+
+/** The projected actor fields these helpers read; everything else is filler. */
+function actor(overrides: Partial<PublicActor> = {}): PublicActor {
+  return {
+    id: 'p1',
+    definitionId: 'cleric',
+    side: 'party',
+    position: gridPosition(2, 3),
+    hp: 180,
+    mp: 100,
+    maxHp: 180,
+    maxMp: 400,
+    currentTarget: null,
+    casting: null,
+    targetReason: null,
+    cooldowns: {},
+    ...overrides,
+  };
+}
+
+describe('isLowMp', () => {
+  test('the threshold is exclusive: exactly a quarter is not yet low', () => {
+    expect(isLowMp(actor({ mp: 100, maxMp: 400 }))).toBe(false);
+  });
+
+  test('a hair either side of the threshold decides it', () => {
+    expect(isLowMp(actor({ mp: 99, maxMp: 400 }))).toBe(true);
+    expect(isLowMp(actor({ mp: 101, maxMp: 400 }))).toBe(false);
+  });
+
+  test('empty is low and full is not', () => {
+    expect(isLowMp(actor({ mp: 0, maxMp: 400 }))).toBe(true);
+    expect(isLowMp(actor({ mp: 400, maxMp: 400 }))).toBe(false);
+  });
+
+  /**
+   * A class with no mana pool is not a depleted caster, and the ratio must
+   * never be computed: `0 / 0` is `NaN`, which compares false and would read as
+   * "not low" by accident rather than by decision.
+   */
+  test('an actor with no mana pool is never low', () => {
+    expect(isLowMp(actor({ mp: 0, maxMp: 0 }))).toBe(false);
+    expect(isLowMp(actor({ mp: 0, maxMp: -1 }))).toBe(false);
+  });
+});
+
+describe('entryViewBox', () => {
+  function box(entry: ArtEntry, pad?: number): number[] {
+    const value = entryViewBox(entry, pad);
+    expect(value).not.toBeNull();
+    return (value as string).split(' ').map(Number);
+  }
+
+  function entry(shapes: ArtEntry['shapes']): ArtEntry {
+    return { space: 'pixel', accent: '#000000', shapes };
+  }
+
+  test('a polygon-only entry is bounded by its own points', () => {
+    expect(
+      entryViewBox(entry([{ shape: { kind: 'polygon', points: [0, 0, 10, 0, 10, 20] } }]), 0),
+    ).toBe('0 0 10 20');
+  });
+
+  /** The radius has to push the box out on all four sides, not just two. */
+  test('a circle-only entry is bounded by centre plus radius in every direction', () => {
+    expect(entryViewBox(entry([{ shape: { kind: 'circle', cx: 5, cy: -5, radius: 4 } }]), 0)).toBe('1 -9 8 8');
+  });
+
+  test('a mixed entry is bounded by the union of both kinds', () => {
+    const [x, y, width, height] = box(
+      entry([
+        { shape: { kind: 'polygon', points: [-7, 0, 7, 0, 5, -22] } },
+        { shape: { kind: 'circle', cx: 14, cy: -30, radius: 5 } },
+      ]),
+      0,
+    );
+    expect([x, y, width, height]).toEqual([-7, -35, 26, 35]);
+  });
+
+  test('padding grows the box by that much on every side', () => {
+    const shapes: ArtEntry['shapes'] = [{ shape: { kind: 'polygon', points: [0, 0, 10, 20] } }];
+    expect(entryViewBox(entry(shapes), 3)).toBe('-3 -3 16 26');
+    expect(entryViewBox(entry(shapes))).toBe('-3 -3 16 26');
+  });
+
+  test('an entry with nothing drawable has no box at all', () => {
+    expect(entryViewBox(entry([]))).toBeNull();
+    expect(entryViewBox(entry([{ shape: { kind: 'polygon', points: [] } }]))).toBeNull();
+  });
+
+  /**
+   * The medal measures the manifest instead of hard-coding a box precisely so
+   * that art changes cannot silently crop or off-centre the portrait — the
+   * humanoid's shadow ellipse was removed once already. This asserts that
+   * coupling directly: for every class the board can draw, every declared point
+   * must fall inside the returned box.
+   */
+  test('every class entry in the manifest is fully contained by its measured box', () => {
+    const classKeys = Object.keys(artManifest).filter((key) => key.startsWith('class.'));
+    expect(classKeys.length).toBeGreaterThan(0);
+
+    for (const key of classKeys) {
+      const art = (artManifest as Record<string, ArtEntry>)[key];
+      const [x, y, width, height] = box(art);
+      for (const part of art.shapes) {
+        if (part.shape.kind === 'circle') {
+          const { cx, cy, radius } = part.shape;
+          expect(cx - radius, key).toBeGreaterThanOrEqual(x);
+          expect(cx + radius, key).toBeLessThanOrEqual(x + width);
+          expect(cy - radius, key).toBeGreaterThanOrEqual(y);
+          expect(cy + radius, key).toBeLessThanOrEqual(y + height);
+          continue;
+        }
+        const points = part.shape.points;
+        for (let index = 0; index + 1 < points.length; index += 2) {
+          expect(points[index], key).toBeGreaterThanOrEqual(x);
+          expect(points[index], key).toBeLessThanOrEqual(x + width);
+          expect(points[index + 1], key).toBeGreaterThanOrEqual(y);
+          expect(points[index + 1], key).toBeLessThanOrEqual(y + height);
+        }
+      }
+    }
   });
 });
