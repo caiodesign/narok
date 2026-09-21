@@ -816,3 +816,16 @@ button:disabled { cursor: not-allowed; }
    treats nested windows as subordinate (`.win .win::before`, `.win .win`
    box-shadow); this continues that rather than introducing a new look. */
 .win .win { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* The session window states the duration its per-hour rates were divided by
+   (UI spec §4). The reference had no such caption - its own `.metric--estimate`
+   qualifier hung off a forecast row the handoff forbids - so this follows the
+   dim secondary voice the sheet already uses for `.drop-note` and `.older`. */
+.session-window {
+  margin: 0;
+  padding: 0 14px 10px;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.25;
+  color: var(--vellum-dim);
+}

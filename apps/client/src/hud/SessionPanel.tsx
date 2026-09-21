@@ -10,10 +10,16 @@
  * one. Every rate divides by the duration that was *actually* simulated (R63);
  * a window of zero length has no rate at all and prints the em dash rather than
  * a fabricated figure.
+ *
+ * The window itself is stated here rather than borrowed from the playback panel
+ * across the screen (UI spec §4): an hourly figure divided out of 2.6 seconds
+ * is honest arithmetic and misleading on its own, so the divisor travels with
+ * the rates. The copy is `comparison.window`, the same sentence a retained run
+ * carries, because it is the same claim about the same kind of number.
  */
 import { useTranslation } from 'react-i18next';
 import type { PublicState } from '@narok/sim';
-import { formatNumber } from '../i18n';
+import { formatMeasuredDuration, formatNumber, type Translate } from '../i18n';
 import { sessionRates } from './model';
 
 export interface SessionPanelProps {
@@ -22,10 +28,12 @@ export interface SessionPanelProps {
 
 export function SessionPanel(props: SessionPanelProps): React.JSX.Element {
   const { state } = props;
-  const { t, i18n } = useTranslation();
+  const { t: rawT, i18n } = useTranslation();
+  const t = rawT as unknown as Translate;
   const language = i18n.resolvedLanguage ?? 'en';
 
-  const rates = sessionRates(state?.metrics ?? null, state?.nowMs ?? 0);
+  const elapsedMs = state?.nowMs ?? 0;
+  const rates = sessionRates(state?.metrics ?? null, elapsedMs);
   const show = (rate: number | null): string =>
     rate === null ? t('value.none') : formatNumber(rate, language, 1);
 
@@ -60,6 +68,11 @@ export function SessionPanel(props: SessionPanelProps): React.JSX.Element {
           </dd>
         </div>
       </dl>
+      <p className="session-window" data-testid="session-window">
+        {elapsedMs > 0
+          ? t('comparison.window', { duration: formatMeasuredDuration(elapsedMs, t, language) })
+          : t('comparison.windowNone')}
+      </p>
     </section>
   );
 }
