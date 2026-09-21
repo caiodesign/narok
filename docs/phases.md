@@ -11,9 +11,11 @@ This is a phase index, not a new specification. The linked documents are authori
 - Preserve every spec, `mockups/`, `codex-examples/core-hunt-*` and the supplied screenshots.
 - Install pnpm and record exact runtime/package versions.
 
-## Phase A — Combat laboratory (next)
+## Phase A — Combat laboratory (built; three gates open)
 
 **Goal:** a disposable local laboratory proving whether 5×5 placement and strategy create understandable decisions. No accounts, server, inventory, progression, premium or away reports.
+
+**Status, 2026-09-21.** A1–A6 are built and the Hunt screen is ported from Realm Refined ([port record](realm-hunt-port.md)). A7's automated half is done and recorded in [`artifacts/milestone-a-results.md`](../artifacts/milestone-a-results.md); three gates remain open and none of them can be closed by an agent: the five-tester placement experiment, R64's visual composition sign-off, and the single-VPS concurrency target.
 
 | Step | Deliverable | Plan tasks |
 |---|---|---|
@@ -22,7 +24,7 @@ This is a phase index, not a new specification. The linked documents are authori
 | **A3. Combat** | Rule priority, targeting, casts, threat, Taunt, slow/stun; walk → fight → rest → respawn loop with wipe limit and stalemate | 5–6 |
 | **A4. Simulation API** | Chunked `advance` with split invariance, summary mode, public projection | 7 |
 | **A5. Balance CLI** | `run`, `matrix` (34 compositions × 3 recipes × 3 placements), `benchmark` (12h/24h) | 8 |
-| **A6. Browser laboratory** | Worker, playback clock (pause, 1×/4×/16×), setup controls, isometric PixiJS board, event log, two-run comparison, EN/PT-BR | 9–10 |
+| **A6. Browser laboratory** | Worker, playback clock (pause, 1×/4×/16×), setup controls, isometric board (specified as PixiJS, built in SVG — see the milestone A spec's amended renderer note), event log, two-run comparison, EN/PT-BR | 9–10 |
 | **A7. Evidence** | Playwright e2e, CI, real benchmarks, **five-tester placement experiment**, `artifacts/milestone-a-results.md` with retain/simplify recommendation | 11 |
 
 **Realm Refined in A:** Hunt and Strategy appearance only.
