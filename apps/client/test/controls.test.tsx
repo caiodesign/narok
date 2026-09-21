@@ -357,9 +357,9 @@ describe('ExperimentControls', () => {
 
   test('roster sizes 1 and 3 are accepted (no roster-size validation message)', () => {
     setup();
-    fireEvent.click(screen.getByLabelText('1'));
+    fireEvent.click(screen.getByLabelText('Roster of 1'));
     expect(screen.queryByText(/roster must have/i)).toBeNull();
-    fireEvent.click(screen.getByLabelText('3'));
+    fireEvent.click(screen.getByLabelText('Roster of 3'));
     expect(screen.queryByText(/roster must have/i)).toBeNull();
   });
 
@@ -383,10 +383,10 @@ describe('ExperimentControls', () => {
 
   test('Task 11: growing the roster seats the new members instead of disabling the start control', () => {
     setup();
-    fireEvent.click(screen.getByLabelText('1'));
+    fireEvent.click(screen.getByLabelText('Roster of 1'));
     expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
 
-    fireEvent.click(screen.getByLabelText('3'));
+    fireEvent.click(screen.getByLabelText('Roster of 3'));
     expect(screen.queryByText(/needs a placement/i)).toBeNull();
     expect(screen.queryByText(/two members cannot share a cell/i)).toBeNull();
     expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
@@ -399,8 +399,8 @@ describe('ExperimentControls', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Select p0' }));
     fireEvent.click(within(rows[3]).getAllByRole('gridcell')[0]); // move p0 to (0,3)
-    fireEvent.click(screen.getByLabelText('1'));
-    fireEvent.click(screen.getByLabelText('3'));
+    fireEvent.click(screen.getByLabelText('Roster of 1'));
+    fireEvent.click(screen.getByLabelText('Roster of 3'));
 
     expect(within(rows[3]).getAllByRole('gridcell')[0].textContent).toBe('p0');
     expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(false);
@@ -472,7 +472,7 @@ describe('ExperimentControls', () => {
     fireEvent.change(group.getByLabelText('Target mode'), { target: { value: 'attacking' } });
     fireEvent.change(group.getByLabelText('Watch ally'), { target: { value: 'p2' } });
 
-    fireEvent.click(screen.getByLabelText('1')); // shrink roster to just p0 -> p2 no longer exists
+    fireEvent.click(screen.getByLabelText('Roster of 1')); // shrink roster to just p0 -> p2 no longer exists
     expect(screen.getByText(/no longer in the roster/i)).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Start experiment' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -551,7 +551,7 @@ describe('ExperimentControls', () => {
     const grid = screen.getByRole('grid', { name: /battlefield placement grid/i });
 
     for (const size of ['3', '1', '2']) {
-      fireEvent.click(screen.getByLabelText(size));
+      fireEvent.click(screen.getByLabelText(`Roster of ${size}`));
       const cells = within(grid).getAllByRole('gridcell');
       const tabbable = cells.filter((cell) => cell.getAttribute('tabindex') === '0');
       expect(tabbable, `roster size ${size}`).toHaveLength(1);
@@ -563,8 +563,13 @@ describe('ExperimentControls', () => {
   test('rule order is reorderable with labelled, keyboard-reachable move buttons; order is priority', () => {
     setup();
     const group = within(screen.getByRole('group', { name: 'Strategy: p0' }));
+    // The ported row names its toggle after the skill it enables
+    // (`strategy.html`'s `aria-label="Group Heal enabled"`), so the priority
+    // order is read off those accessible names.
     const ruleLabel = (): string[] =>
-      group.getAllByRole('checkbox').map((checkbox) => checkbox.closest('label')?.textContent?.trim() ?? '');
+      group
+        .getAllByRole('checkbox')
+        .map((checkbox) => (checkbox.getAttribute('aria-label') ?? '').replace(/ enabled$/, ''));
 
     // guardian's defaultStrategy() rules are [taunt, cleave].
     expect(ruleLabel()).toEqual(['Taunt', 'Cleave']);

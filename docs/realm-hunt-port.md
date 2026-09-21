@@ -7,8 +7,8 @@ way it is, no modifications on the css."* That plan is obsolete and has been rem
 
 ## What is built
 
-`codex-examples/realm-refined/hunt.html` is ported. The Hunt screen only — Strategy, Bag,
-Character and Away remain unbuilt mockups.
+`codex-examples/realm-refined/hunt.html` is ported. Strategy is ported too, as the setup form —
+see [its own record](realm-strategy-port.md). Bag, Character and Away remain unbuilt mockups.
 
 - `apps/client/src/styles.css` lines 1–754 are **byte-identical** to `hunt.html:11-764`. This is
   checked, not asserted: `diff <(sed -n '11,764p' codex-examples/realm-refined/hunt.html) <(sed -n '1,754p' apps/client/src/styles.css)`
@@ -17,8 +17,10 @@ Character and Away remain unbuilt mockups.
 - `apps/client/src/hud/` holds one module per region of the reference. `hud/model.ts` is the
   shared view-model adapter and records, panel by panel, which of the reference's readouts are
   bound to a measured figure and which were dropped for want of one.
-- `apps/client/src/setup.css` holds the laboratory's own form styling. The mockup is a game
-  screen and contains no setup form, so the form's layout could not come from it.
+- `apps/client/src/setup.css` held the laboratory's own form styling, because the mockup is a game
+  screen and contains no setup form. Since [the Strategy port](realm-strategy-port.md) that form
+  wears `strategy.html`, and this file is down to the few things neither design has a vocabulary
+  for.
 
 ## Binding rulings (R106–R110)
 

@@ -1,13 +1,18 @@
 /**
- * The laboratory's setup form, presented over the world.
+ * The laboratory's setup, presented over the world as the Strategy screen.
  *
- * `hunt.html` has no form anywhere — a hunt is configured on the Strategy screen,
- * which milestone A does not build. The reference's `.orders` window is the
- * closest concept (what the hunt is told to do), so the Orders panel opens this,
- * and this renders `ExperimentControls` inside the reference's own `.win` window
- * chrome. No new visual treatment is introduced: only the overlay's placement is
- * expressed here, filling the band between the party column and the rail so both
- * stay readable while the setup is open.
+ * `hunt.html` has no form anywhere — a hunt is configured on the Strategy
+ * screen, and that screen is now ported: this is `strategy.html`'s `.editor`
+ * dialog, opened over a scrim, with its head, its three columns and its panes.
+ *
+ * Dropped from the reference's chrome, because milestone A has nothing behind
+ * them: the preset tabs and their premium fourth slot, Revert, Save preset and
+ * Apply next encounter, and the dirty-draft markers. A setup edit here starts a
+ * *new experiment* — there is no saved preset to be dirty against and no
+ * running encounter to queue a change for. Both of those are milestone B's
+ * (UI spec section 5), and the apply-note says so in the operator's own words
+ * rather than leaving the reference's sentence to describe machinery that does
+ * not exist.
  *
  * It is open while there is nothing running, because a laboratory with no
  * experiment loaded has nothing else worth looking at, and closes once a run
@@ -33,15 +38,12 @@ export interface SetupOverlayProps {
   onClose: () => void;
 }
 
-const SHELL: React.CSSProperties = {
-  position: 'absolute',
-  top: 'var(--gutter)',
-  left: 'calc(var(--gutter) * 2 + var(--party-w))',
-  right: 'calc(var(--gutter) * 2 + var(--rail-w))',
-  bottom: '24px',
-  overflowY: 'auto',
-  zIndex: 5,
-};
+/*
+ * The only geometry this file states. `.editor` already centres itself and sizes
+ * itself against the viewport, and `.scrim` already covers it; all that is left
+ * is to lift both above the world they cover.
+ */
+const LAYER: React.CSSProperties = { zIndex: 5 };
 
 /**
  * The form is hidden rather than unmounted, and memoised because of it: while a
@@ -61,16 +63,32 @@ export const SetupOverlay = memo(function SetupOverlay(props: SetupOverlayProps)
   const { t } = useTranslation();
 
   return (
-    <section className="win" style={SHELL} hidden={!open} aria-label={t('controls.section')}>
-      <h2 className="win-title">
-        {t('controls.section')}
-        <button type="button" className="win-close preset-edit" onClick={onClose}>
-          {t('controls.closeSetup')}
-        </button>
-      </h2>
+    <>
+      <div className="scrim" style={LAYER} hidden={!open} aria-hidden="true" />
+      <section
+      className="editor win"
+      style={LAYER}
+      hidden={!open}
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="editor-title"
+    >
+      <header className="editor-head">
+        <h2 className="win-title" id="editor-title">
+          {t('controls.section')}
+          <small>{t('controls.editorSubtitle')}</small>
+          <button type="button" className="win-close preset-edit" onClick={onClose}>
+            {t('controls.closeSetup')}
+          </button>
+        </h2>
+      </header>
+      <p className="apply-note" role="status">
+        {t('controls.applyNote')}
+      </p>
       {/* The transport lives in the Orders window; two copies would give the
           page two controls sharing one accessible name. */}
       <ExperimentControls {...controls} showRunControls={false} />
-    </section>
+      </section>
+    </>
   );
 });

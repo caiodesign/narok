@@ -75,8 +75,13 @@ const MONSTER_GLYPH_IDS: Record<string, string> = {
   'reed-slinger': 'g-revenant',
 };
 
+/** The sheet emblem for a class, for a screen that has a class but no actor yet. */
+export function classGlyphId(classId: string): string {
+  return GLYPH_IDS[classId] ?? 'g-guardian';
+}
+
 export function glyphId(actor: PublicActor): string {
-  if (actor.side === 'party') return GLYPH_IDS[actor.definitionId] ?? 'g-guardian';
+  if (actor.side === 'party') return classGlyphId(actor.definitionId);
   return MONSTER_GLYPH_IDS[actor.definitionId] ?? 'g-grub';
 }
 

@@ -66,7 +66,33 @@
     "orders": "Run orders",
     "openSetup": "Open setup",
     "edit": "Edit",
-    "closeSetup": "Close setup"
+    "closeSetup": "Close setup",
+    "editorSubtitle": "the next experiment's setup",
+    "applyNote": "Editing here changes the next experiment. A run already in flight keeps the setup it started with.",
+    "formation": "Formation",
+    "formationRows": "party rows {{rows}}",
+    "formationHint": "The party re-forms on these cells at the start of every encounter.",
+    "classDefault": "Class default",
+    "legend": "Board legend",
+    "legendDrop": "Place here",
+    "legendOpen": "Open party cell",
+    "legendBad": "Not placeable",
+    "legendFoe": "Enemy rows",
+    "character": "Character",
+    "skillPriority": "Skill priority",
+    "focusTarget": "Focus target",
+    "mpCost": "{{cost}} MP",
+    "percent": "{{value}}%",
+    "ruleEnabled": "{{skill}} enabled",
+    "ruleThresholdFor": "Threshold for {{skill}}",
+    "fallbackNote": "when no rule above can be cast",
+    "alwaysOn": "Always on",
+    "partyRules": "Party rules",
+    "recipeAside": "the encounter this run repeats",
+    "restBetween": "Rest between fights",
+    "wipeLimitOption": "Stop after {{count}}",
+    "wipeLimitNote": "Stop the experiment after {{count}} wipes",
+    "rosterSizeOption": "Roster of {{count}}"
   },
   "validation": {
     "rosterSize": "Roster must have 1 to 3 members.",
@@ -86,6 +112,12 @@
     "cleric": "Cleric",
     "ranger": "Ranger",
     "arcanist": "Arcanist"
+  },
+  "condition": {
+    "always": "Cast whenever it is ready",
+    "ally-targeted": "Cast when an enemy is attacking an ally",
+    "ally-hp-below": "Cast when an ally's HP is below",
+    "targets-at-least": "Cast when it would hit at least"
   },
   "skill": {
     "basic": "Basic attack",

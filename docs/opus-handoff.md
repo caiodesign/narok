@@ -2,10 +2,11 @@
 
 **Updated:** 2026-09-21. The owner approved Realm Refined as the main screen design.
 
-Milestone A's simulation and its Hunt screen are now **built**, not merely specified. Read
-[the Hunt port record](realm-hunt-port.md) before touching `apps/client` — it carries the rules
-that govern the ported stylesheet (which is not editable) and the view model. The remaining four
-screens are still prototypes only.
+Milestone A's simulation, its Hunt screen and its Strategy screen are now **built**, not merely
+specified. Read [the Hunt port record](realm-hunt-port.md) and [the Strategy port
+record](realm-strategy-port.md) before touching `apps/client` — they carry the rules that govern
+the two ported stylesheets (neither is editable), the view model and the formation board. Bag,
+Character and Away are still prototypes only.
 
 ## Read before coding
 

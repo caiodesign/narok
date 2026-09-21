@@ -66,7 +66,33 @@
     "orders": "Ordens da execução",
     "openSetup": "Abrir configuração",
     "edit": "Editar",
-    "closeSetup": "Fechar configuração"
+    "closeSetup": "Fechar configuração",
+    "editorSubtitle": "configuração do próximo experimento",
+    "applyNote": "Editar aqui muda o próximo experimento. Uma execução em andamento mantém a configuração com que começou.",
+    "formation": "Formação",
+    "formationRows": "fileiras do grupo {{rows}}",
+    "formationHint": "O grupo se reorganiza nestas células no início de cada encontro.",
+    "classDefault": "Padrão da classe",
+    "legend": "Legenda do tabuleiro",
+    "legendDrop": "Posicionar aqui",
+    "legendOpen": "Célula livre do grupo",
+    "legendBad": "Não posicionável",
+    "legendFoe": "Fileiras inimigas",
+    "character": "Personagem",
+    "skillPriority": "Prioridade de habilidades",
+    "focusTarget": "Alvo prioritário",
+    "mpCost": "{{cost}} de MP",
+    "percent": "{{value}}%",
+    "ruleEnabled": "{{skill}} ativada",
+    "ruleThresholdFor": "Limiar de {{skill}}",
+    "fallbackNote": "quando nenhuma regra acima pode ser usada",
+    "alwaysOn": "Sempre ativo",
+    "partyRules": "Regras do grupo",
+    "recipeAside": "o encontro que esta execução repete",
+    "restBetween": "Descanso entre lutas",
+    "wipeLimitOption": "Parar após {{count}}",
+    "wipeLimitNote": "Parar o experimento após {{count}} aniquilações",
+    "rosterSizeOption": "Grupo de {{count}}"
   },
   "validation": {
     "rosterSize": "O grupo precisa ter de 1 a 3 integrantes.",
@@ -86,6 +112,12 @@
     "cleric": "Clérigo",
     "ranger": "Patrulheiro",
     "arcanist": "Arcanista"
+  },
+  "condition": {
+    "always": "Usar sempre que estiver pronta",
+    "ally-targeted": "Usar quando um inimigo estiver atacando um aliado",
+    "ally-hp-below": "Usar quando o HP de um aliado estiver abaixo de",
+    "targets-at-least": "Usar quando atingir pelo menos"
   },
   "skill": {
     "basic": "Ataque básico",

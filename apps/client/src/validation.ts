@@ -17,12 +17,17 @@ export interface ValidationIssue {
 const POSITION_PATTERN = /^(\d+),(\d+)$/;
 
 /** Declared threshold ranges for skills whose rule condition carries a `value` (mirrors `packages/sim/src/state.ts`'s `validateCondition`). */
-const RULE_VALUE_RANGES: Partial<Record<string, [number, number]>> = {
+export const RULE_VALUE_RANGES: Partial<Record<string, [number, number]>> = {
   heal: [1, 99],
   cleave: [1, 5],
   'arrow-rain': [1, 5],
   'frost-nova': [1, 5],
 };
+
+/** The bounds a rule's threshold control must not let the operator leave. */
+export function ruleValueRange(skillId: string): [number, number] | null {
+  return RULE_VALUE_RANGES[skillId] ?? null;
+}
 
 /**
  * Ruling R76 (binding, supersedes R55 on these bounds): `packages/sim` is the

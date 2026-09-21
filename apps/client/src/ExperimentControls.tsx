@@ -6,19 +6,27 @@
  *
  * Every visible string comes from `t()` (ruling R60); the run buttons carry the
  * accessible names ruling R81 fixes for the Task 11 smoke test.
+ *
+ * This file owns the draft and nothing else. Since the Strategy screen was
+ * ported it renders three panes from `hud/strategy/` — Formation, the character
+ * rules and the party rules — in the three columns
+ * `codex-examples/realm-refined/strategy.html` lays them out in. The state, the
+ * seating rules, the keyboard model (R77) and the validation are unchanged; only
+ * the markup moved.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Content, ClassId, RecipeId } from '@narok/data';
+import type { Content, ClassId } from '@narok/data';
 import type { ActorId, LabInput, PositionId, Strategy, TargetMode } from '@narok/sim';
 import { defaultPlacement, defaultStrategy, gridPosition } from '@narok/sim';
 import { formatNumber, type Translate } from './i18n';
+import { CharacterPane } from './hud/strategy/CharacterPane';
+import { FormationPane } from './hud/strategy/FormationPane';
+import { PartyRulesPane } from './hud/strategy/PartyRulesPane';
 import type { ExperimentStatus } from './useExperiment';
 import { validateLabInput, type ValidationIssue } from './validation';
 
-const CLASS_IDS: ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
 const SPEEDS = [1, 4, 16] as const;
-const PRIORITY_TARGET_KINDS = ['lowest-hp', 'highest-hp', 'highest-level', 'nearest'] as const;
 
 function cellId(column: number, row: number): PositionId {
   return gridPosition(column, row);
@@ -146,9 +154,19 @@ export function ExperimentControls({
     row: [...content.grid.playerRows].sort((a, b) => a - b)[0] ?? 0,
   }));
   const [speed, setLocalSpeed] = useState<number>(1);
+  /** Which character's rules the Strategy pane is showing; its tabs pick it. */
+  const [activeActorId, setActiveActorId] = useState<ActorId>('p0');
   const cellRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
+  const registerCell = useCallback((id: PositionId, node: HTMLButtonElement | null) => {
+    cellRefs.current[id] = node;
+  }, []);
+
   const rosterIds = useMemo<ActorId[]>(() => draft.classes.map((_, index) => `p${index}`), [draft.classes]);
+
+  // Shrinking the roster can retire the character whose rules are on screen.
+  const activeIsGone = !rosterIds.includes(activeActorId);
+  const shownActorId = activeIsGone ? (rosterIds[rosterIds.length - 1] ?? 'p0') : activeActorId;
   const issues = useMemo(() => validateLabInput(draft, content), [draft, content]);
 
   useEffect(() => {
@@ -178,6 +196,11 @@ export function ExperimentControls({
     },
     [content.grid],
   );
+
+  /** The design's "Class default" foot: spec section 8's seating, recomputed. */
+  const resetPlacement = useCallback(() => {
+    setDraft((previous) => ({ ...previous, placement: seatRoster(previous.classes, content.grid) }));
+  }, [content.grid]);
 
   const setActorClass = useCallback((actorId: ActorId, classId: ClassId) => {
     setDraft((previous) => {
@@ -336,336 +359,119 @@ export function ExperimentControls({
   }, [draft, canStart, onDraftChange]);
 
   return (
-    <section className="win panel controls-panel" aria-label={t('controls.section')}>
-      <h2 className="win-title">{t('app.setup')}</h2>
-
-      {/*
-       * Transport first. In the HUD the setup form lives in a rail that
-       * scrolls, and start/pause/stop are the controls an operator reaches
-       * for most; putting them at the foot of a long form would have put
-       * them off screen. The setup that feeds the *next* run follows.
-       */}
+    <>
       {showRunControls ? (
-      <fieldset>
-        <legend>{t('controls.run')}</legend>
-        <p className="help">{t('controls.startHelp')}</p>
-        <div className="row">
-          <button
-            type="button"
-            className="primary-button"
-            disabled={!canStart}
-            onClick={() => {
-              onStart(draft);
-              // Ruling R80: useExperiment.start() always begins a fresh generation's
-              // clock at speed 1x, so the radio group must resync here -- otherwise
-              // it can misreport (e.g. still showing 16x from a previous run) the
-              // speed the new experiment is actually running at.
-              setLocalSpeed(1);
-            }}
-          >
-            {t('controls.start')}
-          </button>
-          <button type="button" className="ghost-button" disabled={status !== 'running'} onClick={onPause}>
-            {t('controls.pause')}
-          </button>
-          <button type="button" className="ghost-button" disabled={status !== 'paused'} onClick={onResume}>
-            {t('controls.resume')}
-          </button>
-          <button
-            type="button"
-            className="ghost-button"
-            disabled={status === 'idle' || status === 'stopped'}
-            onClick={onStop}
-          >
-            {t('controls.stop')}
-          </button>
-        </div>
-        <fieldset>
-          <legend>{t('playback.speed')}</legend>
-          <div className="row">
-            {SPEEDS.map((value) => (
-              <label key={value} className="chip">
-                <input
-                  type="radio"
-                  name="speed"
-                  value={value}
-                  checked={speed === value}
-                  onChange={() => {
-                    setLocalSpeed(value);
-                    onSpeedChange(value);
-                  }}
-                />
-                {t('playback.speedOption', { value: formatNumber(value, language) })}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      </fieldset>
-      ) : null}
-
-      <fieldset>
-        <legend>{t('controls.roster')}</legend>
-        <div className="row" role="group" aria-label={t('controls.rosterSize')}>
-          {[1, 2, 3].map((size) => (
-            <label key={size} className="chip">
-              <input
-                type="radio"
-                name="roster-size"
-                value={size}
-                checked={draft.classes.length === size}
-                onChange={() => setRosterSize(size)}
-              />
-              {formatNumber(size, language)}
-            </label>
-          ))}
-        </div>
-        {issuesFor('classes', issues).map((issue, index) => (
-          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-            {t(issue.messageKey)}
-          </p>
-        ))}
-        <ul className="roster">
-          {rosterIds.map((actorId, index) => (
-            <li key={actorId}>
-              <label htmlFor={`class-${actorId}`}>{t('controls.member', { actor: actorId })}</label>
-              <select
-                id={`class-${actorId}`}
-                value={draft.classes[index]}
-                onChange={(event) => setActorClass(actorId, event.target.value as ClassId)}
-              >
-                {CLASS_IDS.map((classId) => (
-                  <option key={classId} value={classId}>
-                    {t(`class.${classId}`)}
-                  </option>
-                ))}
-              </select>
+        <section className="pane" aria-label={t('controls.run')}>
+          <h2 className="win-title">{t('controls.run')}</h2>
+          <div className="pane-body">
+            <p className="hint">{t('controls.startHelp')}</p>
+            <div className="run-actions">
               <button
                 type="button"
-                className="ghost-button"
-                aria-pressed={selectedActorId === actorId}
-                onClick={() => setSelectedActorId(actorId)}
+                className="btn btn--save"
+                disabled={!canStart}
+                onClick={() => {
+                  onStart(draft);
+                  // Ruling R80: useExperiment.start() always begins a fresh generation's
+                  // clock at speed 1x, so the radio group must resync here -- otherwise
+                  // it can misreport (e.g. still showing 16x from a previous run) the
+                  // speed the new experiment is actually running at.
+                  setLocalSpeed(1);
+                }}
               >
-                {t('controls.selectCharacter', { actor: actorId })}
+                {t('controls.start')}
               </button>
-            </li>
-          ))}
-        </ul>
-      </fieldset>
-
-      <fieldset>
-        <legend>{t('controls.recipeAndSeed')}</legend>
-        <label htmlFor="recipe">{t('controls.recipe')}</label>
-        <select
-          id="recipe"
-          value={draft.recipe}
-          onChange={(event) => setDraft((previous) => ({ ...previous, recipe: event.target.value as RecipeId | 'mixed' }))}
-        >
-          {[...Object.keys(content.recipes), 'mixed'].map((recipeId) => (
-            <option key={recipeId} value={recipeId}>
-              {t(`recipe.${recipeId}`)}
-            </option>
-          ))}
-        </select>
-        {issuesFor('recipe', issues).map((issue, index) => (
-          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-            {t(issue.messageKey)}
-          </p>
-        ))}
-
-        <label htmlFor="seed">{t('controls.seed')}</label>
-        <input
-          id="seed"
-          type="number"
-          className="num"
-          value={draft.seed}
-          onChange={(event) => setDraft((previous) => ({ ...previous, seed: Number(event.target.value) }))}
-        />
-        {issuesFor('seed', issues).map((issue, index) => (
-          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-            {t(issue.messageKey)}
-          </p>
-        ))}
-      </fieldset>
-
-      <fieldset>
-        <legend>{t('controls.placement')}</legend>
-        <p className="help">{t('controls.placementHelp')}</p>
-        <p aria-live="polite" className="selection">
-          {selectedLabel}
-        </p>
-        {placementIssues.map((issue, index) => (
-          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-            {t(issue.messageKey)}
-          </p>
-        ))}
-        <div role="grid" className="place-grid" aria-label={t('controls.placementGrid')}>
-          {Array.from({ length: content.grid.height }, (_, row) => (
-            <div role="row" key={row}>
-              {Array.from({ length: content.grid.width }, (_, column) => {
-                const id = cellId(column, row);
-                const occupant = rosterIds.find((actorId) => draft.placement[actorId] === id) ?? null;
-                const isPartyCell = content.grid.playerRows.includes(row);
-                const isFocused = focusedCell.column === column && focusedCell.row === row;
-                return (
-                  <button
-                    type="button"
-                    role="gridcell"
-                    key={id}
-                    className={isPartyCell ? 'cell cell--party' : 'cell cell--invalid'}
-                    title={isPartyCell ? t('board.cell', { position: id }) : t('controls.invalidCell')}
-                    ref={(node) => {
-                      cellRefs.current[id] = node;
-                    }}
-                    tabIndex={isFocused ? 0 : -1}
-                    aria-disabled={!isPartyCell}
-                    onFocus={() => setFocusedCell({ column, row })}
-                    onClick={() => placeSelectedAt(column, row)}
-                    onKeyDown={(event) => onCellKeyDown(event, column, row)}
-                  >
-                    {isPartyCell ? occupant ?? '' : t('controls.invalidCellMark')}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>{t('controls.restAndWipe')}</legend>
-        <label htmlFor="rest-hp">{t('controls.restHp')}</label>
-        <input
-          id="rest-hp"
-          type="number"
-          className="num"
-          value={draft.rest.hpStart}
-          onChange={(event) =>
-            setDraft((previous) => ({ ...previous, rest: { ...previous.rest, hpStart: Number(event.target.value) } }))
-          }
-        />
-        <label htmlFor="rest-mp">{t('controls.restMp')}</label>
-        <input
-          id="rest-mp"
-          type="number"
-          className="num"
-          value={draft.rest.mpStart}
-          onChange={(event) =>
-            setDraft((previous) => ({ ...previous, rest: { ...previous.rest, mpStart: Number(event.target.value) } }))
-          }
-        />
-        {issuesFor('rest', issues).map((issue, index) => (
-          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-            {t(issue.messageKey)}
-          </p>
-        ))}
-        <label htmlFor="wipe-limit">{t('controls.wipeLimit')}</label>
-        <input
-          id="wipe-limit"
-          type="number"
-          className="num"
-          value={draft.wipeLimit}
-          onChange={(event) => setDraft((previous) => ({ ...previous, wipeLimit: Number(event.target.value) }))}
-        />
-        {issuesFor('wipeLimit', issues).map((issue, index) => (
-          <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-            {t(issue.messageKey)}
-          </p>
-        ))}
-      </fieldset>
-
-      <fieldset>
-        <legend>{t('controls.strategy')}</legend>
-        <p className="help">{t('controls.ruleOrderHelp')}</p>
-        {rosterIds.map((actorId) => {
-          const strategy = draft.strategies[actorId];
-          if (!strategy) return null;
-          return (
-            <div key={actorId} role="group" className="strategy" aria-label={t('controls.strategyFor', { actor: actorId })}>
-              <h3>{t('controls.member', { actor: actorId })}</h3>
-
-              <label htmlFor={`target-kind-${actorId}`}>{t('controls.targetMode')}</label>
-              <select
-                id={`target-kind-${actorId}`}
-                value={strategy.target.kind}
-                onChange={(event) => setTargetKind(actorId, event.target.value as TargetMode['kind'])}
+              <button type="button" className="btn" disabled={status !== 'running'} onClick={onPause}>
+                {t('controls.pause')}
+              </button>
+              <button type="button" className="btn" disabled={status !== 'paused'} onClick={onResume}>
+                {t('controls.resume')}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={status === 'idle' || status === 'stopped'}
+                onClick={onStop}
               >
-                {PRIORITY_TARGET_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {t(`targetMode.${kind}`)}
-                  </option>
-                ))}
-                <option value="attacking">{t('targetMode.attacking')}</option>
-              </select>
-              {strategy.target.kind === 'attacking' && (
-                <>
-                  <label htmlFor={`target-party-${actorId}`}>{t('controls.watchAlly')}</label>
-                  <select
-                    id={`target-party-${actorId}`}
-                    value={strategy.target.partyId}
-                    onChange={(event) => setTargetPartyId(actorId, event.target.value)}
-                  >
-                    {rosterIds.map((id) => (
-                      <option key={id} value={id}>
-                        {id}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              )}
-
-              <ol className="rules">
-                {strategy.rules.map((rule, index) => (
-                  <li key={rule.skillId} id={`rule-${actorId}-${rule.skillId}`}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={rule.enabled}
-                        onChange={(event) => setRuleEnabled(actorId, index, event.target.checked)}
-                      />
-                      {t(`skill.${rule.skillId}`)}
-                    </label>
-                    {'value' in rule.condition && (
-                      <label>
-                        {t('controls.ruleThreshold')}
-                        <input
-                          type="number"
-                          className="num"
-                          value={rule.condition.value}
-                          onChange={(event) => setRuleThreshold(actorId, index, Number(event.target.value))}
-                        />
-                      </label>
-                    )}
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      aria-label={t('controls.moveRuleUp', { skill: t(`skill.${rule.skillId}`), actor: actorId })}
-                      disabled={index === 0}
-                      onClick={() => moveRule(actorId, index, -1)}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      aria-label={t('controls.moveRuleDown', { skill: t(`skill.${rule.skillId}`), actor: actorId })}
-                      disabled={index === strategy.rules.length - 1}
-                      onClick={() => moveRule(actorId, index, 1)}
-                    >
-                      ↓
-                    </button>
-                  </li>
-                ))}
-              </ol>
-
-              {issuesFor(`strategies.${actorId}`, issues).map((issue, index) => (
-                <p role="alert" className="alert" key={`${issue.field}-${index}`}>
-                  {t(issue.messageKey)}
-                </p>
-              ))}
+                {t('controls.stop')}
+              </button>
             </div>
-          );
-        })}
-      </fieldset>
-    </section>
+            <fieldset className="chips chips--inline" style={{ marginTop: 8 }}>
+              <legend className="rule-label">{t('playback.speed')}</legend>
+              {SPEEDS.map((value) => (
+                <label key={value} className="chip">
+                  <input
+                    type="radio"
+                    name="speed"
+                    value={value}
+                    checked={speed === value}
+                    onChange={() => {
+                      setLocalSpeed(value);
+                      onSpeedChange(value);
+                    }}
+                  />
+                  <span>{t('playback.speedOption', { value: formatNumber(value, language) })}</span>
+                </label>
+              ))}
+            </fieldset>
+          </div>
+        </section>
+      ) : null}
+
+      <div className="editor-body">
+        <div className="col">
+          <FormationPane
+            grid={content.grid}
+            rosterIds={rosterIds}
+            classes={draft.classes}
+            placement={draft.placement}
+            cellId={cellId}
+            selectedActorId={selectedActorId}
+            focusedCell={focusedCell}
+            registerCell={registerCell}
+            onFocusCell={(column, row) => setFocusedCell({ column, row })}
+            onPlace={placeSelectedAt}
+            onCellKeyDown={onCellKeyDown}
+            onResetPlacement={resetPlacement}
+            onSelectForPlacement={setSelectedActorId}
+            selectionLabel={selectedLabel}
+            issues={placementIssues}
+          />
+        </div>
+
+        <div className="col">
+          <CharacterPane
+            content={content}
+            rosterIds={rosterIds}
+            classes={draft.classes}
+            strategies={draft.strategies}
+            activeActorId={shownActorId}
+            onActivate={setActiveActorId}
+            onClassChange={(actorId, classId) => setActorClass(actorId, classId as ClassId)}
+            onRuleEnabled={setRuleEnabled}
+            onRuleThreshold={setRuleThreshold}
+            onMoveRule={moveRule}
+            onTargetKind={setTargetKind}
+            onTargetPartyId={setTargetPartyId}
+            issuesFor={(field) => issuesFor(field, issues)}
+          />
+        </div>
+
+        <div className="col">
+          <PartyRulesPane
+            content={content}
+            draft={draft}
+            onRosterSize={setRosterSize}
+            onRecipe={(recipe) => setDraft((previous) => ({ ...previous, recipe }))}
+            onSeed={(seed) => setDraft((previous) => ({ ...previous, seed }))}
+            onRest={(part, value) =>
+              setDraft((previous) => ({ ...previous, rest: { ...previous.rest, [part]: value } }))
+            }
+            onWipeLimit={(wipeLimit) => setDraft((previous) => ({ ...previous, wipeLimit }))}
+            issuesFor={(field) => issuesFor(field, issues)}
+          />
+        </div>
+      </div>
+    </>
   );
 }

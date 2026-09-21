@@ -15,7 +15,9 @@ This is a phase index, not a new specification. The linked documents are authori
 
 **Goal:** a disposable local laboratory proving whether 5×5 placement and strategy create understandable decisions. No accounts, server, inventory, progression, premium or away reports.
 
-**Status, 2026-09-21.** A1–A6 are built and the Hunt screen is ported from Realm Refined ([port record](realm-hunt-port.md)). A7's automated half is done and recorded in [`artifacts/milestone-a-results.md`](../artifacts/milestone-a-results.md); three gates remain open and none of them can be closed by an agent: the five-tester placement experiment, R64's visual composition sign-off, and the single-VPS concurrency target.
+**Status, 2026-09-21.** A1–A6 are built, and both screens in A's UI scope are ported from Realm
+Refined: [Hunt](realm-hunt-port.md) and [Strategy](realm-strategy-port.md), the latter as the
+experiment setup. A7's automated half is done and recorded in [`artifacts/milestone-a-results.md`](../artifacts/milestone-a-results.md); three gates remain open and none of them can be closed by an agent: the five-tester placement experiment, R64's visual composition sign-off, and the single-VPS concurrency target.
 
 | Step | Deliverable | Plan tasks |
 |---|---|---|
