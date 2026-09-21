@@ -112,7 +112,7 @@ export function Comparison({ runs }: ComparisonProps): React.JSX.Element {
         {SLOTS.map((slot: Slot, index) => {
           const run = runs[index];
           return (
-            <section key={slot} className="win panel slot" data-testid={`comparison-slot-${slot}`} aria-label={t(`comparison.slot${slot.toUpperCase()}`)}>
+            <section key={slot} className="win panel" data-testid={`comparison-slot-${slot}`} aria-label={t(`comparison.slot${slot.toUpperCase()}`)}>
               <h3 className="win-title">{t(`comparison.slot${slot.toUpperCase()}`)}</h3>
               {run === undefined ? <p className="slot-empty">{t('comparison.empty')}</p> : <SlotBody run={run} />}
             </section>

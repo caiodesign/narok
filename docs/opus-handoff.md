@@ -1,6 +1,11 @@
 # Development handoff for Opus
 
-**Updated:** 2026-09-16. The owner approved Realm Refined as the main screen design. This repository contains specifications and design prototypes, not an implemented game.
+**Updated:** 2026-09-21. The owner approved Realm Refined as the main screen design.
+
+Milestone A's simulation and its Hunt screen are now **built**, not merely specified. Read
+[the Hunt port record](realm-hunt-port.md) before touching `apps/client` — it carries the rules
+that govern the ported stylesheet (which is not editable) and the view model. The remaining four
+screens are still prototypes only.
 
 ## Read before coding
 
@@ -35,4 +40,4 @@ After A, present its real test/benchmark/human-placement evidence and the retain
 
 ## Suggested kickoff instruction
 
-> Read README.md and docs/opus-handoff.md, then the linked product, UI, milestone A and simulation specifications. Implement milestone A following its plan. Realm Refined is the primary visual direction; adapt only the screens/features in A’s scope, with the corrections in the UI spec. Preserve all mockups and historical designs. Do not substitute mockup values for the simulation contracts. Report actual verification evidence and any unresolved gate.
+> Read README.md and docs/opus-handoff.md, then docs/realm-hunt-port.md and the linked product, UI, milestone A and simulation specifications. Implement milestone A following its plan. Realm Refined is the primary visual direction; adapt only the screens/features in A’s scope, with the corrections in the UI spec. Preserve all mockups and historical designs. Do not substitute mockup values for the simulation contracts. Report actual verification evidence and any unresolved gate.

@@ -62,7 +62,11 @@
     "pause": "Pause",
     "resume": "Resume",
     "stop": "Stop experiment",
-    "startHelp": "Starting hands the current setup to a new experiment. The previous run is retained as comparison A."
+    "startHelp": "Starting hands the current setup to a new experiment. The previous run is retained as comparison A.",
+    "orders": "Run orders",
+    "openSetup": "Open setup",
+    "edit": "Edit",
+    "closeSetup": "Close setup"
   },
   "validation": {
     "rosterSize": "Roster must have 1 to 3 members.",
@@ -157,8 +161,11 @@
     "enemies": "Enemies",
     "hp": "HP",
     "mp": "MP",
+    "mpLow": "Low",
     "target": "Target",
     "noTarget": "No target",
+    "attacking": "Attacking",
+    "percent": "{{value}}%",
     "casting": "Casting {{skill}}",
     "notCasting": "Not casting",
     "empty": "No actors yet."
@@ -169,6 +176,14 @@
     "cooldown": "Cooldown",
     "casting": "Casting",
     "unavailable": "Not enough MP"
+  },
+  "castbar": {
+    "text": "{{actor}}: {{skill}}",
+    "label": "{{actor}} is casting {{skill}}."
+  },
+  "hotbar": {
+    "auto": "AUTO",
+    "owner": "{{actor}} skills"
   },
   "inspect": {
     "hint": "Automatic combat. Select a skill to inspect why it is waiting; inspecting never casts it.",
@@ -246,7 +261,18 @@
     "empty": "No run retained in this slot yet. Stop or finish an experiment to fill it.",
     "roster": "Roster",
     "window": "Measured over {{duration}} of simulated time.",
-    "windowNone": "No simulated time elapsed, so no rate can be measured."
+    "windowNone": "No simulated time elapsed, so no rate can be measured.",
+    "older": "Earlier this session",
+    "nameA": "Comparison A",
+    "nameB": "Comparison B"
+  },
+  "compass": {
+    "label": "Map and hunt status",
+    "minimap": "Battlefield minimap",
+    "gridRange": "{{width}} × {{height}} cells",
+    "noRun": "No run",
+    "noRunRange": "No recipe bound yet",
+    "wipes": "{{used}} of {{limit}} wipes"
   },
   "metrics": {
     "elapsed": "Simulated elapsed",
@@ -261,6 +287,7 @@
     "rawGold": "Raw gold opportunity",
     "rawExpPerHour": "Raw EXP / hour",
     "rawGoldPerHour": "Raw gold / hour",
+    "damagePerHour": "Damage / hour",
     "walkMs": "Walking time",
     "fightMs": "Fighting time",
     "restMs": "Resting time",
@@ -274,7 +301,24 @@
     "hoursMinutes": "{{hours}} h {{minutes}} min",
     "none": "—"
   },
+  "session": {
+    "title": "Session"
+  },
   "value": {
     "none": "—"
+  },
+  "export": {
+    "label": "Session export",
+    "button": "Export session",
+    "hint": "Downloads a JSON file with the setup, the event log and both comparison runs."
+  },
+  "battlefield": {
+    "title": "Battlefield: {{party}} party members against {{enemies}} enemies, {{phase}}.",
+    "titleFocus": "{{sentence}} Current target: {{name}} at {{percent}} percent health.",
+    "token": "{{name}} {{id}}, {{percent}} percent health",
+    "tokenTarget": "{{label}}, current target",
+    "tokenCasting": "{{label}}, casting {{skill}}",
+    "critical": "Critical",
+    "laneNeutral": "Neutral lane, no spawns"
   }
 }

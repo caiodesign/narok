@@ -1,135 +1,129 @@
 /**
- * The laboratory shell: Realm Refined's window/unit/skill vocabulary adapted to
- * milestone A's actual content and controls.
+ * The Realm HUD.
  *
- * Everything on screen comes from a real `PublicState`. There is no loot, wallet,
- * inventory, allocation, away report, premium wording, EXP-loss copy or survival
- * forecast anywhere here (realm-ui-spec §9, milestone spec §11), and no figure is
- * invented: an unmeasurable value renders an em dash instead.
+ * `codex-examples/realm-refined/hunt.html` is the approved design. Its stylesheet
+ * is ported verbatim into `styles.css` and its regions are ported into
+ * `src/hud/*`, so this file is only the composition: the `.realm` fixed viewport
+ * and the regions the reference anchors inside it.
+ *
+ * Everything on screen comes from a real `PublicState`. Milestone A publishes no
+ * loot, wallet, inventory, zone, level curve, buff list or threat table, so the
+ * reference's panels for those are either bound to a measured figure of the same
+ * shape or left out — never filled with a placeholder. `src/hud/model.ts` records
+ * which is which.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { content } from '@narok/data';
-import type { SkillDefinition, SkillId } from '@narok/data';
-import type { LabInput, PublicActor } from '@narok/sim';
-import { BattlefieldView } from './BattlefieldView';
-import { Comparison, type ComparisonRun } from './Comparison';
-import { EventLog } from './EventLog';
-import { ExperimentControls } from './ExperimentControls';
-import {
-  actorLabel,
-  formatDuration,
-  formatMeasuredDuration,
-  formatNumber,
-  formatPerHour,
-  setLanguage,
-  SUPPORTED_LANGUAGES,
-  type SupportedLanguage,
-  type Translate,
-} from './i18n';
-import { useExperiment } from './useExperiment';
-
-/**
- * Ruling R84: milestone A has no passive skills, so the five states below are the
- * complete reachable set. Everything is derived from `PublicActor` alone — the
- * cast in flight, the additive `cooldowns` ready-at stamps (R12/R42) and the
- * actor's MP against the skill's cost.
- *
- * `active` and `casting` are the same projected field (`actor.casting`) split by
- * whether there is a cast bar worth drawing. Nothing in this engine is
- * instantaneous (ruling R87): `castDuration` in `packages/sim/src/actions.ts:36-37`
- * is `Math.max(1, Math.ceil((baseCastMs * (150 - min(dex, 99))) / 150))`, so a
- * `baseCastMs === 0` skill (taunt, cleave, double-shot) still occupies a 1 ms
- * cast — too short to render a bar against, but a real, observable commitment.
- * `casting` is a skill with a non-zero `baseCastMs` (heal 800, smite 600,
- * arrow-rain 700, fire-bolt 900, frost-nova 900) whose bar is meaningful.
- *
- * `active` is rare but genuinely reachable, so this branch is not dead code: a
- * controller probe sampling the projection at every millisecond across 300,000 ms
- * of a real seed-1 run observed it 55 times out of 27,027 casting observations
- * (~0.2%), covering all three zero-cast skills. Do not "optimize it away".
- */
-export type SkillActivity = 'casting' | 'active' | 'cooldown' | 'unavailable' | 'ready';
-
-export function skillActivity(actor: PublicActor, skill: SkillDefinition, nowMs: number): SkillActivity {
-  if (actor.casting === skill.id) return skill.baseCastMs > 0 ? 'casting' : 'active';
-  const readyAt = actor.cooldowns[skill.id] ?? 0;
-  if (readyAt > nowMs) return 'cooldown';
-  if (actor.mp < skill.mp) return 'unavailable';
-  return 'ready';
-}
-
-function actorDisplayName(t: Translate, actor: PublicActor): string {
-  const key = actor.side === 'party' ? `class.${actor.definitionId}` : `monster.${actor.definitionId}`;
-  return t(key, { defaultValue: actor.definitionId });
-}
-
-/**
- * The factual reason this actor is pointed where it is (R60), read from the
- * projection only. `forced` names the forcing actor — `project()` only reports
- * `forced` when the unexpired forced-target record names the current target, so
- * that actor *is* `currentTarget`. `priority` names the mode the running
- * experiment was actually started with; with no running input there is no mode to
- * name, and the label says only that the strategy chose it. Nothing here invents
- * a reason the projection did not supply.
- */
-function targetReasonLabel(
-  t: Translate,
-  actor: PublicActor,
-  actors: readonly PublicActor[],
-  input: LabInput | null,
-): string | null {
-  switch (actor.targetReason) {
-    case null:
-      return null;
-    case 'forced':
-      return t('targetReason.forced', { source: actorLabel(t, actor.currentTarget, actors) });
-    case 'threat':
-      return t('targetReason.threat');
-    case 'priority': {
-      const mode = input?.strategies[actor.id]?.target.kind;
-      return mode === undefined
-        ? t('targetReason.priorityUnknown')
-        : t('targetReason.priority', { mode: t(`targetMode.${mode}`) });
-    }
-  }
-}
-
-function Meter({ label, value, max, kind }: { label: string; value: string; max: number; kind: 'hp' | 'mp' }) {
-  return (
-    <div className={`meter meter--${kind}`}>
-      <span className="meter-label">{label}</span>
-      <span className="meter-track">
-        <span className="meter-fill" style={{ width: `${Math.max(0, Math.min(100, max))}%` }} />
-      </span>
-      <span className="meter-value num">{value}</span>
-    </div>
-  );
-}
+import type { LabInput } from '@narok/sim';
+import type { ComparisonRun } from './Comparison';
+import { Battlefield } from './hud/Battlefield';
+import { ChatPanel } from './hud/ChatPanel';
+import { CommandBar } from './hud/CommandBar';
+import { Compass } from './hud/Compass';
+import { LabStrip } from './hud/LabStrip';
+import { OrdersPanel } from './hud/OrdersPanel';
+import { PartyPanel } from './hud/PartyPanel';
+import { RunsPanel } from './hud/RunsPanel';
+import { SessionPanel } from './hud/SessionPanel';
+import { SetupOverlay } from './hud/SetupOverlay';
+import { SpriteSheet } from './hud/SpriteSheet';
+import { TargetFrame } from './hud/TargetFrame';
+import { WorldBackdrop } from './hud/WorldBackdrop';
+import { buildSessionExport, downloadJson, sessionExportFilename } from './exportSession';
+import { EVENT_HISTORY_LIMIT, useExperiment } from './useExperiment';
 
 export function App(): React.JSX.Element {
-  const { t: rawT, i18n } = useTranslation();
-  const t = rawT as unknown as Translate;
-  const language = i18n.language;
+  const { t } = useTranslation();
 
-  const { state, events, status, comparisonA, comparisonB, start, pause, resume, stop, setSpeed } = useExperiment();
-  const [inspected, setInspected] = useState<{ actorId: string; skillId: SkillId } | null>(null);
+  const { state, events, status, comparisonA, comparisonB, start, pause, resume, stop, setSpeed } =
+    useExperiment();
+
+  const [inspected, setInspected] = useState<{ actorId: string; skillId: string } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [speed, setLocalSpeed] = useState(1);
+  const [setupOpen, setSetupOpen] = useState(true);
+
   // The input the *running* experiment was started with. Editing the draft
   // afterwards never touches it; only a new start replaces it.
   const [activeInput, setActiveInput] = useState<LabInput | null>(null);
+  // The draft the setup form currently describes, so the Orders window can start
+  // it without owning the form's state. It is held in state because the compass
+  // renders from it — a ref alone would leave the recipe and wipe limit stale
+  // whenever the draft changed without `canStart` changing with it — and mirrored
+  // into a ref so `onStartDraft` never closes over a stale copy.
+  const [draft, setDraft] = useState<{ input: LabInput | null; canStart: boolean }>({
+    input: null,
+    canStart: false,
+  });
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const onDraftChange = useCallback((input: LabInput, startable: boolean) => {
+    setDraft((current) =>
+      current.input === input && current.canStart === startable ? current : { input, canStart: startable },
+    );
+  }, []);
 
   const onStart = useCallback(
     (input: LabInput) => {
       setActiveInput(input);
       setInspected(null);
+      // Ruling R80: a fresh generation's clock always begins at 1x.
+      setLocalSpeed(1);
+      setSetupOpen(false);
       start(input);
     },
     [start],
   );
 
-  const nowMs = state?.nowMs ?? 0;
-  const party = useMemo(() => (state?.actors ?? []).filter((actor) => actor.side === 'party'), [state]);
-  const enemies = useMemo(() => (state?.actors ?? []).filter((actor) => actor.side === 'enemy'), [state]);
+  const onStartDraft = useCallback(() => {
+    const { input, canStart: startable } = draftRef.current;
+    if (input === null || !startable) return;
+    onStart(input);
+  }, [onStart]);
+
+  const onStop = useCallback(() => {
+    stop();
+    // A finished run is the moment to set up the next one.
+    setSetupOpen(true);
+  }, [stop]);
+
+  const onSpeedChange = useCallback(
+    (next: number) => {
+      setLocalSpeed(next);
+      setSpeed(next);
+    },
+    [setSpeed],
+  );
+
+  /**
+   * Writes the whole session to a local JSON file. Enabled as soon as a run has
+   * started, because a run that errored or stopped early is exactly the one worth
+   * sending on. `simulationVersion` is the literal `'a1'` the sim stamps into
+   * every state; the projection does not carry it and `PublicState` is not ours
+   * to extend (ruling R83), so this mirrors `tools/balance`'s benchmark metadata.
+   */
+  const onExport = useCallback(() => {
+    const bundle = buildSessionExport({
+      versions: {
+        simulationVersion: 'a1',
+        contentVersion: content.version,
+        gridHash: content.gridHash,
+      },
+      status,
+      input: activeInput,
+      state,
+      events,
+      eventHistoryLimit: EVENT_HISTORY_LIMIT,
+      comparisonA,
+      comparisonB,
+      now: () => new Date(),
+    });
+    downloadJson(sessionExportFilename(bundle), bundle);
+  }, [status, activeInput, state, events, comparisonA, comparisonB]);
+
+  const canExport = activeInput !== null || comparisonA !== null || comparisonB !== null;
 
   // Slot A is the earlier retained run, slot B the latest (R54/R63).
   const runs = useMemo<ComparisonRun[]>(
@@ -140,299 +134,101 @@ export function App(): React.JSX.Element {
     [comparisonA, comparisonB],
   );
 
-  const onLanguage = useCallback((next: SupportedLanguage) => {
-    void setLanguage(next);
+  // The run the compass describes: the live one while it lasts, else the draft.
+  const shownInput = activeInput ?? draft.input;
+
+  // Keep the inspected skill and the selected member honest across roster changes.
+  useEffect(() => {
+    if (state === null) return;
+    const ids = new Set(state.actors.filter((actor) => actor.side === 'party').map((actor) => actor.id));
+    if (selectedId !== null && !ids.has(selectedId)) setSelectedId(null);
+    if (inspected !== null && !ids.has(inspected.actorId)) setInspected(null);
+  }, [state, selectedId, inspected]);
+
+  const onCloseSetup = useCallback(() => setSetupOpen(false), []);
+  const onToggleSetup = useCallback(() => setSetupOpen((open) => !open), []);
+
+  /**
+   * The approved stylesheet already ships the switch
+   * (`styles.css`: `body[data-paused="true"] .realm * { animation-play-state: paused }`)
+   * but nothing was writing the attribute, so the world's fog, embers, sparks,
+   * target rings and cast bars ran forever — including while the lab sat idle
+   * with no experiment loaded, or paused behind the setup form. Animations now
+   * run exactly while the hunt does.
+   */
+  useEffect(() => {
+    const paused = status !== 'running';
+    document.body.dataset.paused = paused ? 'true' : 'false';
+    return () => {
+      delete document.body.dataset.paused;
+    };
+  }, [status]);
+
+  const onInspect = useCallback((actorId: string, skillId: string) => {
+    setInspected((current) =>
+      current !== null && current.actorId === actorId && current.skillId === skillId
+        ? null
+        : { actorId, skillId },
+    );
+    setSelectedId(actorId);
   }, []);
-
-  const inspectedActor = inspected === null ? null : (state?.actors.find((actor) => actor.id === inspected.actorId) ?? null);
-  const inspectedSkill = inspected === null ? null : content.skills[inspected.skillId];
-
-  function inspectionDetail(): string {
-    if (inspectedActor === null || inspectedSkill === null) return t('inspect.noSelection');
-    const activity = skillActivity(inspectedActor, inspectedSkill, nowMs);
-    switch (activity) {
-      case 'cooldown':
-        return t('inspect.cooldown', {
-          remaining: formatDuration(Math.max(0, (inspectedActor.cooldowns[inspectedSkill.id] ?? 0) - nowMs), t, language),
-        });
-      case 'unavailable':
-        return t('inspect.unavailable', {
-          cost: formatNumber(inspectedSkill.mp, language),
-          mp: formatNumber(inspectedActor.mp, language),
-          actor: actorDisplayName(t, inspectedActor),
-        });
-      case 'casting':
-        return t('inspect.casting');
-      case 'active':
-        return t('inspect.active');
-      case 'ready':
-        return t('inspect.ready');
-    }
-  }
-
-  const metrics = state?.metrics ?? null;
 
   return (
     <div className="realm">
-      <header className="realm-head">
-        <div className="brand">
-          <h1>{t('app.title')}</h1>
-          <p className="tagline">{t('app.tagline')}</p>
-        </div>
-        <div className="playback" role="group" aria-label={t('status.label')}>
-          <span className="playback-item">
-            <span className="playback-key">{t('status.label')}</span>
-            <strong data-testid="playback-status">{t(`status.${status}`)}</strong>
-          </span>
-          <span className="playback-item">
-            <span className="playback-key">{t('playback.elapsed')}</span>
-            <strong className="num" data-testid="elapsed-time">
-              {formatDuration(nowMs, t, language)}
-            </strong>
-          </span>
-          <span className="playback-item">
-            <span className="playback-key">{t('playback.phase')}</span>
-            <strong>{state === null ? t('value.none') : t(`phase.${state.phase}`)}</strong>
-          </span>
-        </div>
-        <div className="languages" role="group" aria-label={t('language.label')}>
-          {SUPPORTED_LANGUAGES.map((code) => (
-            <button
-              key={code}
-              type="button"
-              className="ghost-button"
-              aria-pressed={language === code}
-              onClick={() => onLanguage(code)}
-            >
-              {t(`language.${code}`)}
-            </button>
-          ))}
-        </div>
-      </header>
+      <SpriteSheet />
+      <WorldBackdrop />
+      <Battlefield state={state} grid={content.grid} events={events} />
 
-      <p className="playback-note" data-testid="playback-note">
-        {t('playback.note')}
-      </p>
-      {status === 'error' && (
-        <p role="alert" className="alert">
-          {t('error.title')}
-        </p>
-      )}
+      <TargetFrame state={state} />
 
-      <div className="realm-body">
-        <div className="col col--left">
-          <section className="win panel" aria-label={t('unit.party')}>
-            <h2 className="win-title">{t('unit.party')}</h2>
-            {party.length === 0 ? (
-              <p className="help">{t('unit.empty')}</p>
-            ) : (
-              <ul className="units">
-                {party.map((actor) => (
-                  <li key={actor.id} className="unit">
-                    <p className="unit-name">
-                      {actorDisplayName(t, actor)} <span className="unit-id num">{actor.id}</span>
-                    </p>
-                    <Meter
-                      kind="hp"
-                      label={t('unit.hp')}
-                      value={`${formatNumber(actor.hp, language)} / ${formatNumber(actor.maxHp, language)}`}
-                      max={(actor.hp / Math.max(1, actor.maxHp)) * 100}
-                    />
-                    <Meter
-                      kind="mp"
-                      label={t('unit.mp')}
-                      value={`${formatNumber(actor.mp, language)} / ${formatNumber(actor.maxMp, language)}`}
-                      max={(actor.mp / Math.max(1, actor.maxMp)) * 100}
-                    />
-                    <p className="unit-line">
-                      {t('unit.target')}:{' '}
-                      {actor.currentTarget === null
-                        ? t('unit.noTarget')
-                        : actorLabel(t, actor.currentTarget, state?.actors ?? [])}
-                      {targetReasonLabel(t, actor, state?.actors ?? [], activeInput) === null
-                        ? ''
-                        : ` — ${targetReasonLabel(t, actor, state?.actors ?? [], activeInput)}`}
-                    </p>
-                    <p className="unit-line">
-                      {actor.casting === null
-                        ? t('unit.notCasting')
-                        : t('unit.casting', { skill: t(`skill.${actor.casting}`) })}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="win panel" aria-label={t('unit.enemies')}>
-            <h2 className="win-title">{t('unit.enemies')}</h2>
-            {enemies.length === 0 ? (
-              <p className="help">{t('unit.empty')}</p>
-            ) : (
-              <ul className="units units--foe">
-                {enemies.map((actor) => (
-                  <li key={actor.id} className="unit">
-                    <p className="unit-name">
-                      {actorDisplayName(t, actor)} <span className="unit-id num">{actor.id}</span>
-                    </p>
-                    <Meter
-                      kind="hp"
-                      label={t('unit.hp')}
-                      value={`${formatNumber(actor.hp, language)} / ${formatNumber(actor.maxHp, language)}`}
-                      max={(actor.hp / Math.max(1, actor.maxHp)) * 100}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-
-        <div className="col col--centre">
-          <BattlefieldView state={state} grid={content.grid} />
-
-          <section className="win panel skills-panel" aria-label={t('app.skills')}>
-            <h2 className="win-title">{t('app.skills')}</h2>
-            <p className="help">{t('inspect.hint')}</p>
-            {party.length === 0 ? (
-              <p className="help">{t('unit.empty')}</p>
-            ) : (
-              <div className="skillsets">
-                {party.map((actor) => {
-                  const definition = content.classes[actor.definitionId as keyof typeof content.classes];
-                  const skills = definition?.skills ?? [];
-                  return (
-                    <div key={actor.id} className="skillset" aria-label={actorDisplayName(t, actor)}>
-                      <p className="skillset-owner">
-                        {actorDisplayName(t, actor)} <span className="num">{actor.id}</span>
-                      </p>
-                      <ul className="slots">
-                        {skills.map((skillId) => {
-                          const skill = content.skills[skillId];
-                          const activity = skillActivity(actor, skill, nowMs);
-                          const selected = inspected?.actorId === actor.id && inspected.skillId === skillId;
-                          return (
-                            <li key={skillId}>
-                              <button
-                                type="button"
-                                className={`slot slot--${activity}`}
-                                aria-pressed={selected}
-                                aria-label={`${t(`skill.${skillId}`)} — ${t(`skillState.${activity}`)}`}
-                                onClick={() => setInspected({ actorId: actor.id, skillId })}
-                              >
-                                <span className="slot-name">{t(`skill.${skillId}`)}</span>
-                                {/* Shape/text cue, never hue alone (§3). */}
-                                <span className="slot-state">{t(`skillState.${activity}`)}</span>
-                                <span className="slot-cost num">{formatNumber(skill.mp, language)}</span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div className="inspection" role="status">
-              {inspected === null || inspectedSkill === null ? (
-                <p>{t('inspect.noSelection')}</p>
-              ) : (
-                <>
-                  <p className="inspection-head">
-                    {t('inspect.heading', {
-                      skill: t(`skill.${inspected.skillId}`),
-                      state:
-                        inspectedActor === null
-                          ? t('value.none')
-                          : t(`skillState.${skillActivity(inspectedActor, inspectedSkill, nowMs)}`),
-                    })}
-                  </p>
-                  <p>{inspectionDetail()}</p>
-                  <p className="num">{t('inspect.cost', { cost: formatNumber(inspectedSkill.mp, language) })}</p>
-                  <a className="rule-link" href={`#rule-${inspected.actorId}-${inspected.skillId}`}>
-                    {t('inspect.editRule', { skill: t(`skill.${inspected.skillId}`) })}
-                  </a>
-                </>
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div className="col col--right">
-          <section className="win panel" aria-label={t('app.session')}>
-            <h2 className="win-title">{t('app.session')}</h2>
-            <dl className="figures">
-              <div className="figure">
-                <dt>{t('metrics.kills')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatNumber(metrics.kills, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.killsPerHour')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatPerHour(metrics.kills, nowMs, t, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.wins')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatNumber(metrics.wins, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.wipes')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatNumber(metrics.wipes, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.damageDealt')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatNumber(metrics.damageDealt, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.effectiveHealing')}</dt>
-                <dd className="num">
-                  {metrics === null ? t('value.none') : formatNumber(metrics.effectiveHealing, language)}
-                </dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.rawExp')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatNumber(metrics.rawExp, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.rawGold')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatNumber(metrics.rawGold, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.walkMs')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatMeasuredDuration(metrics.walkMs, t, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.fightMs')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatMeasuredDuration(metrics.fightMs, t, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.restMs')}</dt>
-                <dd className="num">{metrics === null ? t('value.none') : formatMeasuredDuration(metrics.restMs, t, language)}</dd>
-              </div>
-              <div className="figure">
-                <dt>{t('metrics.stopReason')}</dt>
-                <dd>{state === null || state.stopReason === null ? t('stopReason.none') : t(`stopReason.${state.stopReason}`)}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <EventLog events={events} actors={state?.actors ?? []} />
-        </div>
+      {/* The reference's left column is party + session and is sized to fit
+          above the chat window; adding a third panel here clipped the session's
+          figures, so the laboratory's own readouts live in the rail, which
+          scrolls. */}
+      <div className="leftcol">
+        <PartyPanel state={state} selectedId={selectedId} onSelect={setSelectedId} />
+        <SessionPanel state={state} />
       </div>
 
-      <Comparison runs={runs} />
+      <aside className="rail" aria-label={t('app.session')}>
+        <LabStrip state={state} status={status} canExport={canExport} onExport={onExport} />
+        <Compass
+          state={state}
+          grid={content.grid}
+          status={status}
+          wipeLimit={shownInput?.wipeLimit ?? null}
+          recipeId={shownInput?.recipe ?? null}
+        />
+        <RunsPanel runs={runs} />
+        <OrdersPanel
+          status={status}
+          speed={speed}
+          canStart={draft.canStart}
+          onStart={onStartDraft}
+          onPause={pause}
+          onResume={resume}
+          onStop={onStop}
+          onSpeedChange={onSpeedChange}
+          onOpenSetup={onToggleSetup}
+        />
+      </aside>
 
-      <ExperimentControls
+      <ChatPanel events={events} actors={state?.actors ?? []} />
+
+      <CommandBar state={state} selectedId={selectedId} inspected={inspected} onInspect={onInspect} />
+
+      <SetupOverlay
+        open={setupOpen}
         content={content}
         status={status}
         onStart={onStart}
         onPause={pause}
         onResume={resume}
-        onStop={stop}
-        onSpeedChange={setSpeed}
+        onStop={onStop}
+        onSpeedChange={onSpeedChange}
+        onDraftChange={onDraftChange}
+        onClose={onCloseSetup}
       />
-
-      <p className="scope-note">{t('app.scope')}</p>
     </div>
   );
 }
