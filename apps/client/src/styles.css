@@ -801,6 +801,27 @@ button:disabled { cursor: not-allowed; }
 .rail > .loot { flex: 1 1 auto; min-height: 84px; overflow-y: auto; }
 .orders { margin-top: 0; }
 
+/* The log's rows must not shrink.
+   `.log` is a flex column and `.log li` carries `overflow: hidden`, which
+   resolves a flex item's automatic minimum height to zero. The reference's chat
+   holds a handful of lines, so nothing there ever shrank; the laboratory keeps
+   up to five hundred (`EVENT_HISTORY_LIMIT`), and past roughly thirty the rows
+   compressed to a few pixels each and the log rendered as clipped glyph
+   fragments instead of scrolling. Measured: the shortest row was 3.77px against
+   the sheet's own 18px line height. Pinning the rows lets the real scrolling
+   R61 already implements take over. */
+.log li { flex-shrink: 0; }
+
+/* ...and the rows have to be bottom-aligned by a margin, not by the container.
+   `justify-content: flex-end` pushes overflow out of the *start* edge, where it
+   adds nothing to `scrollHeight` and cannot be scrolled back to: with the rows
+   pinned above, the log stopped squashing and simply lost its oldest lines.
+   An auto top margin on the first row bottom-aligns exactly the same way while
+   the overflow stays inside the scroll box, which is what R61's pinning and
+   "Return to latest" are built on. */
+.log { justify-content: flex-start; }
+.log > li:first-child { margin-top: auto; }
+
 /* The orders window's secondary run actions. `.tiers` is the reference's
    five-pip rarity strip and was the wrong hook for buttons. */
 .run-actions { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 2px 2px 0; }

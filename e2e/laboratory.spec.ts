@@ -162,3 +162,29 @@ for (const { width, height } of [
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+/**
+ * The reference's chat holds a handful of lines. The laboratory's holds up to
+ * five hundred (`EVENT_HISTORY_LIMIT`), and `.log` is a flex column whose rows
+ * carry `overflow: hidden` — which resolves their automatic minimum height to
+ * zero, so past a certain count the rows shrank instead of scrolling and the
+ * log rendered as a field of clipped glyph fragments. The rows must keep their
+ * line height and the list must scroll instead.
+ */
+test('the event log scrolls instead of squashing its rows once the history is long', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start experiment', exact: true }).click();
+  const log = page.getByRole('list', { name: en.log.rows });
+  await expect
+    .poll(async () => log.locator('li').count(), { timeout: 20_000 })
+    .toBeGreaterThan(40);
+
+  const rows = await log.locator('li').evaluateAll((items) =>
+    items.map((item) => (item as HTMLElement).getBoundingClientRect().height),
+  );
+  const shortest = Math.min(...rows);
+  expect(shortest, `shortest of ${rows.length} rows`).toBeGreaterThanOrEqual(14);
+
+  const scrolls = await log.evaluate((element) => element.scrollHeight > element.clientHeight + 1);
+  expect(scrolls, 'the log scrolls its overflow').toBe(true);
+});
