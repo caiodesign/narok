@@ -105,30 +105,35 @@ milestone's *acceptance gates* and cover all four parts. Rulings continue the re
 ## 4. Open decisions
 
 The four parts raise **51** decisions between them: 16 in Part 1, 10 in Part 2, 14 in Part 3 and 11
-in Part 4. Each states its options, its tradeoff and a recommendation in its own part. This section
+in Part 4. Five are settled and one — prices — is deferred (§4.0), leaving **45**. Each states its options, its tradeoff and a recommendation in its own part. This section
 groups them by what they block, because that is what decides the order they are taken in. None of
 them is decided here.
 
+### 4.0 Decided by the owner, 2026-09-21
+
+Recorded in layer-1 where they belong (§4.5, §7.4, §7.5, §15) and applied in the parts.
+
+| Decision | What was decided |
+|---|---|
+| Stop, Resume and the cost of leaving | **Stop returns to town.** There is no resume of an interrupted encounter: the encounter is abandoned, the return consumes a simulated travel segment, and stopping preserves damage, spent resources, PRNG progression and pity. Starting again begins a new encounter. |
+| Bag overflow | **The drop is lost**, audited as lost. The hunt continues; a full bag does not send the party to town. |
+| First equipment reward | **A fixed Uncommon item on the first won encounter, rolled by nothing and identical for every account.** One fixed item per class, so it is usable by the character that earns it, and the same item for every account of that class. The owner's reason is explicit: an account must not be worth re-creating for a better roll. |
+| Prices | **Deferred.** Not now. The NPC shop and potion purchase cannot ship until prices exist, so the plan sequences them last and behind a flag. |
+
 ### 4.1 Blocks writing the milestone B plan
 
-These change the shape of the work, so the plan cannot be sequenced around them. Four are named in
-layer-1 §15 as blocking milestone B by name.
+These change the shape of the work, so the plan cannot be sequenced around them. The six rows the
+owner settled or deferred on 2026-09-21 have moved to §4.0.
 
 | Decision | The owner's question | What the parts recommend | Detail |
 |---|---|---|---|
-| Retreat, town return and travel costs (layer-1 §15) | What does leaving an encounter cost, and what must never be free? | A simulated return-travel segment as the only cost, with every stop and restart invariant enforced | Part 2 §9, Part 3 §8 #9 |
-| Stop and Resume semantics | Is Stop a suspend-and-resume, or a retreat to town? The UI spec and layer-1 describe different things | Stop suspends and Resume continues the same encounter, with retreat as a separate action. It cannot be settled before the travel-cost decision above | Part 4 §7 |
 | Item compatibility, two-handed and off-hand (layer-1 §15) | Does a two-handed weapon lock the off-hand slot? | Yes. Equipping one auto-unequips the off-hand in town, and the command fails if the bag cannot hold it | Part 3 §8 #1 |
-| Bag-overflow processing (layer-1 §15) | What happens to a drop that does not fit? | Loss, audited, evaluated at encounter end, with return-to-town as the default policy | Part 3 §8 #6 |
-| Prices (layer-1 §15) | What do potions and equipment cost? | A published base-price formula with per-definition overrides, selected from measured net gold | Part 3 §8 #8 |
 | One-time starter grants (layer-1 §15) | What does a new account begin with? | Idempotent per account and slot: potions on the first slot, and a character-bound, non-sellable starter weapon | Part 3 §8 #10 |
-| First equipment reward and trigger (layer-1 §15) | When does a player's first real item arrive? | On the first won encounter: a fixed Uncommon class weapon with one fitting bonus, tagged as a grant and excluded from drop metrics | Part 3 §8 #11 |
 | HP/MP adjustment on maximum change (layer-1 §15) | What happens to current HP and MP when the maximum moves? | Preserve the absolute value and clamp, with the same rule for level-up, equip, respec and migration. Ratio preservation would hand out free healing | Part 1 §9 #16, Part 3 §8 #12 |
 | Checkpoint column type and encoding | How is the checkpoint stored? | `bytea` holding canonical JSON. `jsonb` renormalises keys and numbers and would break the byte-equality the determinism tests rest on | Part 1 §9 #6 |
 | Laboratory retention | Does milestone A's laboratory survive, and where? | Move it to its own `apps/lab`, so its comparison harness and tests live on while `apps/client` becomes engine-free | Part 4 §7 |
 | Stylesheet discipline for Bag, Character and Away | Port three more sheets verbatim under a new ruling, or extract shared tokens? | Port verbatim and keep shared tokens inside the labelled additions blocks. Extracting tokens out of the frozen sheets would repeal R107 and discard the only mechanical fidelity test the project has | Part 4 §7 |
 | Where the loot evaluator runs | One evaluator, two runtimes? | A pure `packages/loot` imported by both sides, with one shared test vector so drift becomes a failing test | Part 4 §7 |
-| Resume-capable pause | `Simulation.stop` clears the scheduled queue, so it cannot be reused for Resume | Add a `paused` phase that retains the queue | Part 2 §9 |
 | Pending activation boundary | When exactly does a queued strategy become active? | One atomic activation at the next spawn, before the recipe draw, so activation consumes no RNG and cannot reroll an encounter | Part 2 §9 |
 
 ### 4.2 Blocks beta invitations

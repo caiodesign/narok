@@ -158,7 +158,7 @@ A transport reconnect can discard the local animation queue and resynchronize fr
 - Equipment, party composition, and respec changes happen in town. Manual point allocation is available in town; automatic stat allocation happens during hunts.
 - Stopping a hunt preserves damage, spent resources, PRNG progression, and pity counters. Restarting never grants a free heal, seed reset, cooldown reset, or encounter reroll.
 - A paused encounter resumes from its stored state. Abandoning it for town/map change is an explicit retreat transition, not a silent reset.
-- Return-to-town/map-change recovery and travel costs must be specified before milestone B. ❓ They must consume game time/resources as appropriate and cannot provide repeated zero-cost encounter sampling or healing.
+- Return-to-town/map-change recovery and travel costs must be specified before milestone B. ✅ **Decided 2026-09-21 (owner):** stopping a hunt *is* the return to town — there is no resume of an interrupted encounter. The abandoned encounter is lost, the return consumes a simulated travel segment, and stopping still preserves damage, spent resources, PRNG progression and pity counters (§4.5). Starting again begins a new encounter, which is why repeated sampling costs travel time and buys no healing.
 - Simultaneous commands use server sequencing; clients cannot backdate changes.
 - Scheduled consumable use, rest, walking, respawn, and retreat are simulation transitions, not special offline approximations.
 
@@ -470,7 +470,7 @@ Future market planning uses measured supply, demand, binding, and item removal. 
 - Actions: Keep, Auto-sell, Ignore. Auto-sell converts directly to gold without using a slot.
 - Suggested sell multipliers: Common 1, Uncommon 1.5, Rare 2.5, Epic 4, Legendary 7. 🟡 Define integer-price rounding.
 - Starter filter: auto-sell Common equipment, keep Uncommon+ and supported consumables, with an explicit fallback for future categories. ✅
-- When Keep cannot fit an item, follow configured bag behavior. Define deterministic processing of multi-monster rewards, stack overflow, and the triggering item before inventory implementation. ❓
+- When Keep cannot fit an item, follow configured bag behavior. Deterministic processing of multi-monster rewards, stack overflow and the triggering item is defined in [milestone B part 3](docs/milestone-b/03-town.md). **Decided 2026-09-21 (owner):** a drop that does not fit is **lost**, audited as such; the hunt continues and does not return to town for a full bag. ✅
 
 ### 7.6 Town
 
@@ -478,7 +478,7 @@ Town supports the NPC shop, equipment/party changes, manual stat/skill allocatio
 
 - NPC buys items and sells potions. Prices must be included in sustainability experiments. ❓
 - Small HP Potion: heals 25% Max HP; Small MP Potion: restores 20% Max MP. 🟡
-- Starting kit: 20 Small HP Potions plus class starter weapon. 🟡 Define kit ownership/grant boundaries so character creation cannot become an unintended gold or potion faucet. ❓
+- Starting kit: 20 Small HP Potions plus class starter weapon. 🟡 Define kit ownership/grant boundaries so character creation cannot become an unintended gold or potion faucet. ❓ (Grant idempotency is specified in [milestone B part 3](docs/milestone-b/03-town.md); the kit's contents stay open.)
 - Recovery and travel must obey the explicit transition policy in §4.5; merely opening town or reconnecting provides no free healing.
 
 ## 8. Server, persistence, security, and operations
@@ -630,9 +630,9 @@ Preserve stable IDs, explicit ownership/trade eligibility, versioned effects, au
 | Stalemate, path blocking, shape orientation, duplicate Taunt, stun/cast behavior | Milestone A encounter validation |
 | Whether placement produces understandable value and the grid should remain | Broad content expansion |
 | HP/MP adjustments on stat/max changes, dead-member EXP, respawn MP/status handling | Progression/respawn implementation |
-| Retreat/travel/town recovery costs and stop/restart invariants | Milestone B hunt lifecycle |
-| Item compatibility, bag-overflow processing, prices, and one-time starter grants | Milestone B inventory/town |
-| Predictable first equipment reward and trigger | Milestone B onboarding |
+| ~~Retreat/travel/town recovery costs and stop/restart invariants~~ | **Decided 2026-09-21:** stop returns to town, §4.5 |
+| Item compatibility, prices and one-time starter grants (bag overflow **decided 2026-09-21:** the drop is lost, §7.5) | Milestone B inventory/town. **Prices deferred by the owner 2026-09-21**: the NPC shop cannot ship until they are set |
+| ~~Predictable first equipment reward and trigger~~ | **Decided 2026-09-21:** a fixed Uncommon item on the first won encounter, identical for every account, no RNG, §7.4 |
 | Pity eligibility, tier mapping, thresholds, reset/precedence, and disclosure | Expanded-beta drop protection |
 | Premium extra-slot counts and expiry access policy | Premium preset experiment |
 | Beta progression persistence/reset policy and admin recovery procedure | Sending beta invitations |
