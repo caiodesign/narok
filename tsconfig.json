@@ -16,7 +16,8 @@
     "types": ["node"],
     "paths": {
       "@narok/data": ["./packages/data/src/index.ts"],
-      "@narok/sim": ["./packages/sim/src/index.ts"]
+      "@narok/sim": ["./packages/sim/src/index.ts"],
+      "@narok/protocol": ["./packages/protocol/src/index.ts"]
     }
   },
   "include": [

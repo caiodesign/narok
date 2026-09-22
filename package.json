@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint --no-error-on-unmatched-pattern packages tools apps e2e",
     "dev": "pnpm --filter @narok/client dev",
+    "dev:server": "pnpm --filter @narok/server dev",
     "balance": "tsx tools/balance/src/cli.ts",
     "check": "pnpm build:data && pnpm typecheck && pnpm lint && pnpm test",
     "test:e2e": "playwright test"
