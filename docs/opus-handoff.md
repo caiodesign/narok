@@ -37,7 +37,7 @@ Start with milestone A unless the owner separately changes scope. Adapt Realm’
 
 Written gameplay rules override sample copy/numbers. In particular: no beta EXP loss, universal auto-spend, shared offline cap, no survival forecast, one default wipe, and the parent skill-point curve. See the complete correction table in the Realm UI spec. Do not copy unsupported focus modes, mana rules, premium claims, material slots or demo skill costs into the simulator.
 
-After A, present its real test/benchmark/human-placement evidence and the retain/simplify recommendation. Draft the milestone B technical specification before implementing pending strategy versions, persistent inventory and offline state. This handoff specifies their intended UI semantics but does not claim the full B backend design exists.
+After A, present its real test/benchmark/human-placement evidence and the retain/simplify recommendation. The milestone B technical specification is now drafted — [the index](../2026-09-21-milestone-b-spec.md) and [its four parts](milestone-b/) — and is a draft, not an accepted design: its §4 collects 51 open decisions, and nothing in it is implementable until the owner records them. Do not start pending strategy versions, persistent inventory or offline state from it before then.
 
 ## Suggested kickoff instruction
 

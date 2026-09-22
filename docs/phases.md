@@ -39,7 +39,10 @@ experiment setup. A7's automated half is done and recorded in [`artifacts/milest
 
 ## Phase B — Persistent playable loop
 
-**First:** write the milestone B technical spec and plan. They do not exist yet.
+**First:** write the milestone B technical spec and plan. The spec is drafted —
+[`2026-09-21-milestone-b-spec.md`](../2026-09-21-milestone-b-spec.md) and its four parts under
+[`docs/milestone-b/`](milestone-b/) — and is **not accepted**: it raises 51 open decisions, and the
+fourteen in its §4.1 block writing the plan. The plan does not exist yet.
 
 - **Backend:** accounts (email + password), Fastify + PostgreSQL, authoritative hunt lifecycle, offline catch-up with the shared 12h cap, checkpoint recovery.
 - **Town:** equipment (8 slots, 5 rarities), potions, NPC shop, shared bag, basic loot filter.
