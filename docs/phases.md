@@ -42,7 +42,10 @@ experiment setup. A7's automated half is done and recorded in [`artifacts/milest
 **First:** write the milestone B technical spec and plan. The spec is drafted —
 [`2026-09-21-milestone-b-spec.md`](../2026-09-21-milestone-b-spec.md) and its four parts under
 [`docs/milestone-b/`](milestone-b/) — and is **not accepted**: it raises 51 open decisions, and the
-fourteen in its §4.1 block writing the plan. The plan does not exist yet.
+fourteen in its §4.1 blocked writing the plan. Nine of those were settled or deferred by the owner
+on 2026-09-21, so the plan is now drafted too —
+[`2026-09-22-milestone-b-plan.md`](../2026-09-22-milestone-b-plan.md), eleven tasks — and is **not
+authorized to start**: milestone A's three open gates come first.
 
 - **Backend:** accounts (email + password), Fastify + PostgreSQL, authoritative hunt lifecycle, offline catch-up with the shared 12h cap, checkpoint recovery.
 - **Town:** equipment (8 slots, 5 rarities), potions, NPC shop, shared bag, basic loot filter.
