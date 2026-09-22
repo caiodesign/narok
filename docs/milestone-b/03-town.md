@@ -345,7 +345,7 @@ Three harness changes make those possible. First, `LabInput` grows into a B-era 
 
 | # | Decision | Gate | Recommendation |
 |---|---|---|---|
-| 1 | Two-handed and off-hand compatibility (layer-1 §7.1, §15) | Before equipment implementation | A two-handed weapon occupies `weapon` and locks `offhand` to empty; equipping one auto-unequips the off-hand in town, and the transaction fails if the bag cannot hold it |
+| 1 | ~~Two-handed and off-hand compatibility~~ — **decided 2026-09-21 (owner)** | Settled | A two-handed weapon occupies `weapon` and locks `offhand` to empty. Equipping one auto-unequips the off-hand in town, and the transaction fails if the bag cannot hold what comes off |
 | 2 | Bonus identity scope for family and element variants (layer-1 §7.1) | Before the bonus pools are authored | Treat each family/element variant as its own identity, so "+Fire damage" and "+Water damage" can coexist on one item; document it, because the alternative silently reduces Legendary variety |
 | 3 | Bonus value tier and value spans (layer-1 §7.1) | Before drop balancing | Keep `valueTier = ceil(itemLevel / 10)` as proposed and author explicit per-tier `spans`, so every bonus consumes exactly one value draw |
 | 4 | Beta equipment persistence and reset policy (layer-1 §7.1, §15) | Before beta invitations | Full persistence with migrations through the closed beta; one announced end-of-beta reset |

@@ -631,7 +631,7 @@ Preserve stable IDs, explicit ownership/trade eligibility, versioned effects, au
 | Whether placement produces understandable value and the grid should remain | Broad content expansion |
 | HP/MP adjustments on stat/max changes, dead-member EXP, respawn MP/status handling | Progression/respawn implementation |
 | ~~Retreat/travel/town recovery costs and stop/restart invariants~~ | **Decided 2026-09-21:** stop returns to town, §4.5 |
-| Item compatibility, prices and one-time starter grants (bag overflow **decided 2026-09-21:** the drop is lost, §7.5) | Milestone B inventory/town. **Prices deferred by the owner 2026-09-21**: the NPC shop cannot ship until they are set |
+| One-time starter grants (bag overflow **decided 2026-09-21:** the drop is lost, §7.5; two-handed compatibility **decided 2026-09-21:** a two-handed weapon locks the off-hand, §7.1) | Milestone B inventory/town. **Prices deferred by the owner 2026-09-21**: the NPC shop cannot ship until they are set |
 | ~~Predictable first equipment reward and trigger~~ | **Decided 2026-09-21:** a fixed Uncommon item on the first won encounter, identical for every account, no RNG, §7.4 |
 | Pity eligibility, tier mapping, thresholds, reset/precedence, and disclosure | Expanded-beta drop protection |
 | Premium extra-slot counts and expiry access policy | Premium preset experiment |

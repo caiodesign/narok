@@ -105,7 +105,7 @@ milestone's *acceptance gates* and cover all four parts. Rulings continue the re
 ## 4. Open decisions
 
 The four parts raise **51** decisions between them: 16 in Part 1, 10 in Part 2, 14 in Part 3 and 11
-in Part 4. Five are settled and one — prices — is deferred (§4.0), leaving **45**. Each states its options, its tradeoff and a recommendation in its own part. This section
+in Part 4. Eight are settled and one — prices — is deferred (§4.0), leaving **42**. Each states its options, its tradeoff and a recommendation in its own part. This section
 groups them by what they block, because that is what decides the order they are taken in. None of
 them is decided here.
 
@@ -119,20 +119,21 @@ Recorded in layer-1 where they belong (§4.5, §7.4, §7.5, §15) and applied in
 | Bag overflow | **The drop is lost**, audited as lost. The hunt continues; a full bag does not send the party to town. |
 | First equipment reward | **A fixed Uncommon item on the first won encounter, rolled by nothing and identical for every account.** One fixed item per class, so it is usable by the character that earns it, and the same item for every account of that class. The owner's reason is explicit: an account must not be worth re-creating for a better roll. |
 | Prices | **Deferred.** Not now. The NPC shop and potion purchase cannot ship until prices exist, so the plan sequences them last and behind a flag. |
+| Milestone A's laboratory | **Kept.** It moves to its own `apps/lab` with its comparison harness and tests, so it survives while `apps/client` becomes engine-free — keeping it inside `apps/client` would ship the simulation to production, which gate B-02 exists to prevent. |
+| Bag, Character and Away stylesheets | **Ported verbatim**, like Hunt and Strategy: byte-identical sheets frozen under a new ruling continuing the R1xx sequence, with anything the product needs confined to a labelled additions block. |
+| Two-handed weapons | **They lock the off-hand.** A two-handed weapon occupies `weapon` and forces `offhand` empty; equipping one auto-unequips the off-hand in town, and the command fails if the bag cannot hold what comes off. |
 
 ### 4.1 Blocks writing the milestone B plan
 
-These change the shape of the work, so the plan cannot be sequenced around them. The six rows the
-owner settled or deferred on 2026-09-21 have moved to §4.0.
+These change the shape of the work, so the plan cannot be sequenced around them. The nine rows the
+owner settled or deferred on 2026-09-21 have moved to §4.0. The five below are technical and are
+being taken against the recommendation in their part unless the owner says otherwise.
 
 | Decision | The owner's question | What the parts recommend | Detail |
 |---|---|---|---|
-| Item compatibility, two-handed and off-hand (layer-1 §15) | Does a two-handed weapon lock the off-hand slot? | Yes. Equipping one auto-unequips the off-hand in town, and the command fails if the bag cannot hold it | Part 3 §8 #1 |
 | One-time starter grants (layer-1 §15) | What does a new account begin with? | Idempotent per account and slot: potions on the first slot, and a character-bound, non-sellable starter weapon | Part 3 §8 #10 |
 | HP/MP adjustment on maximum change (layer-1 §15) | What happens to current HP and MP when the maximum moves? | Preserve the absolute value and clamp, with the same rule for level-up, equip, respec and migration. Ratio preservation would hand out free healing | Part 1 §9 #16, Part 3 §8 #12 |
 | Checkpoint column type and encoding | How is the checkpoint stored? | `bytea` holding canonical JSON. `jsonb` renormalises keys and numbers and would break the byte-equality the determinism tests rest on | Part 1 §9 #6 |
-| Laboratory retention | Does milestone A's laboratory survive, and where? | Move it to its own `apps/lab`, so its comparison harness and tests live on while `apps/client` becomes engine-free | Part 4 §7 |
-| Stylesheet discipline for Bag, Character and Away | Port three more sheets verbatim under a new ruling, or extract shared tokens? | Port verbatim and keep shared tokens inside the labelled additions blocks. Extracting tokens out of the frozen sheets would repeal R107 and discard the only mechanical fidelity test the project has | Part 4 §7 |
 | Where the loot evaluator runs | One evaluator, two runtimes? | A pure `packages/loot` imported by both sides, with one shared test vector so drift becomes a failing test | Part 4 §7 |
 | Pending activation boundary | When exactly does a queued strategy become active? | One atomic activation at the next spawn, before the recipe draw, so activation consumes no RNG and cannot reroll an encounter | Part 2 §9 |
 
