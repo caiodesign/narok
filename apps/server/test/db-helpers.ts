@@ -1,0 +1,157 @@
+/**
+ * The live-database harness. Every suite that touches PostgreSQL goes through
+ * here, so the connection string, the truncation between cases and the skip
+ * behaviour are decided once.
+ *
+ * If no database is reachable these suites **skip loudly** rather than pass
+ * quietly: a concurrency guarantee that silently did not run is worse than one
+ * that visibly did not, because only the first kind gets believed.
+ */
+import { sql } from 'drizzle-orm';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from '../src/db/schema';
+
+export const DATABASE_URL =
+  process.env.DATABASE_URL ?? 'postgres://narok:narok@127.0.0.1:5433/narok';
+
+export type Db = PostgresJsDatabase<typeof schema>;
+
+let client: postgres.Sql | undefined;
+let db: Db | undefined;
+
+export async function connect(): Promise<Db> {
+  if (db !== undefined) return db;
+  client = postgres(DATABASE_URL, { max: 8, onnotice: () => {} });
+  db = drizzle(client, { schema });
+  return db;
+}
+
+export async function disconnect(): Promise<void> {
+  await client?.end({ timeout: 5 });
+  client = undefined;
+  db = undefined;
+}
+
+/** True when a database answered. Used to fail a suite honestly, not to skip it. */
+export async function databaseReachable(): Promise<boolean> {
+  try {
+    const database = await connect();
+    await database.execute(sql`select 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Every table that holds per-test state, children first. */
+const TABLES = [
+  'resource_audit',
+  'command_results',
+  'hunt_reports',
+  'hunt_checkpoint_archive',
+  'account_drop_protection',
+  'account_grants',
+  'hunts',
+  'items',
+  'stack_items',
+  'strategy_presets',
+  'loot_presets',
+  'characters',
+  'sessions',
+  'accounts',
+  'maintenance',
+  'periodic_jobs',
+] as const;
+
+export async function truncateAll(database: Db): Promise<void> {
+  await database.execute(sql.raw(`truncate table ${TABLES.join(', ')} restart identity cascade`));
+}
+
+/** A minimal account row; callers override what their assertion is about. */
+export async function insertAccount(
+  database: Db,
+  overrides: Partial<typeof schema.accounts.$inferInsert> = {},
+): Promise<typeof schema.accounts.$inferSelect> {
+  const [row] = await database
+    .insert(schema.accounts)
+    .values({
+      email: overrides.email ?? `player-${crypto.randomUUID()}@example.com`,
+      passwordHash: 'hash',
+      passwordAlgorithm: 'test',
+      passwordChangedAt: Date.now(),
+      bagCapacity: 100,
+      ...overrides,
+    })
+    .returning();
+  return row;
+}
+
+export async function insertCharacter(
+  database: Db,
+  accountId: string,
+  overrides: Partial<typeof schema.characters.$inferInsert> = {},
+): Promise<typeof schema.characters.$inferSelect> {
+  const [row] = await database
+    .insert(schema.characters)
+    .values({
+      accountId,
+      slot: 0,
+      name: `Name${Math.floor(Math.random() * 1e9)}`,
+      nameKey: `namekey${Math.floor(Math.random() * 1e9)}`,
+      classId: 'guardian',
+      attributes: {},
+      skills: {},
+      hp: 100,
+      mp: 50,
+      ...overrides,
+    })
+    .returning();
+  return row;
+}
+
+export async function insertItem(
+  database: Db,
+  accountId: string,
+  overrides: Partial<typeof schema.items.$inferInsert> = {},
+): Promise<typeof schema.items.$inferSelect> {
+  const [row] = await database
+    .insert(schema.items)
+    .values({
+      accountId,
+      baseItemId: 'iron-sword',
+      baseContentVersion: 'test',
+      rarity: 'common',
+      itemLevel: 1,
+      bonuses: [],
+      ...overrides,
+    })
+    .returning();
+  return row;
+}
+
+/**
+ * Names the constraint a rejected write violated.
+ *
+ * Drizzle wraps a driver error and puts the *query text* in `message`, so
+ * asserting on that proves only that something failed. The identity of the
+ * constraint lives on the postgres.js error underneath, as `constraint_name`,
+ * and that is the thing a test about a named constraint has to read.
+ */
+export async function expectViolation(run: () => Promise<unknown>): Promise<string> {
+  try {
+    await run();
+  } catch (error) {
+    const parts: string[] = [];
+    let current: unknown = error;
+    for (let depth = 0; current !== undefined && current !== null && depth < 5; depth++) {
+      const record = current as { message?: string; constraint_name?: string; detail?: string; cause?: unknown };
+      if (record.constraint_name !== undefined) parts.push(record.constraint_name);
+      if (record.detail !== undefined) parts.push(record.detail);
+      if (record.message !== undefined) parts.push(record.message);
+      current = record.cause;
+    }
+    return parts.join(' | ');
+  }
+  throw new Error('expected a constraint violation, but the write succeeded');
+}

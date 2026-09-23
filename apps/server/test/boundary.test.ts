@@ -58,18 +58,42 @@ describe('dependency boundaries', () => {
   });
 });
 
+/**
+ * Files allowed to call `Math.random`, each for a reason that is not
+ * progression. The rule exists so no second RNG reaches gameplay: retry jitter
+ * and rate-limit spreading decide *when* to try again, never what happens.
+ */
+const NON_GAMEPLAY_RANDOM = ['apps/server/src/db/tx.ts'];
+
 describe('one RNG, one advance loop', () => {
   test('no xorshift implementation outside packages/sim', async () => {
     const offenders: string[] = [];
     for (const dir of ['apps/server/src', 'packages/protocol/src']) {
       for (const file of await sources(dir)) {
         const text = await readFile(file, 'utf8');
+        const relative = path.relative(ROOT, file).split(path.sep).join('/');
         // The shifts xorshift32 is made of; `rng.ts` is the only place they belong.
-        if (/<<\s*13|>>>\s*17|<<\s*5/.test(text)) offenders.push(path.relative(ROOT, file));
-        if (/Math\.random\s*\(/.test(text)) offenders.push(`${path.relative(ROOT, file)} (Math.random)`);
+        if (/<<\s*13|>>>\s*17|<<\s*5/.test(text)) offenders.push(relative);
+        if (/Math\.random\s*\(/.test(text) && !NON_GAMEPLAY_RANDOM.includes(relative)) {
+          offenders.push(`${relative} (Math.random)`);
+        }
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  test('the allowlisted files use randomness only for backoff, never for an outcome', async () => {
+    for (const relative of NON_GAMEPLAY_RANDOM) {
+      const text = await readFile(path.join(ROOT, relative), 'utf8');
+      const lines = text.split('\n');
+      for (const [index, line] of lines.entries()) {
+        if (!/Math\.random\s*\(/.test(line)) continue;
+        // The justification may sit on the line, in the enclosing function's
+        // name, or in the comment above it — so read a small window, not one line.
+        const window = lines.slice(Math.max(0, index - 4), index + 1).join('\n');
+        expect(window, `${relative}:${index + 1} ${line.trim()}`).toMatch(/backoff|jitter|delay|sleep/i);
+      }
+    }
   });
 
   test('the server never declares its own advance loop', async () => {
