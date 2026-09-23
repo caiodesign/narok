@@ -34,7 +34,10 @@ export function registerOriginGuard(app: FastifyInstance, config: ServerConfig):
     // or scripted cross-site client takes, and nothing in this product needs it.
     if (typeof origin !== 'string' || !allowed.has(origin)) {
       const error = new AppError('FORBIDDEN_ORIGIN', 'origin');
-      await reply.code(error.status).send(error.toEnvelope());
+      // Returning the reply is how an async hook tells Fastify the chain ended
+      // here; without it the request continues to routing after the send.
+      return reply.code(error.status).send(error.toEnvelope());
     }
+    return undefined;
   });
 }

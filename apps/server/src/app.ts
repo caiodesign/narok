@@ -25,6 +25,7 @@ import { hashToken } from './auth/sessions';
 import { defaultConfig, describeConfig, type ServerConfig } from './config';
 import { fixedWindow } from './plugins/rate-limit';
 import { registerOriginGuard } from './plugins/origin';
+import { requireSession } from './plugins/session';
 import { registerAuthRoutes } from './routes/auth';
 import { registerAccountRoutes } from './routes/me';
 import { memoryStores } from './store/memory';
@@ -93,9 +94,10 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
    * told plainly that there is nothing to upgrade to yet.
    */
   app.get('/ws', async (request) => {
-    const { requireSession } = await import('./plugins/session');
     requireSession(request, stores, config, now());
-    throw new AppError('INTERNAL', 'ws.unimplemented');
+    // Not a fault: the endpoint exists and is not serving yet. INTERNAL would
+    // have put a known-absent feature into the fault metrics of P-41.
+    throw new AppError('MAINTENANCE', 'ws');
   });
 
   app.setNotFoundHandler(async (_request, reply) => {
@@ -105,8 +107,7 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
 
   app.setErrorHandler(async (error, request, reply) => {
     if (error instanceof AppError) {
-      const retryAfter = (error as AppError & { retryAfter?: number }).retryAfter;
-      if (retryAfter !== undefined) void reply.header('Retry-After', String(retryAfter));
+      if (error.retryAfter !== undefined) void reply.header('Retry-After', String(error.retryAfter));
       return reply.code(error.status).send(error.toEnvelope());
     }
 

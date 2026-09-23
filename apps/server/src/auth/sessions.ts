@@ -11,7 +11,7 @@
  * an absolute one a session cannot outlive however active it is, and an idle
  * one a request or a heartbeat refreshes.
  */
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { ServerConfig } from '../config';
 import type { SessionRow, SessionStore } from '../store/ports';
 
@@ -23,13 +23,6 @@ export function newSessionToken(): string {
 
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
-}
-
-/** Constant-time comparison of two hex digests of equal length. */
-export function sameToken(a: string, b: string): boolean {
-  const left = Buffer.from(a, 'hex');
-  const right = Buffer.from(b, 'hex');
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 export interface SessionIssue {

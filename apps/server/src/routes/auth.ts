@@ -7,10 +7,17 @@
  *   revokes the one presented with the request, so a credential that was ever
  *   observed in flight stops working the moment its owner logs in again.
  * - **Failure is indistinguishable.** An unknown email and a wrong password
- *   take the same path, do the same work and produce the same body. The verify
- *   call runs against a decoy hash for an unknown email so the timing does not
- *   answer the question the response refuses to.
+ *   take the same path, do the same work and produce the same body. An unknown
+ *   email is verified against a decoy hash so the timing does not answer the
+ *   question the response refuses to.
+ *
+ * The decoy is built once when the routes are registered. Building it lazily
+ * inside the handler defeated the point: the first unknown email paid a hashing
+ * cost no later one paid, which is precisely the signal the decoy exists to
+ * suppress. It is per app rather than module-level for the same reason — one
+ * instance must not answer faster because another already warmed it.
  */
+import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { loginRequestSchema, registerRequestSchema } from '@narok/protocol';
 import { AppError } from '../errors';
@@ -19,11 +26,14 @@ import { requireSession } from '../plugins/session';
 import { sourceKey } from '../plugins/rate-limit';
 import type { RouteContext } from './context';
 
-/** A real argon2id hash of a value no one holds, for the unknown-email path. */
-let decoyHash: string | undefined;
-
 export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const { stores, config, hasher, now, limiters, parse } = ctx;
+
+  /**
+   * A hash of a value nobody holds, computed now so every login verifies
+   * exactly once against a real hash whether or not the account exists.
+   */
+  const decoy = hasher.hash(randomBytes(32).toString('base64url')).then((hashed) => hashed.hash);
 
   app.post('/api/auth/register', async (request, reply) => {
     limiters.auth.check(sourceKey(request.headers, request.ip), now());
@@ -49,9 +59,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): voi
     const body = parse(loginRequestSchema, request.body);
 
     const account = stores.accounts.byEmail(body.email);
-    if (decoyHash === undefined) decoyHash = (await hasher.hash('decoy-password-never-used')).hash;
-
-    const ok = await hasher.verify(account?.passwordHash ?? decoyHash, body.password);
+    const ok = await hasher.verify(account?.passwordHash ?? (await decoy), body.password);
     if (!ok || account === undefined) throw new AppError('INVALID_CREDENTIALS', 'credentials');
 
     // P-09: rotate. The credential presented with this request dies here.

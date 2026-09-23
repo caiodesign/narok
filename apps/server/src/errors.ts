@@ -28,6 +28,8 @@ export class AppError extends Error {
   readonly code: ErrorCode;
   readonly field: string;
   readonly stateVersion?: number;
+  /** Seconds, for the `Retry-After` header a RATE_LIMITED refusal must carry. */
+  retryAfter?: number;
 
   constructor(code: ErrorCode, field: string, stateVersion?: number) {
     // The message is for a server log, never for a response body.
