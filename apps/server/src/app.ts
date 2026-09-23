@@ -94,7 +94,7 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
    * told plainly that there is nothing to upgrade to yet.
    */
   app.get('/ws', async (request) => {
-    requireSession(request, stores, config, now());
+    await requireSession(request, stores, config, now());
     // Not a fault: the endpoint exists and is not serving yet. INTERNAL would
     // have put a known-absent feature into the fault metrics of P-41.
     throw new AppError('MAINTENANCE', 'ws');

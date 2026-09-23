@@ -95,11 +95,11 @@ describe('P-06: no password and no hash is ever written out', () => {
       await logged.app.inject({ method: 'POST', url: '/api/auth/register', headers: { origin: ORIGIN }, payload: { email: 'p@example.com', password: PASSWORD } });
       await logged.app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload: { email: 'p@example.com', password: PASSWORD } });
 
-      const account = logged.stores.accounts.byEmail('p@example.com');
+      const account = await logged.stores.accounts.byEmail('p@example.com');
       expect(account).not.toBeUndefined();
       await logged.stores.accounts.resetPassword(account!.id, 'another-long-password-here');
 
-      const captured = [...lines, ...logged.stores.audit.rows().map((row) => JSON.stringify(row))].join('\n');
+      const captured = [...lines, ...(await logged.stores.audit.rows()).map((row) => JSON.stringify(row))].join('\n');
       expect(captured).not.toContain(PASSWORD);
       expect(captured).not.toContain('another-long-password-here');
       expect(captured).not.toMatch(/\$argon2/);

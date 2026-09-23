@@ -48,15 +48,15 @@ export function memoryStores(options: MemoryStoreOptions = {}): MemoryStores {
   const commands = new Map<string, { requestHash: string; response: unknown }>();
 
   const accountStore: AccountStore = {
-    byEmail(email) {
+    async byEmail(email) {
       const wanted = email.toLowerCase();
       for (const account of accounts.values()) if (account.email === wanted) return account;
       return undefined;
     },
-    byId(id) {
+    async byId(id) {
       return accounts.get(id);
     },
-    create(email, passwordHash, algorithm) {
+    async create(email, passwordHash, algorithm) {
       const at = now();
       const row: AccountRow = {
         id: randomUUID(),
@@ -84,7 +84,7 @@ export function memoryStores(options: MemoryStoreOptions = {}): MemoryStores {
         passwordChangedAt: now(),
       });
       // P-10: a password change revokes every session for the account.
-      sessionStore.revokeAllFor(accountId, now());
+      await sessionStore.revokeAllFor(accountId, now());
       auditRows.push({
         accountId,
         occurredAt: new Date(now()).toISOString(),
@@ -96,7 +96,7 @@ export function memoryStores(options: MemoryStoreOptions = {}): MemoryStores {
   };
 
   const sessionStore: SessionStore = {
-    create(accountId, tokenHash, createdAt, expiresAt) {
+    async create(accountId, tokenHash, createdAt, expiresAt) {
       const row: SessionRow = {
         id: randomUUID(),
         accountId,
@@ -109,19 +109,19 @@ export function memoryStores(options: MemoryStoreOptions = {}): MemoryStores {
       sessions.set(row.id, row);
       return row;
     },
-    byTokenHash(tokenHash) {
+    async byTokenHash(tokenHash) {
       for (const row of sessions.values()) if (row.tokenHash === tokenHash) return row;
       return undefined;
     },
-    touch(id, at, expiresAt) {
+    async touch(id, at, expiresAt) {
       const row = sessions.get(id);
       if (row !== undefined) sessions.set(id, { ...row, lastSeenAt: at, expiresAt });
     },
-    revoke(id, at) {
+    async revoke(id, at) {
       const row = sessions.get(id);
       if (row !== undefined) sessions.set(id, { ...row, revokedAt: at });
     },
-    revokeAllFor(accountId, at = now()) {
+    async revokeAllFor(accountId, at = now()) {
       for (const [id, row] of sessions) {
         if (row.accountId === accountId && row.revokedAt === null) sessions.set(id, { ...row, revokedAt: at });
       }
@@ -129,34 +129,34 @@ export function memoryStores(options: MemoryStoreOptions = {}): MemoryStores {
   };
 
   const itemStore: ItemStore = {
-    create(accountId) {
+    async create(accountId) {
       const row: ItemRow = { id: randomUUID(), accountId, locked: false };
       items.set(row.id, row);
       return row;
     },
-    byId(id) {
+    async byId(id) {
       return items.get(id);
     },
-    setLocked(id, locked) {
+    async setLocked(id, locked) {
       const row = items.get(id);
       if (row !== undefined) items.set(id, { ...row, locked });
     },
   };
 
   const auditStore: AuditStore = {
-    append(row) {
+    async append(row) {
       auditRows.push(row);
     },
-    rows() {
+    async rows() {
       return auditRows;
     },
   };
 
   const commandStore: CommandResultStore = {
-    get(accountId, key) {
+    async get(accountId, key) {
       return commands.get(`${accountId}:${key}`);
     },
-    put(accountId, key, requestHash, response) {
+    async put(accountId, key, requestHash, response) {
       commands.set(`${accountId}:${key}`, { requestHash, response });
     },
   };

@@ -27,16 +27,16 @@ export function readSessionCookie(request: FastifyRequest): string | undefined {
   return cookies?.[SESSION_COOKIE];
 }
 
-export function requireSession(
+export async function requireSession(
   request: FastifyRequest,
   stores: Stores,
   config: ServerConfig,
   now: number,
-): Caller {
-  const session = resolveSession(stores.sessions, readSessionCookie(request), config, now);
+): Promise<Caller> {
+  const session = await resolveSession(stores.sessions, readSessionCookie(request), config, now);
   if (session === undefined) throw unauthenticated();
 
-  const account = stores.accounts.byId(session.accountId);
+  const account = await stores.accounts.byId(session.accountId);
   if (account === undefined) throw unauthenticated();
 
   // A session issued before the current password is dead even if the store

@@ -75,8 +75,8 @@ describe('P-11: authentication at upgrade is not perpetual authorization', () =>
   test('a revoked session stops working on the very next request', async () => {
     expect((await h.app.inject({ method: 'GET', url: '/api/me', headers: { cookie } })).statusCode).toBe(200);
 
-    const account = h.stores.accounts.byEmail('player@example.com');
-    h.stores.sessions.revokeAllFor(account!.id);
+    const account = await h.stores.accounts.byEmail('player@example.com');
+    await h.stores.sessions.revokeAllFor(account!.id);
 
     const after = await h.app.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
     expect(after.statusCode).toBe(401);
@@ -106,7 +106,7 @@ describe('P-10: a password change revokes every session', () => {
     const second = await h.app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload: { email: 'player@example.com', password: 'a-sufficiently-long-password' } });
     const other = sessionCookie(second.headers['set-cookie']);
 
-    const account = h.stores.accounts.byEmail('player@example.com');
+    const account = await h.stores.accounts.byEmail('player@example.com');
     await h.stores.accounts.resetPassword(account!.id, 'a-brand-new-long-password');
 
     for (const value of [cookie, other]) {

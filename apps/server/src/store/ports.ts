@@ -54,38 +54,47 @@ export interface AuditRow {
   readonly stateVersionAfter: number;
 }
 
+/**
+ * Every port is asynchronous, including the reads.
+ *
+ * Task 1 wrote them synchronously because the in-memory implementation could
+ * be. A database cannot, and the alternatives were both worse than changing
+ * the signature: pre-loading a per-request cache behind a sync façade hides
+ * which reads actually hit the database, and a façade that throws on the
+ * methods it cannot serve is not an implementation of the port at all.
+ */
 export interface AccountStore {
-  byEmail(email: string): AccountRow | undefined;
-  byId(id: string): AccountRow | undefined;
-  create(email: string, passwordHash: string, algorithm: string): AccountRow;
-  /** Revokes every session for the account in the same call (P-10). */
+  byEmail(email: string): Promise<AccountRow | undefined>;
+  byId(id: string): Promise<AccountRow | undefined>;
+  create(email: string, passwordHash: string, algorithm: string): Promise<AccountRow>;
+  /** Revokes every session for the account in the same transaction (P-10). */
   resetPassword(accountId: string, password: string): Promise<void>;
 }
 
 export interface SessionStore {
-  create(accountId: string, tokenHash: string, createdAt: number, expiresAt: number): SessionRow;
-  byTokenHash(tokenHash: string): SessionRow | undefined;
+  create(accountId: string, tokenHash: string, createdAt: number, expiresAt: number): Promise<SessionRow>;
+  byTokenHash(tokenHash: string): Promise<SessionRow | undefined>;
   /** Refreshes the idle window; called per request and per heartbeat (P-11). */
-  touch(id: string, at: number, expiresAt: number): void;
-  revoke(id: string, at: number): void;
-  revokeAllFor(accountId: string, at?: number): void;
+  touch(id: string, at: number, expiresAt: number): Promise<void>;
+  revoke(id: string, at: number): Promise<void>;
+  revokeAllFor(accountId: string, at?: number): Promise<void>;
 }
 
 export interface ItemStore {
-  create(accountId: string): ItemRow;
-  byId(id: string): ItemRow | undefined;
-  setLocked(id: string, locked: boolean): void;
+  create(accountId: string): Promise<ItemRow>;
+  byId(id: string): Promise<ItemRow | undefined>;
+  setLocked(id: string, locked: boolean): Promise<void>;
 }
 
 export interface AuditStore {
-  append(row: AuditRow): void;
-  rows(): readonly AuditRow[];
+  append(row: AuditRow): Promise<void>;
+  rows(): Promise<readonly AuditRow[]>;
 }
 
 /** An idempotency record, written in the same transaction as its effect (P-25). */
 export interface CommandResultStore {
-  get(accountId: string, key: string): { requestHash: string; response: unknown } | undefined;
-  put(accountId: string, key: string, requestHash: string, response: unknown): void;
+  get(accountId: string, key: string): Promise<{ requestHash: string; response: unknown } | undefined>;
+  put(accountId: string, key: string, requestHash: string, response: unknown): Promise<void>;
 }
 
 export interface Stores {

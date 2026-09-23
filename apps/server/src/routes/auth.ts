@@ -39,12 +39,12 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): voi
     limiters.auth.check(sourceKey(request.headers, request.ip), now());
     const body = parse(registerRequestSchema, request.body);
 
-    if (stores.accounts.byEmail(body.email) !== undefined) {
+    if ((await stores.accounts.byEmail(body.email)) !== undefined) {
       throw new AppError('EMAIL_TAKEN', 'email');
     }
 
     const hashed = await hasher.hash(body.password);
-    const account = stores.accounts.create(body.email, hashed.hash, hashed.algorithm);
+    const account = await stores.accounts.create(body.email, hashed.hash, hashed.algorithm);
 
     return reply.code(200).send({
       id: account.id,
@@ -58,18 +58,18 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): voi
     limiters.auth.check(sourceKey(request.headers, request.ip), now());
     const body = parse(loginRequestSchema, request.body);
 
-    const account = stores.accounts.byEmail(body.email);
+    const account = await stores.accounts.byEmail(body.email);
     const ok = await hasher.verify(account?.passwordHash ?? (await decoy), body.password);
     if (!ok || account === undefined) throw new AppError('INVALID_CREDENTIALS', 'credentials');
 
     // P-09: rotate. The credential presented with this request dies here.
     const presented = (request as typeof request & { cookies?: Record<string, string | undefined> }).cookies?.[SESSION_COOKIE];
     if (presented !== undefined) {
-      const existing = stores.sessions.byTokenHash(ctx.hashToken(presented));
-      if (existing !== undefined) stores.sessions.revoke(existing.id, now());
+      const existing = await stores.sessions.byTokenHash(ctx.hashToken(presented));
+      if (existing !== undefined) await stores.sessions.revoke(existing.id, now());
     }
 
-    const issued = issueSession(stores.sessions, account.id, config, now());
+    const issued = await issueSession(stores.sessions, account.id, config, now());
     return reply
       .setCookie(SESSION_COOKIE, issued.token, cookieOptions(config, now()))
       .code(204)
@@ -77,8 +77,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): voi
   });
 
   app.post('/api/auth/logout', async (request, reply) => {
-    const caller = requireSession(request, stores, config, now());
-    stores.sessions.revoke(caller.session.id, now());
+    const caller = await requireSession(request, stores, config, now());
+    await stores.sessions.revoke(caller.session.id, now());
     return reply.clearCookie(SESSION_COOKIE, { path: '/' }).code(204).send();
   });
 }

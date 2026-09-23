@@ -24,7 +24,8 @@ const OTHER_ID = '99999999-9999-4999-8999-999999999999';
 
 describe('P-12: ownership precedes business validation', () => {
   test("another account's item is NOT_OWNED, and so is an item that does not exist", async () => {
-    const theirItem = h.stores.items.create(h.stores.accounts.byEmail('theirs@example.com')!.id);
+    const theirAccount = await h.stores.accounts.byEmail('theirs@example.com');
+    const theirItem = await h.stores.items.create(theirAccount!.id);
 
     const owned = await h.app.inject({
       method: 'POST',
@@ -47,7 +48,8 @@ describe('P-12: ownership precedes business validation', () => {
   });
 
   test('the owner can act on the same item', async () => {
-    const myItem = h.stores.items.create(h.stores.accounts.byEmail('mine@example.com')!.id);
+    const myAccount = await h.stores.accounts.byEmail('mine@example.com');
+    const myItem = await h.stores.items.create(myAccount!.id);
     const response = await h.app.inject({
       method: 'POST',
       url: '/api/inventory/lock',
@@ -116,9 +118,9 @@ describe('what the client may never assert (part 1 §2)', () => {
   });
 
   test('expectedStateVersion is read as a guard and never written as a value', async () => {
-    const account = h.stores.accounts.byEmail('mine@example.com')!;
+    const account = (await h.stores.accounts.byEmail('mine@example.com'))!;
     const before = account.stateVersion;
-    const myItem = h.stores.items.create(account.id);
+    const myItem = await h.stores.items.create(account.id);
 
     await h.app.inject({
       method: 'POST',
@@ -127,7 +129,7 @@ describe('what the client may never assert (part 1 §2)', () => {
       payload: { itemId: myItem.id, locked: true, expectedStateVersion: 500 },
     });
 
-    expect(h.stores.accounts.byEmail('mine@example.com')!.stateVersion).toBe(before);
+    expect((await h.stores.accounts.byEmail('mine@example.com'))!.stateVersion).toBe(before);
   });
 
   test('every response carries the account state version the caller may guard against', async () => {

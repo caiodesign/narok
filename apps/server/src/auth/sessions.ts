@@ -30,15 +30,15 @@ export interface SessionIssue {
   readonly row: SessionRow;
 }
 
-export function issueSession(
+export async function issueSession(
   sessions: SessionStore,
   accountId: string,
   config: ServerConfig,
   now: number,
-): SessionIssue {
+): Promise<SessionIssue> {
   const token = newSessionToken();
   const expiresAt = now + Math.min(config.session.absoluteMs, config.session.idleMs);
-  return { token, row: sessions.create(accountId, hashToken(token), now, expiresAt) };
+  return { token, row: await sessions.create(accountId, hashToken(token), now, expiresAt) };
 }
 
 /**
@@ -48,15 +48,15 @@ export function issueSession(
  * answering `UNAUTHENTICATED` must not be able to tell those apart, or the
  * response becomes an oracle for which tokens once existed.
  */
-export function resolveSession(
+export async function resolveSession(
   sessions: SessionStore,
   token: string | undefined,
   config: ServerConfig,
   now: number,
-): SessionRow | undefined {
+): Promise<SessionRow | undefined> {
   if (token === undefined || token === '') return undefined;
 
-  const row = sessions.byTokenHash(hashToken(token));
+  const row = await sessions.byTokenHash(hashToken(token));
   if (row === undefined) return undefined;
   if (row.revokedAt !== null) return undefined;
   if (row.expiresAt <= now) return undefined;
@@ -65,7 +65,7 @@ export function resolveSession(
 
   const idleExpiry = now + config.session.idleMs;
   const absoluteExpiry = row.createdAt + config.session.absoluteMs;
-  sessions.touch(row.id, now, Math.min(idleExpiry, absoluteExpiry));
+  await sessions.touch(row.id, now, Math.min(idleExpiry, absoluteExpiry));
   return row;
 }
 

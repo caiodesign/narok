@@ -35,7 +35,7 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
   const caller = (request: FastifyRequest) => requireSession(request, stores, config, now());
 
   app.get('/api/me', async (request) => {
-    const { account } = caller(request);
+    const { account } = await caller(request);
     return {
       id: account.id,
       email: account.email,
@@ -50,12 +50,12 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
   });
 
   app.post('/api/inventory/lock', async (request) => {
-    const { account } = caller(request);
+    const { account } = await caller(request);
     requireIdempotencyKey(request);
     const body = parse(lockCommandSchema, request.body);
 
     // Ownership first, and absent answers exactly as not-yours does (P-12).
-    const item = stores.items.byId(body.itemId);
+    const item = await stores.items.byId(body.itemId);
     if (item === undefined || item.accountId !== account.id) throw notOwned('itemId');
 
     // P-20's guard. Task 2 moves this inside the transaction that also does the
@@ -64,12 +64,12 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
       throw new AppError('CONFLICT_STATE_VERSION', 'expectedStateVersion', account.stateVersion);
     }
 
-    stores.items.setLocked(item.id, body.locked);
+    await stores.items.setLocked(item.id, body.locked);
     return { itemId: item.id, locked: body.locked, stateVersion: account.stateVersion };
   });
 
   app.post('/api/hunts', async (request) => {
-    caller(request);
+    await caller(request);
     requireIdempotencyKey(request);
     // Strict schemas: a smuggled `seed`, `elapsedMs` or `commandAt` is rejected
     // here rather than silently ignored (part 1 §2).
@@ -79,14 +79,14 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
   });
 
   app.post('/api/hunts/current/strategy', async (request) => {
-    caller(request);
+    await caller(request);
     requireIdempotencyKey(request);
     parse(applyStrategyCommandSchema, request.body);
     throw new AppError('RULE_VIOLATION', 'hunts.strategy');
   });
 
   app.post('/api/shop/buy', async (request) => {
-    caller(request);
+    await caller(request);
     requireIdempotencyKey(request);
     parse(buyRequestSchema, request.body);
     // Prices are deferred by the owner (spec §4.0), so the shop is registered
@@ -96,7 +96,7 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
   });
 
   app.get('/api/reports/:id', async (request) => {
-    const { account } = caller(request);
+    const { account } = await caller(request);
     const { id } = request.params as { id: string };
     // No report exists yet (task 4). Answering NOT_OWNED keeps absence and
     // non-ownership indistinguishable, which is the rule that matters (P-12).
