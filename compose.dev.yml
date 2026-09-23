@@ -1,0 +1,23 @@
+# Local development database (layer-1 §4.1, §13). Production runs the same
+# image on the single VPS alongside `api` and Caddy; this file is only the
+# developer's copy, so it binds to localhost and uses a throwaway password.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: narok-postgres
+    environment:
+      POSTGRES_USER: narok
+      POSTGRES_PASSWORD: narok
+      POSTGRES_DB: narok
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - narok-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U narok -d narok']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  narok-pgdata:

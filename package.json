@@ -13,6 +13,10 @@
     "lint": "eslint --no-error-on-unmatched-pattern packages tools apps e2e",
     "dev": "pnpm --filter @narok/client dev",
     "dev:server": "pnpm --filter @narok/server dev",
+    "db:up": "docker compose -f compose.dev.yml up -d --wait",
+    "db:down": "docker compose -f compose.dev.yml down",
+    "db:generate": "pnpm --filter @narok/server exec drizzle-kit generate",
+    "db:migrate": "pnpm --filter @narok/server exec drizzle-kit migrate",
     "balance": "tsx tools/balance/src/cli.ts",
     "check": "pnpm build:data && pnpm typecheck && pnpm lint && pnpm test",
     "test:e2e": "playwright test"
