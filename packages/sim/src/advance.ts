@@ -15,6 +15,7 @@ import type {
   DomainEvent,
   LabInput,
   Metrics,
+  PendingRules,
   ScheduledEvent,
   SimState,
 } from './types';
@@ -52,12 +53,13 @@ function cloneActor(actor: Actor): Actor {
   };
 }
 
-function cloneInput(input: LabInput): LabInput {
+/** Deep-copies the four preset-held fields; shared by `cloneInput` and the pending queue. */
+function cloneRules(rules: PendingRules): PendingRules {
   const placement: LabInput['placement'] = {};
-  for (const id of Object.keys(input.placement)) placement[id] = input.placement[id];
+  for (const id of Object.keys(rules.placement)) placement[id] = rules.placement[id];
   const strategies: LabInput['strategies'] = {};
-  for (const id of Object.keys(input.strategies)) {
-    const strategy = input.strategies[id];
+  for (const id of Object.keys(rules.strategies)) {
+    const strategy = rules.strategies[id];
     strategies[id] = {
       rules: strategy.rules.map((rule) => ({
         skillId: rule.skillId,
@@ -67,14 +69,15 @@ function cloneInput(input: LabInput): LabInput {
       target: { ...strategy.target },
     };
   }
+  return { placement, strategies, rest: { ...rules.rest }, wipeLimit: rules.wipeLimit };
+}
+
+function cloneInput(input: LabInput): LabInput {
   return {
     seed: input.seed,
     classes: [...input.classes],
     recipe: input.recipe,
-    placement,
-    strategies,
-    rest: { ...input.rest },
-    wipeLimit: input.wipeLimit,
+    ...cloneRules(input),
   };
 }
 
@@ -122,6 +125,7 @@ export function cloneState(state: SimState): SimState {
     phase: state.phase,
     stopReason: state.stopReason,
     input: cloneInput(state.input),
+    pendingRules: state.pendingRules === null ? null : cloneRules(state.pendingRules),
     actors,
     queue: state.queue.map((event): ScheduledEvent => ({ ...event })),
     metrics: cloneMetrics(state.metrics),

@@ -59,12 +59,50 @@ function chooseRecipe(state: SimState, ctx: Context): RecipeId {
 }
 
 /**
+ * Activates the queued strategy, if any (milestone B part 2 §4, §9 #4; ruling
+ * R115). Called at the top of {@link spawnEncounter}, before the recipe draw, so
+ * it consumes no RNG and cannot reroll the encounter — and since every spawn is
+ * reached from a completed walk (after a win, a rest or a respawn), it can never
+ * land mid-fight.
+ *
+ * One atomic activation: placement, per-character strategies, rest thresholds
+ * and wipe limit all become active together (spec §4.1). Its stated
+ * consequence: when the activated wipe limit is at or below the wipes already
+ * used, the hunt stops here with the ordinary `wipe-limit` reason — no free
+ * encounter, no recovery. Returns `true` when it stopped the hunt.
+ */
+export function activatePending(state: SimState, ctx: Context): boolean {
+  const pending = state.pendingRules;
+  if (pending === null) return false;
+
+  state.input = {
+    ...state.input,
+    placement: pending.placement,
+    strategies: pending.strategies,
+    rest: pending.rest,
+    wipeLimit: pending.wipeLimit,
+  };
+  state.pendingRules = null;
+
+  if (state.metrics.wipes >= state.input.wipeLimit) {
+    state.phase = 'stopped';
+    state.stopReason = 'wipe-limit';
+    state.queue = [];
+    emitEvent(state, ctx, { kind: 'stop', reason: 'wipe-limit' });
+    return true;
+  }
+  return false;
+}
+
+/**
  * Spawns the next encounter on a completed walk (ruling R34): rolls the recipe,
  * advances encounter bookkeeping, resets the party to its input placement, creates
  * the enemy roster from the monster definitions, and schedules first decisions plus
  * the encounter deadline.
  */
 function spawnEncounter(state: SimState, ctx: Context): void {
+  // R115: before `chooseRecipe` draws, so activation never touches the RNG.
+  if (activatePending(state, ctx)) return;
   const recipe = ctx.content.recipes[chooseRecipe(state, ctx)];
 
   state.encounterCount += 1;

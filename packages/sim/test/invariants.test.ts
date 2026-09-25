@@ -93,6 +93,7 @@ function duelState(nowMs: number, enemyHp: number): SimState {
     phase: 'fighting',
     stopReason: null,
     input: soloInput(),
+    pendingRules: null,
     actors: { p0: caster, e0: boar('e0', enemyHp, gridPosition(1, 1)) },
     queue: [],
     metrics,

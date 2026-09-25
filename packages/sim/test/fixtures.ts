@@ -178,6 +178,7 @@ export function fightFixture(): SimState {
     phase: 'fighting',
     stopReason: null,
     input,
+    pendingRules: null,
     actors,
     queue: [],
     metrics: {

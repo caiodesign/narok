@@ -4,9 +4,17 @@ import { advance as runAdvance, cloneState } from './advance';
 import { SimError } from './errors';
 import { project as projectState } from './project';
 import { decodeSnapshot, encodeSnapshot } from './snapshot';
-import { startState } from './state';
+import { startState, validatePendingRules } from './state';
 import type { Battlefield } from './battlefield/types';
-import type { AdvanceOptions, AdvanceResult, LabInput, PublicState, Simulation, SimState } from './types';
+import type {
+  AdvanceOptions,
+  AdvanceResult,
+  LabInput,
+  PendingRules,
+  PublicState,
+  Simulation,
+  SimState,
+} from './types';
 
 export * from './types';
 export { drawBelow, nextU32 } from './rng';
@@ -16,12 +24,12 @@ export { createGrid, gridCoordinates, gridPosition, defaultPlacement } from './b
 export type { Battlefield } from './battlefield/types';
 export { derive, damage, effectiveHeal } from './math';
 export type { DamageInput } from './math';
-export { startState, defaultStrategy } from './state';
+export { startState, defaultStrategy, validatePendingRules } from './state';
 export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
 export { decide, resolveCast } from './actions';
 export { expire } from './effects';
-export { transition, regenerate, finishEncounter, deadline } from './lifecycle';
+export { transition, regenerate, finishEncounter, deadline, activatePending } from './lifecycle';
 export { advance } from './advance';
 export { project } from './project';
 
@@ -78,6 +86,19 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
         stopped.stopReason = 'operator';
         stopped.queue = [];
         return stopped;
+      });
+    },
+
+    /**
+     * Queues a strategy for the next spawn (ruling R115). Pure: the caller's
+     * state is cloned, the rules are validated against its roster and copied,
+     * and nothing else changes — no RNG, no time, no event.
+     */
+    queueRules(state: SimState, rules: PendingRules | null): SimState {
+      return guard('state', () => {
+        const queued = cloneState(state);
+        queued.pendingRules = rules === null ? null : validatePendingRules(rules, queued.input, bound, battlefield);
+        return queued;
       });
     },
 

@@ -9,6 +9,7 @@ import type {
   Condition,
   LabInput,
   Metrics,
+  PendingRules,
   PositionId,
   Rule,
   SimState,
@@ -204,6 +205,63 @@ export function validateLabInput(value: unknown, content: Content, battlefield: 
   return { seed, classes, recipe, placement, strategies, rest, wipeLimit };
 }
 
+/** The four fields a strategy preset holds (owner decision 2026-09-25), and nothing else. */
+const PENDING_RULE_KEYS: readonly (keyof PendingRules)[] = ['placement', 'strategies', 'rest', 'wipeLimit'];
+
+/**
+ * Validates an unknown value as {@link PendingRules} for the roster of `input`
+ * (ruling R115). There is one validator, not two: the rules are merged over
+ * the running input and handed to {@link validateLabInput}, so a queued set
+ * that could not start a hunt can never be queued either. Field paths are
+ * reported under `pendingRules.` and the result shares no references with
+ * `value`.
+ */
+export function validatePendingRules(
+  value: unknown,
+  input: LabInput,
+  content: Content,
+  battlefield: Battlefield,
+): PendingRules {
+  const record = requireRecord(value, 'pendingRules');
+  for (const key of Object.keys(record)) {
+    if (!(PENDING_RULE_KEYS as readonly string[]).includes(key)) {
+      failInput(`pendingRules.${key}`, 'not a field a strategy preset holds');
+    }
+  }
+
+  let merged: LabInput;
+  try {
+    merged = validateLabInput(
+      {
+        seed: input.seed,
+        classes: input.classes,
+        recipe: input.recipe,
+        placement: record.placement,
+        strategies: record.strategies,
+        rest: record.rest,
+        wipeLimit: record.wipeLimit,
+      },
+      content,
+      battlefield,
+    );
+  } catch (error) {
+    if (error instanceof SimError && error.code === 'INVALID_INPUT') {
+      const field = error.field.startsWith('input.')
+        ? `pendingRules.${error.field.slice('input.'.length)}`
+        : `pendingRules.${error.field}`;
+      throw new SimError('INVALID_INPUT', field, error.message);
+    }
+    throw error;
+  }
+
+  return {
+    placement: merged.placement,
+    strategies: merged.strategies,
+    rest: merged.rest,
+    wipeLimit: merged.wipeLimit,
+  };
+}
+
 /** Spec §6 default rule tables (R22), all rules enabled. */
 export function defaultStrategy(classId: ClassId): Strategy {
   switch (classId) {
@@ -299,6 +357,7 @@ export function startState(content: Content, battlefield: Battlefield, input: La
     phase: 'walking',
     stopReason: null,
     input: validatedInput,
+    pendingRules: null,
     actors,
     queue: [],
     metrics: {

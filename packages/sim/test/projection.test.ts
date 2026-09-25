@@ -57,6 +57,7 @@ function targetReasonState(): SimState {
       seed: 1, classes: ['guardian'], recipe: 'melee', placement: {}, strategies: {},
       rest: { hpStart: 50, mpStart: 30 }, wipeLimit: 1,
     },
+    pendingRules: null,
     // Deliberately out of ASCII order (e0 before p0/p1/p2) so the sort is exercised.
     actors: { e0, p2, p0, p1 },
     queue: [{ at: 3_000, kind: 'act', actorId: 'p0', seq: 0, epoch: 2, token: 7 }],

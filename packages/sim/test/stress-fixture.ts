@@ -261,6 +261,7 @@ export function buildStressFixture(seed = 1): StressFixture {
     phase: 'fighting',
     stopReason: null,
     input,
+    pendingRules: null,
     actors,
     queue: [],
     metrics: {

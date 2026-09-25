@@ -1,7 +1,7 @@
 import type { Attributes, Content, DamageKind, Element, Family, SkillId } from '@narok/data';
 import { SimError, type SimErrorCode } from './errors';
 import { compareScheduled, isStale } from './scheduler';
-import { validateLabInput } from './state';
+import { validateLabInput, validatePendingRules } from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
   Actor,
@@ -361,6 +361,10 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   const stopReason = root.stopReason === null ? null : requireOneOf(root.stopReason, 'stopReason', STOP_REASONS);
 
   const input = validateLabInput(root.input, content, battlefield);
+  // R115: the queued rule set is re-validated against this roster on every decode.
+  const pendingRules = root.pendingRules === null
+    ? null
+    : validatePendingRules(root.pendingRules, input, content, battlefield);
   const rosterIds = input.classes.map((_, index) => `p${index}`);
   const allowedActorIds = buildAllowedActorIds(content, rosterIds);
 
@@ -453,6 +457,7 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
     phase,
     stopReason,
     input,
+    pendingRules,
     actors,
     queue,
     metrics,

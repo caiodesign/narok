@@ -36,6 +36,14 @@ export interface LabInput {
   strategies: Record<ActorId, Strategy>;
   rest: { hpStart: number; mpStart: number }; wipeLimit: number;
 }
+/**
+ * A queued strategy (milestone B part 2 §4, ruling R115): exactly what a
+ * strategy preset holds — placement, per-character strategies, rest thresholds
+ * and the wipe limit (owner decision 2026-09-25) — and nothing of the roster,
+ * recipe or seed. It activates as one atomic replacement of those four
+ * `input` fields at the next encounter spawn, before the recipe draw.
+ */
+export type PendingRules = Pick<LabInput, 'placement' | 'strategies' | 'rest' | 'wipeLimit'>;
 export interface DerivedStats {
   maxHp: number; maxMp: number; atk: number; matk: number; def: number; mdef: number;
   hit: number; flee: number; critBp: number; intervalMs: number;
@@ -73,6 +81,8 @@ export interface SimState {
   nowMs: number; rng: number; nextQueueSeq: number; nextDomainSeq: number;
   epoch: number; encounterCount: number; encounterStartedAt: number | null;
   phase: Phase; stopReason: StopReason | null; input: LabInput;
+  /** At most one queued rule set; `null` when nothing is pending (R115). */
+  pendingRules: PendingRules | null;
   actors: Record<ActorId, Actor>; queue: ScheduledEvent[]; metrics: Metrics;
 }
 export interface DomainEvent {
@@ -100,6 +110,13 @@ export interface Simulation {
   start(input: LabInput): SimState;
   advance(state: SimState, untilMs: number, options?: AdvanceOptions): AdvanceResult;
   stop(state: SimState): SimState;
+  /**
+   * Queues `rules` for activation at the next encounter spawn, replacing any
+   * rules already queued (`null` clears the queue). The rules are validated by
+   * the same validator `start` uses and deep-copied, so a later edit to the
+   * caller's object never reaches the queued snapshot (R115).
+   */
+  queueRules(state: SimState, rules: PendingRules | null): SimState;
   encode(state: SimState): string;
   decode(text: string): SimState;
   project(state: SimState): PublicState;

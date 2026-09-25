@@ -8,8 +8,8 @@ import { encodeSnapshot, decodeSnapshot } from '../src/snapshot';
 import { gridPosition } from '../src/battlefield/grid';
 import { derive } from '../src/math';
 import { defaultStrategy } from '../src/state';
-import { fightFixture, walkCompleteState, context, actor, lab, labInput, runTo } from './fixtures';
-import type { Actor, ActorId, DomainEvent, Metrics, Phase, SimState } from '../src/types';
+import { fightFixture, walkCompleteState, context, actor, atFight, lab, labInput, runTo } from './fixtures';
+import type { Actor, ActorId, DomainEvent, Metrics, PendingRules, Phase, SimState } from '../src/types';
 
 function summary(events: DomainEvent[]): unknown[][] {
   return events.map((e) => [e.kind, e.actorId, e.targetId, e.amount, e.reason]);
@@ -49,6 +49,7 @@ function multiActorState(
     phase,
     stopReason: null,
     input: labInput({ rest: { hpStart: 50, mpStart: 50 } }),
+    pendingRules: null,
     actors,
     queue: [],
     metrics: {
@@ -615,4 +616,229 @@ test('deadline is a no-op once the encounter already resolved', () => {
 
   expect(state.phase).toBe(phaseAfterWin);
   expect(state.stopReason).toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// pending activation (part 2 §4, §9 #4; spec §4.1 — one atomic activation at
+// the next spawn, before the recipe draw)
+// ---------------------------------------------------------------------------
+
+/** A rule set that differs from `labInput()`'s in every field a preset holds. */
+function otherRules(overrides: Partial<PendingRules> = {}): PendingRules {
+  const base = labInput();
+  return {
+    // p0 and p1 trade cells: still collision-free, still the party's own cells.
+    placement: { p0: base.placement.p1, p1: base.placement.p0, p2: base.placement.p2 },
+    strategies: {
+      ...base.strategies,
+      p0: { ...base.strategies.p0, target: { kind: 'lowest-hp' } },
+    },
+    rest: { hpStart: 70, mpStart: 60 },
+    wipeLimit: 3,
+    ...overrides,
+  };
+}
+
+/** Steps a run in small increments, calling `observe` after each step. */
+function stepUntil(
+  sim: ReturnType<typeof lab>,
+  state: SimState,
+  done: (state: SimState) => boolean,
+  observe: (state: SimState) => void = () => {},
+  stepMs = 100,
+  limitMs = 2_000_000,
+): SimState {
+  let current = state;
+  const stopAt = current.nowMs + limitMs;
+  while (!done(current)) {
+    if (current.phase === 'stopped' || current.nowMs >= stopAt) {
+      throw new Error(`condition never met by ${current.nowMs} ms (phase ${current.phase})`);
+    }
+    current = runTo(sim, current, current.nowMs + stepMs).state;
+    observe(current);
+  }
+  return current;
+}
+
+function enemyRoster(state: SimState): unknown[] {
+  return Object.values(state.actors)
+    .filter((a) => a.side === 'enemy')
+    .map((a) => [a.id, a.definitionId, a.position]);
+}
+
+test('queueRules takes a deep validated copy: a later edit to the source does not reach the queue (B-L14)', () => {
+  const sim = lab();
+  const rules = otherRules();
+  const queued = sim.queueRules(sim.start(labInput()), rules);
+
+  rules.rest.hpStart = 10;
+  rules.strategies.p0.target = { kind: 'highest-hp' };
+  (rules.placement as Record<string, string>).p0 = '9,9';
+
+  expect(queued.pendingRules).toEqual(otherRules());
+});
+
+test('queueRules refuses an unactivatable payload with the engine input validator', () => {
+  const sim = lab();
+  const state = sim.start(labInput());
+  const refusal = (rules: PendingRules) => {
+    try {
+      sim.queueRules(state, rules);
+    } catch (error) {
+      return { code: (error as { code: string }).code, field: (error as { field: string }).field };
+    }
+    throw new Error('expected a refusal');
+  };
+  expect(refusal(otherRules({ wipeLimit: 9 }))).toEqual({ code: 'INVALID_INPUT', field: 'pendingRules.wipeLimit' });
+  expect(refusal(otherRules({ rest: { hpStart: 95, mpStart: 0 } }))).toEqual({
+    code: 'INVALID_INPUT',
+    field: 'pendingRules.rest.hpStart',
+  });
+  // The queue on the state it was asked about is untouched.
+  expect(state.pendingRules).toBeNull();
+});
+
+test('a newer queue replaces the pending rules; there is at most one pending set (B-L16)', () => {
+  const sim = lab();
+  const first = sim.queueRules(sim.start(labInput()), otherRules({ wipeLimit: 2 }));
+  const second = sim.queueRules(first, otherRules({ wipeLimit: 4 }));
+  expect(second.pendingRules?.wipeLimit).toBe(4);
+
+  const spawned = runTo(sim, second, content.walkMs).state;
+  expect(spawned.input.wipeLimit).toBe(4);
+  expect(spawned.pendingRules).toBeNull();
+});
+
+test('activation happens at the spawn after walking, consumes no RNG and cannot reroll the encounter (B-L15, B-11)', () => {
+  const sim = lab();
+  for (const seed of [1, 7, 42, 99_991]) {
+    const control = sim.start(labInput({ seed }));
+    const queued = sim.queueRules(control, otherRules());
+
+    // Just before the walk completes nothing has changed.
+    const before = runTo(sim, queued, content.walkMs - 1).state;
+    expect(before.input).toEqual(control.input);
+    expect(before.pendingRules).toEqual(otherRules());
+
+    const spawnedControl = runTo(sim, control, content.walkMs).state;
+    const spawned = runTo(sim, queued, content.walkMs).state;
+
+    expect(spawned.encounterCount).toBe(1);
+    expect(spawned.phase).toBe('fighting');
+    expect(spawned.pendingRules).toBeNull();
+    expect(spawned.input).toEqual({ ...control.input, ...otherRules() });
+    // Identical PRNG state and identical recipe draw against the control run.
+    expect(spawned.rng).toBe(spawnedControl.rng);
+    expect(enemyRoster(spawned)).toEqual(enemyRoster(spawnedControl));
+    // The party is seated from the activated placement.
+    expect(spawned.actors.p0.position).toBe(otherRules().placement.p0);
+  }
+});
+
+test('rules queued mid-fight wait for the fight to end and activate at the next spawn, never mid-fight (B-11)', () => {
+  const sim = lab();
+  const fighting = atFight();
+  expect(fighting.phase).toBe('fighting');
+  const original = fighting.input;
+  const queued = sim.queueRules(fighting, otherRules({ wipeLimit: 2 }));
+  const startedIn = queued.encounterCount;
+
+  let sawAnotherPhase = false;
+  const spawned = stepUntil(
+    sim,
+    queued,
+    (state) => state.encounterCount > startedIn,
+    (state) => {
+      if (state.encounterCount === startedIn) {
+        expect(state.input).toEqual(original);
+        expect(state.pendingRules).not.toBeNull();
+        if (state.phase !== 'fighting') sawAnotherPhase = true;
+      }
+    },
+  );
+  expect(sawAnotherPhase).toBe(true);
+  expect(spawned.input.wipeLimit).toBe(2);
+  expect(spawned.pendingRules).toBeNull();
+});
+
+test('rules queued while resting activate at the spawn after the rest, not when resting ends', () => {
+  const sim = lab();
+  // The highest legal thresholds make a rest after the first win all but certain.
+  const input = labInput({ rest: { hpStart: 89, mpStart: 79 } });
+  const resting = stepUntil(sim, sim.start(input), (state) => state.phase === 'resting');
+  const queued = sim.queueRules(resting, otherRules({ rest: { hpStart: 0, mpStart: 0 } }));
+  const startedIn = queued.encounterCount;
+
+  let walkedFirst = false;
+  const spawned = stepUntil(
+    sim,
+    queued,
+    (state) => state.encounterCount > startedIn,
+    (state) => {
+      if (state.encounterCount === startedIn) {
+        expect(state.input.rest).toEqual(input.rest);
+        if (state.phase === 'walking') walkedFirst = true;
+      }
+    },
+  );
+  expect(walkedFirst).toBe(true);
+  expect(spawned.input.rest).toEqual({ hpStart: 0, mpStart: 0 });
+});
+
+test('an activated wipe limit at or below the wipes already used stops the hunt at once with wipe-limit', () => {
+  const sim = lab();
+  for (const [limit, wipes] of [
+    [1, 1],
+    [2, 3],
+  ] as const) {
+    const start = sim.start(labInput({ wipeLimit: 5 }));
+    start.metrics.wipes = wipes;
+    const queued = sim.queueRules(start, otherRules({ wipeLimit: limit }));
+
+    const result = runTo(sim, queued, content.walkMs + 60_000);
+    const state = result.state;
+    expect(state.phase).toBe('stopped');
+    expect(state.stopReason).toBe('wipe-limit');
+    expect(state.nowMs).toBe(content.walkMs);
+    // No free continuation, no recovery: nothing spawned, nothing drawn, nothing healed.
+    expect(state.encounterCount).toBe(0);
+    expect(state.rng).toBe(start.rng);
+    expect(state.metrics.wipes).toBe(wipes);
+    expect(state.queue).toEqual([]);
+    expect(state.input.wipeLimit).toBe(limit);
+    expect(state.pendingRules).toBeNull();
+    expect(result.events.at(-1)).toMatchObject({ kind: 'stop', reason: 'wipe-limit' });
+  }
+
+  // Above the wipes used, the hunt simply continues under the new limit.
+  const start = sim.start(labInput({ wipeLimit: 5 }));
+  start.metrics.wipes = 1;
+  const continued = runTo(sim, sim.queueRules(start, otherRules({ wipeLimit: 2 })), content.walkMs).state;
+  expect(continued.phase).toBe('fighting');
+  expect(continued.input.wipeLimit).toBe(2);
+});
+
+test('stop neither activates the pending rules nor resets encounter state (B-L17)', () => {
+  const sim = lab();
+  const queued = sim.queueRules(atFight(), otherRules());
+  const stopped = sim.stop(queued);
+  expect(stopped.pendingRules).toEqual(otherRules());
+  expect(stopped.input).toEqual(queued.input);
+  expect(stopped.encounterCount).toBe(queued.encounterCount);
+  expect(stopped.rng).toBe(queued.rng);
+});
+
+test('pending rules survive a snapshot round trip and a corrupted queue is refused', () => {
+  const sim = lab();
+  const queued = sim.queueRules(sim.start(labInput()), otherRules());
+  const text = encodeSnapshot(queued);
+  expect(sim.decode(text).pendingRules).toEqual(otherRules());
+  expect(sim.encode(sim.decode(text))).toBe(text);
+
+  const corrupted = JSON.parse(text) as { pendingRules: { wipeLimit: number } };
+  corrupted.pendingRules.wipeLimit = 0;
+  expect(() => sim.decode(JSON.stringify(corrupted))).toThrow();
+  const extra = JSON.parse(text) as { pendingRules: Record<string, unknown> };
+  extra.pendingRules.seed = 5;
+  expect(() => sim.decode(JSON.stringify(extra))).toThrow();
 });
