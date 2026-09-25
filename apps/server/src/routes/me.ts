@@ -83,7 +83,8 @@ export function registerAccountRoutes(
     throw new AppError('RULE_VIOLATION', 'hunts.start');
   });
 
-  app.post('/api/hunts/current/strategy', async (request) => {
+  // With the lifecycle wired, `routes/hunts.ts` owns this route.
+  if (options.huntsWired !== true) app.post('/api/hunts/current/strategy', async (request) => {
     await caller(request);
     requireIdempotencyKey(request);
     parse(applyStrategyCommandSchema, request.body);
@@ -100,7 +101,8 @@ export function registerAccountRoutes(
     throw new AppError('RULE_VIOLATION', 'shop.buy');
   });
 
-  app.get('/api/reports/:id', async (request) => {
+  // With the lifecycle wired, `routes/reports.ts` owns this route.
+  if (options.huntsWired !== true) app.get('/api/reports/:id', async (request) => {
     const { account } = await caller(request);
     const { id } = request.params as { id: string };
     // No report exists yet (task 4). Answering NOT_OWNED keeps absence and

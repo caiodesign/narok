@@ -19,6 +19,11 @@
  *   `'events'` and that is what travels, so there is one name for it in code.
  */
 import type { AdvanceOptions, DomainEvent, Simulation, SimState, StopReason } from '@narok/sim';
+import { REWARD_CARRIER_CAP } from '../hunt/envelope';
+import { NO_REWARDS, type RewardDraft, type RewardSource } from '../hunt/rewards';
+
+/** The engine's own default work budget (contracts §5); halved only to fit the reward carrier. */
+const ENGINE_DEFAULT_BUDGET = 10_000;
 
 export interface SegmentRequest {
   /** The engine's own encoding, exactly as it was stored. */
@@ -36,6 +41,12 @@ export interface SegmentRequest {
    * own yield does one level down. Must be at least one.
    */
   readonly maxContinuations?: number;
+  /**
+   * How many rewards the carrier can still take (part 2 §9 #8). Reaching it
+   * ends the segment with `completion: 'reward-cap'` so the caller commits
+   * and continues — never by dropping a reward. Defaults to the full carrier.
+   */
+  readonly rewardRoom?: number;
 }
 
 export interface SegmentResult {
@@ -54,12 +65,23 @@ export interface SegmentResult {
    * its own (the engine then reports its target reached, because nothing more
    * can happen); `'capped'` means the work bound ran out first.
    */
-  readonly completion: 'target' | 'stopped' | 'capped';
+  readonly completion: 'target' | 'stopped' | 'capped' | 'reward-cap';
   readonly stopReason: StopReason | null;
   /** True for `'target'` and `'stopped'`: no further work toward this target. */
   readonly reachedTarget: boolean;
   /** How many `advance` calls it took. An operational signal, not a rule. */
   readonly continuations: number;
+  /** The rewards read off the states this segment passed through, in order; ids come later. */
+  readonly rewards: readonly RewardDraft[];
+  /** Whether a queued strategy is still waiting for a spawn at the segment's end (R115). */
+  readonly pendingRulesQueued: boolean;
+}
+
+export class RewardCarrierStalled extends Error {
+  constructor(atMs: number) {
+    super(`one engine step at ${atMs} ms yields more rewards than an empty carrier holds`);
+    this.name = 'RewardCarrierStalled';
+  }
 }
 
 export class SegmentStalled extends Error {
@@ -78,22 +100,23 @@ const DEFAULT_MAX_CONTINUATIONS = 10_000;
  * simulated time *or* by events popped from the queue — so a budget that
  * cannot advance fails loudly instead of spinning.
  */
-export function runSegment(sim: Simulation, request: SegmentRequest): SegmentResult {
+export function runSegment(sim: Simulation, request: SegmentRequest, source: RewardSource = NO_REWARDS): SegmentResult {
   const limit = request.maxContinuations ?? DEFAULT_MAX_CONTINUATIONS;
   if (!Number.isSafeInteger(limit) || limit < 1) {
     throw new RangeError(`maxContinuations must be a positive integer, got ${limit}`);
   }
+  const room = request.rewardRoom ?? REWARD_CARRIER_CAP;
+  if (!Number.isSafeInteger(room) || room < 0) {
+    throw new RangeError(`rewardRoom must be a non-negative integer, got ${room}`);
+  }
 
   const started = sim.decode(request.encodedState);
   const startedAt = started.nowMs;
-
-  const options: AdvanceOptions = {
-    collect: request.collect,
-    ...(request.maxScheduledEvents === undefined ? {} : { maxScheduledEvents: request.maxScheduledEvents }),
-  };
+  const fullBudget = request.maxScheduledEvents ?? ENGINE_DEFAULT_BUDGET;
 
   let current: SimState = started;
   const events: DomainEvent[] = [];
+  const rewards: RewardDraft[] = [];
   let continuations = 0;
 
   const finish = (completion: SegmentResult['completion']): SegmentResult => ({
@@ -103,20 +126,41 @@ export function runSegment(sim: Simulation, request: SegmentRequest): SegmentRes
     creditedSimMs: current.nowMs - startedAt,
     completion,
     stopReason: current.stopReason,
-    reachedTarget: completion !== 'capped',
+    reachedTarget: completion === 'target' || completion === 'stopped',
     continuations,
+    rewards,
+    pendingRulesQueued: current.pendingRules !== null,
   });
 
+  let budget = fullBudget;
   for (;;) {
     const beforeNowMs = current.nowMs;
     const beforePopped = current.nextQueueSeq - current.queue.length;
 
+    const options: AdvanceOptions = { collect: request.collect, maxScheduledEvents: budget };
     const result = sim.advance(current, request.simTarget, options);
-    current = result.state;
+
+    // Rewards are read from the states on either side of the step, never from
+    // its events (part 2 §6). A step that would overfill the carrier is
+    // discarded and retried smaller from the same state — the split invariant
+    // makes that free — until it fits, or ends the segment for a commit.
+    const drafts = source(current, result.state);
+    if (rewards.length + drafts.length > room) {
+      if (budget > 1) {
+        budget = Math.ceil(budget / 2);
+        continue;
+      }
+      if (rewards.length === 0) throw new RewardCarrierStalled(current.nowMs);
+      return finish('reward-cap');
+    }
+    budget = fullBudget;
     continuations += 1;
+
+    current = result.state;
     // A loop, not a spread: a large budget can yield more events than a call
     // accepts as arguments.
     for (const event of result.events) events.push(event);
+    for (const draft of drafts) rewards.push(draft);
 
     if (result.reachedTarget) return finish(current.phase === 'stopped' ? 'stopped' : 'target');
 

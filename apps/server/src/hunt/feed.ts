@@ -28,7 +28,8 @@ import { AppError } from '../errors';
 import type { HuntFeed, HuntPush, HuntView } from '../ws/socket';
 import { settlementWindow } from './clock';
 import type { CheckpointEnvelope } from './envelope';
-import { persistHunt, readHunt, type LifecycleDeps } from './lifecycle';
+import { persistHunt, readHunt, type LifecycleDeps, type PersistResult } from './lifecycle';
+import { buildAwayReport, recordAwayReport } from '../reports/away';
 
 /** Runs `fn` every `everyMs` until the returned function is called. */
 export type FeedScheduler = (fn: () => void, everyMs: number) => () => void;
@@ -96,8 +97,12 @@ export class LifecycleFeed implements HuntFeed {
     // so its events are kept and that socket's stream stays gapless. With
     // none, the time away may be hours: it is folded into the snapshot.
     const streaming = this.windows.has(accountId);
-    await this.settle(accountId, streaming ? 'events' : 'summary');
-    return this.view(accountId);
+    const committed = await this.settle(accountId, streaming ? 'events' : 'summary');
+    // A return from an absence gets its report; a second tab joining a
+    // stream that never stopped has been away from nothing.
+    const reportId = streaming || committed === undefined ? undefined : await this.report(accountId, committed);
+    const view = await this.view(accountId);
+    return view === undefined || reportId === undefined ? view : { ...view, reportId };
   }
 
   async heartbeat(accountId: string): Promise<HuntView | undefined> {
@@ -219,7 +224,7 @@ export class LifecycleFeed implements HuntFeed {
    * window is re-read from what did commit, and the next settlement covers
    * the time this one did not.
    */
-  private async settle(accountId: string, collect: 'events' | 'summary'): Promise<void> {
+  private async settle(accountId: string, collect: 'events' | 'summary'): Promise<PersistResult | undefined> {
     let committed;
     try {
       committed = await persistHunt(this.deps, accountId, { live: true, collect });
@@ -227,11 +232,44 @@ export class LifecycleFeed implements HuntFeed {
       if (error instanceof ConflictError && error.code === 'CONFLICT_STATE_VERSION') {
         const loaded = await readHunt(this.deps, accountId);
         this.advanceWindow(accountId, loaded.envelope, []);
-        return;
+        return undefined;
       }
       throw error;
     }
     this.advanceWindow(accountId, committed.envelope, collect === 'events' ? committed.events : null);
+    return committed;
+  }
+
+  /**
+   * Step 2's last write: the away report, built from the deltas the settlement
+   * just committed (ruling R118). A report is a description, not a reward
+   * path, so failing to store one never fails the connection — the settlement
+   * it would have described already stands.
+   */
+  private async report(accountId: string, committed: PersistResult): Promise<string | undefined> {
+    if (committed.completion === 'inert' || committed.window === null) return undefined;
+    const { sim } = this.deps;
+    const report = buildAwayReport({
+      huntId: committed.envelope.huntId,
+      generation: committed.envelope.generation,
+      previousLastSeenAt: committed.previous.lastSeenAt,
+      returnedAtWall: committed.envelope.lastSeenAt,
+      window: committed.window,
+      creditedSimMs: committed.creditedSimMs,
+      uncovered: committed.uncovered,
+      stop: committed.stop,
+      before: sim.decode(committed.previous.state),
+      after: sim.decode(committed.envelope.state),
+      rewardsCredited: committed.rewards.length,
+    });
+    try {
+      return await recordAwayReport(this.deps.db, accountId, report, {
+        nowWall: committed.envelope.lastSeenAt,
+        retentionMs: this.deps.config.reportRetentionMs,
+      });
+    } catch {
+      return undefined;
+    }
   }
 
   /**

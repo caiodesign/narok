@@ -21,6 +21,8 @@ function deferredExecutor() {
     stopReason: null,
     reachedTarget: true,
     continuations: 1,
+    rewards: [],
+    pendingRulesQueued: false,
   });
   return { executor, calls, resolvers, result };
 }

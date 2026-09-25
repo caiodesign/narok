@@ -17,6 +17,7 @@
  * rather than of each route's discipline.
  */
 import { registerHuntRoutes, type HuntServices } from './routes/hunts';
+import { registerReportRoutes } from './routes/reports';
 import cookie from '@fastify/cookie';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -129,7 +130,10 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
 
   registerAuthRoutes(app, ctx);
   registerAccountRoutes(app, ctx, { huntsWired: deps.hunts !== undefined });
-  if (deps.hunts !== undefined) registerHuntRoutes(app, ctx, deps.hunts);
+  if (deps.hunts !== undefined) {
+    registerHuntRoutes(app, ctx, deps.hunts);
+    registerReportRoutes(app, ctx, deps.hunts.lifecycle.db);
+  }
 
   /**
    * The socket endpoint's *refusals* are decided here with everything else: a

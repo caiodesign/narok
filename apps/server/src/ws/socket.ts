@@ -67,6 +67,8 @@ export interface HuntView {
   readonly baseSeq: number;
   readonly events: readonly DomainEventWire[];
   readonly state: PublicStateWire;
+  /** Set by a connect that settled an absence: the report describing it (UI spec §8). */
+  readonly reportId?: string;
 }
 
 export type HuntPush =
@@ -332,6 +334,7 @@ export class SocketSession {
       through - lastSeq <= this.options.bounds.unackedEvents;
     if (!resumable) {
       this.sendSnapshot(view);
+      this.announceReport(view);
       return;
     }
 
@@ -342,6 +345,13 @@ export class SocketSession {
     this.cursor = { lastSeq, releasedSimMs: held?.at ?? 0 };
     this.unacked = [];
     this.sendFrame(view);
+    this.announceReport(view);
+  }
+
+  /** After the snapshot or frame the report describes, never before it. */
+  private announceReport(view: HuntView): void {
+    if (view.reportId === undefined || this.closed) return;
+    this.emit({ type: 'report', generation: view.generation, reportId: view.reportId }, this.cursor.releasedSimMs);
   }
 
   private async onHeartbeat(): Promise<void> {

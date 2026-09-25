@@ -31,11 +31,19 @@ import { ConflictError, withAccountTx, type Database, type IdempotencySpec, type
 import { AppError } from '../errors';
 import { SegmentPool } from '../workers/pool';
 import type { SegmentResult } from '../workers/segment';
-import { reanchor, settlementWindow, stopWallInstant, type HuntAnchors } from './clock';
+import type { SettlementWindow } from './clock';
 import type { HuntConfig } from './config';
-import { decodeCheckpoint, encodeCheckpoint, ENVELOPE_VERSION, type CheckpointEnvelope } from './envelope';
-
-type PresetRef = CheckpointEnvelope['activeStrategy'];
+import {
+  decodeCheckpoint,
+  encodeCheckpoint,
+  ENVELOPE_VERSION,
+  type CheckpointEnvelope,
+  type PendingReward,
+  type PresetRef,
+} from './envelope';
+import { strategyVersions } from './pending';
+import type { RewardSink } from './rewards';
+import { settle, type Settlement } from './settle';
 
 /**
  * Everything a start needs, already resolved from account records and
@@ -72,6 +80,11 @@ export interface LifecycleDeps {
   readonly pool: SegmentPool;
   readonly precompute: PrecomputeCache;
   readonly hooks?: LifecycleHooks;
+  /**
+   * Where drained rewards are written, inside the commit transaction (R117).
+   * Absent while the engine accrues none; task 6 wires the real one.
+   */
+  readonly rewardSink?: RewardSink;
 }
 
 /** What a client receives. Serialisable, because it is also the idempotent response. */
@@ -82,6 +95,9 @@ export interface HuntView {
   readonly eventCursor: number;
   readonly stateVersion: number;
   readonly state: PublicState;
+  /** The rules in force now, and the version queued for the next spawn — separately (UI spec §5). */
+  readonly activeStrategy: PresetRef;
+  readonly pendingStrategy: PresetRef | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +171,7 @@ export interface LoadedHunt {
   readonly stateVersion: number;
 }
 
-async function readAccountVersion(db: Database | Tx, accountId: string): Promise<number> {
+export async function readAccountVersion(db: Database | Tx, accountId: string): Promise<number> {
   const [row] = await db
     .select({ stateVersion: schema.accounts.stateVersion })
     .from(schema.accounts)
@@ -206,16 +222,6 @@ function jobKey(accountId: string, envelope: CheckpointEnvelope): string {
   return `${accountId}:${key.huntId}:${key.generation}:${key.checkpointSeq}`;
 }
 
-function anchorsOf(envelope: CheckpointEnvelope): HuntAnchors {
-  return {
-    wallAnchorMs: envelope.wallAnchorMs,
-    simAnchorMs: envelope.simAnchorMs,
-    pausedWallMs: envelope.pausedWallMs,
-    lastSeenAt: envelope.lastSeenAt,
-    offlineCapMs: envelope.offlineCapMs,
-  };
-}
-
 function versionsOf(state: SimState): CheckpointVersions {
   return {
     simulationVersion: state.simulationVersion,
@@ -224,14 +230,41 @@ function versionsOf(state: SimState): CheckpointVersions {
   };
 }
 
-function view(sim: Simulation, envelope: CheckpointEnvelope, state: SimState, stateVersion: number): HuntView {
+export function view(sim: Simulation, envelope: CheckpointEnvelope, state: SimState, stateVersion: number): HuntView {
+  const versions = strategyVersions(envelope);
   return {
     huntId: envelope.huntId,
     generation: envelope.generation,
     eventCursor: state.nextDomainSeq,
     stateVersion,
     state: sim.project(state),
+    activeStrategy: versions.activeVersion,
+    pendingStrategy: versions.pendingVersion,
   };
+}
+
+/**
+ * A command replayed under its idempotency key answers from the stored result
+ * without settling again; the same key with different input is refused
+ * (layer-1 §8.1). `undefined` when the key is new.
+ */
+export async function storedResult<T>(
+  deps: LifecycleDeps,
+  accountId: string,
+  idempotency: IdempotencySpec | undefined,
+): Promise<T | undefined> {
+  if (idempotency === undefined) return undefined;
+  const [stored] = await deps.db
+    .select({ requestHash: schema.commandResults.requestHash, response: schema.commandResults.response })
+    .from(schema.commandResults)
+    .where(
+      and(eq(schema.commandResults.accountId, accountId), eq(schema.commandResults.idempotencyKey, idempotency.key)),
+    );
+  if (stored === undefined) return undefined;
+  if (stored.requestHash !== idempotency.requestHash) {
+    throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'idempotency-key');
+  }
+  return stored.response as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +381,11 @@ export interface StopCommand {
   /** Optional: the stop route is unguarded (part 1 §3), a stop needs no read. */
   readonly expectedStateVersion?: number;
   readonly idempotency?: IdempotencySpec;
+  /**
+   * The server command time (part 2 §4). Recorded by the command sequencer
+   * when the command arrives; `deps.now()` when called directly.
+   */
+  readonly atWall?: number;
 }
 
 /**
@@ -360,23 +398,8 @@ export interface StopCommand {
  */
 export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promise<HuntView> {
   // A replay answers from its stored result without settling again.
-  if (command.idempotency !== undefined) {
-    const [stored] = await deps.db
-      .select({ requestHash: schema.commandResults.requestHash, response: schema.commandResults.response })
-      .from(schema.commandResults)
-      .where(
-        and(
-          eq(schema.commandResults.accountId, command.accountId),
-          eq(schema.commandResults.idempotencyKey, command.idempotency.key),
-        ),
-      );
-    if (stored !== undefined) {
-      if (stored.requestHash !== command.idempotency.requestHash) {
-        throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'idempotency-key');
-      }
-      return stored.response as HuntView;
-    }
-  }
+  const replay = await storedResult<HuntView>(deps, command.accountId, command.idempotency);
+  if (replay !== undefined) return replay;
 
   // The caller's guard is checked against the version it read, before the
   // settlement moves it; a stale intent settles nothing on its behalf.
@@ -385,8 +408,8 @@ export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promi
     throw new ConflictError('CONFLICT_STATE_VERSION', 'expectedStateVersion', current);
   }
 
-  const settled = await persistHunt(deps, command.accountId, { live: true });
-  const nowWall = deps.now();
+  const nowWall = command.atWall ?? deps.now();
+  const settled = await persistHunt(deps, command.accountId, { live: true, atWall: nowWall });
   const travelMs = deps.content.townReturnTravelMs ?? 0;
 
   const result = await withAccountTx(
@@ -600,6 +623,8 @@ export interface PersistOptions {
    * summary otherwise. Either way the committed state is identical.
    */
   readonly collect?: 'events' | 'summary';
+  /** The wall instant to settle to: a command's recorded time, or `deps.now()`. */
+  readonly atWall?: number;
 }
 
 export interface PersistResult {
@@ -608,58 +633,108 @@ export interface PersistResult {
   readonly events: SegmentResult['events'];
   /** The committed checkpoint, so a caller need not read it back. */
   readonly envelope: CheckpointEnvelope;
+  /** The checkpoint this settlement started from: the "before" of an away report. */
+  readonly previous: CheckpointEnvelope;
   readonly completion: SegmentResult['completion'] | 'inert';
   readonly stateVersion: number;
+  /** The window of the first round; later rounds share its presence and its cap. */
+  readonly window: SettlementWindow | null;
+  /** The engine stop inside the window, if any, placed with the pre-settlement anchors. */
+  readonly stop: Settlement['stop'];
+  readonly uncovered: Settlement['uncovered'];
+  /** Every reward drained and committed, in order, across every round. */
+  readonly rewards: readonly PendingReward[];
+  /** Checkpoints committed: more than one when a full reward carrier forced a commit. */
+  readonly commits: number;
 }
 
 /**
- * Settles the hunt to the wall clock and commits it. A failed commit leaves the
- * previous checkpoint durable; re-running from it reproduces the same bytes,
- * which is what recovery (step 8) rests on.
+ * Settles the hunt to the wall clock and commits it, through `settle.ts`. A
+ * failed commit leaves the previous checkpoint durable; re-running from it
+ * reproduces the same bytes and the same reward ids, which is what recovery
+ * (step 8) rests on.
  *
- * Rewards are not drained here yet — the reward path arrives with drops.
+ * A full reward carrier forces a commit, and the settlement then continues
+ * from it toward the same absolute target, one committed round at a time —
+ * exactly as a work-budget yield continues one level down (part 2 §9 #8).
  */
 export async function persistHunt(deps: LifecycleDeps, accountId: string, options: PersistOptions): Promise<PersistResult> {
-  const loaded = await readHunt(deps, accountId);
+  const nowWall = options.atWall ?? deps.now();
+  let loaded = await readHunt(deps, accountId);
+  const previous = loaded.envelope;
   if (loaded.status !== 'running') {
-    return { creditedSimMs: 0, events: [], envelope: loaded.envelope, completion: 'inert', stateVersion: loaded.stateVersion };
+    return {
+      creditedSimMs: 0,
+      events: [],
+      envelope: loaded.envelope,
+      previous,
+      completion: 'inert',
+      stateVersion: loaded.stateVersion,
+      window: null,
+      stop: null,
+      uncovered: { afterStopMs: 0, afterCapMs: 0 },
+      rewards: [],
+      commits: 0,
+    };
   }
 
-  const nowWall = deps.now();
+  let creditedSimMs = 0;
+  const events: SegmentResult['events'] = [];
+  const rewards: PendingReward[] = [];
+  let window: SettlementWindow | null = null;
+  let commits = 0;
+
+  for (;;) {
+    const settlement = await persistRound(deps, accountId, loaded, nowWall, options);
+    commits += 1;
+    creditedSimMs += settlement.creditedSimMs;
+    for (const event of settlement.events) events.push(event);
+    for (const reward of settlement.rewards) rewards.push(reward);
+    window ??= settlement.window;
+
+    const stateVersion = loaded.stateVersion + 1;
+    if (settlement.completion !== 'reward-cap') {
+      return {
+        creditedSimMs,
+        events,
+        envelope: settlement.envelope,
+        previous,
+        completion: settlement.completion,
+        stateVersion,
+        window,
+        stop: settlement.stop,
+        uncovered: settlement.uncovered,
+        rewards,
+        commits,
+      };
+    }
+    loaded = { ...loaded, envelope: settlement.envelope, stateVersion };
+  }
+}
+
+/** One settlement round and its commit. */
+async function persistRound(
+  deps: LifecycleDeps,
+  accountId: string,
+  loaded: LoadedHunt,
+  nowWall: number,
+  options: PersistOptions,
+): Promise<Settlement> {
   const { envelope } = loaded;
-  const anchors = anchorsOf(envelope);
-  const window = settlementWindow(anchors, nowWall);
+  const collect = options.collect ?? 'summary';
 
-  const segment = await runOrFault(
-    deps,
-    accountId,
-    `${jobKey(accountId, envelope)}:${options.collect ?? 'summary'}`,
-    { encodedState: envelope.state, simTarget: window.simTarget, collect: options.collect ?? 'summary' },
+  const settlement = await settle(
+    envelope,
     nowWall,
+    async (request) => {
+      const segment = await runOrFault(deps, accountId, `${jobKey(accountId, envelope)}:${collect}`, request, nowWall);
+      await deps.hooks?.afterSegment?.();
+      return segment;
+    },
+    { live: options.live, collect, accountStateVersion: loaded.stateVersion, rewardCap: deps.config.rewardCarrierCap },
   );
-  await deps.hooks?.afterSegment?.();
 
-  const next = nextAnchors(anchors, nowWall, window.simTarget, segment, options);
-  const stopped = segment.completion === 'stopped';
-  const updated: CheckpointEnvelope = {
-    ...envelope,
-    checkpointSeq: envelope.checkpointSeq + 1,
-    accountStateVersion: loaded.stateVersion,
-    ...next,
-    stopContext:
-      stopped && segment.stopReason !== null
-        ? {
-            reason: segment.stopReason,
-            atSimMs: segment.simNowMs,
-            // From the pre-settlement anchors (part 2 §3).
-            atWallMs: stopWallInstant(anchors, segment.simNowMs),
-            // The owner's travel rule is for the player's stop; an engine stop
-            // found by a settlement has long since been overtaken by the clock.
-            inTownAtWallMs: stopWallInstant(anchors, segment.simNowMs),
-          }
-        : envelope.stopContext,
-    state: segment.encodedState,
-  };
+  const updated = settlement.envelope;
   const encoded = encodeCheckpoint(updated);
 
   // Checked before the transaction, so an oversized checkpoint faults cleanly
@@ -668,12 +743,13 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
     return faultHunt(deps, accountId, {
       code: 'CHECKPOINT_TOO_LARGE',
       field: 'checkpoint',
-      simTarget: window.simTarget,
+      simTarget: settlement.window.simTarget,
       wallMs: nowWall,
     });
   }
 
-  const state = deps.sim.decode(segment.encodedState);
+  const state = deps.sim.decode(updated.state);
+  const stopped = state.phase === 'stopped';
   try {
     await withAccountTx(
       deps.db,
@@ -692,6 +768,12 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
           generation: updated.generation,
           maxBytes: deps.config.maxCheckpointBytes,
         });
+        // Drained rewards reach their tables in the checkpoint's transaction,
+        // so no reward exists without the commit that produced it (P-27).
+        if (settlement.rewards.length > 0) {
+          if (deps.rewardSink === undefined) throw new Error('rewards drained with nowhere to commit them');
+          await deps.rewardSink(tx, accountId, settlement.rewards, loaded.stateVersion + 1);
+        }
         await deps.hooks?.beforeCommit?.();
       },
     );
@@ -701,53 +783,7 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
     deps.precompute.discard(accountId);
   }
 
-  return {
-    creditedSimMs: segment.creditedSimMs,
-    events: segment.events,
-    envelope: updated,
-    completion: segment.completion,
-    stateVersion: loaded.stateVersion + 1,
-  };
-}
-
-/**
- * The anchors after a commit.
- *
- * A segment that covered its whole window (or that the engine stopped)
- * re-anchors to now and, on a live connection, refreshes presence.
- *
- * One that fell short — cut by the work bound, or a coalesced result computed
- * for an earlier instant than this caller's — anchors at the wall instant it
- * actually reached and leaves presence alone. Refreshing presence there would
- * re-base the offline cap on an unfinished settlement, and the next one could
- * then credit past the cap (B-L03); re-anchoring to now would forfeit the
- * uncovered remainder instead of leaving it owed.
- */
-function nextAnchors(
-  anchors: HuntAnchors,
-  nowWall: number,
-  simTarget: number,
-  segment: SegmentResult,
-  options: PersistOptions,
-): Pick<CheckpointEnvelope, 'wallAnchorMs' | 'simAnchorMs' | 'pausedWallMs' | 'lastSeenAt'> {
-  const short = segment.completion !== 'stopped' && segment.simNowMs < simTarget;
-
-  if (short) {
-    return {
-      wallAnchorMs: stopWallInstant(anchors, segment.simNowMs),
-      simAnchorMs: segment.simNowMs,
-      pausedWallMs: 0,
-      lastSeenAt: anchors.lastSeenAt,
-    };
-  }
-
-  const settled = reanchor(anchors, nowWall, segment.simNowMs);
-  return {
-    wallAnchorMs: settled.wallAnchorMs,
-    simAnchorMs: settled.simAnchorMs,
-    pausedWallMs: settled.pausedWallMs,
-    lastSeenAt: options.live ? settled.lastSeenAt : anchors.lastSeenAt,
-  };
+  return settlement;
 }
 
 // ---------------------------------------------------------------------------

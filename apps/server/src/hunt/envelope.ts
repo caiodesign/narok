@@ -17,8 +17,18 @@
  */
 import { z } from 'zod';
 
-/** Bumped when the envelope's own shape changes, independent of the engine. */
-export const ENVELOPE_VERSION = 2;
+/**
+ * Bumped when the envelope's own shape changes, independent of the engine.
+ * 3: the pending strategy carries its command id and acknowledgement instant
+ * (ruling R115); its payload lives in the engine state that activates it.
+ */
+export const ENVELOPE_VERSION = 3;
+
+/**
+ * The carrier's hard bound (part 2 §9 #8). Reaching it forces a commit, the way
+ * the work budget forces a yield; it never drops or truncates a reward.
+ */
+export const REWARD_CARRIER_CAP = 512;
 
 /**
  * A reward rolled but not yet committed. Bounded, because the checkpoint is
@@ -40,6 +50,19 @@ export const pitySchema = z
 
 export const presetRefSchema = z
   .object({ presetId: z.uuid(), presetVersion: z.number().int().positive() })
+  .strict();
+
+/**
+ * A queued strategy (part 2 §2, §4; ruling R115). The payload itself is the
+ * engine's `state.pendingRules` — a deep validated copy taken at apply time —
+ * so there is one copy of it, inside the validator that checks it, and this
+ * side records only which preset version it was and when it was acknowledged.
+ */
+export const pendingStrategySchema = presetRefSchema
+  .extend({
+    commandId: z.string().min(1).max(256),
+    acknowledgedAtSimMs: z.number().int().nonnegative(),
+  })
   .strict();
 
 export const checkpointEnvelopeSchema = z
@@ -65,7 +88,7 @@ export const checkpointEnvelopeSchema = z
     // Rewards. `rewardSeq` plus `huntId` is what makes a reward id reproducible
     // and collision-safe without a UUID generator (layer-1 §4.3).
     rewardSeq: z.number().int().nonnegative(),
-    pendingRewards: z.array(pendingRewardSchema).max(512),
+    pendingRewards: z.array(pendingRewardSchema).max(REWARD_CARRIER_CAP),
     pity: pitySchema,
 
     // Strategy and loot: what is running, and what is queued for the next
@@ -73,7 +96,7 @@ export const checkpointEnvelopeSchema = z
     // snapshot, which is why the pending side carries its own payload.
     activeStrategy: presetRefSchema,
     activeLoot: presetRefSchema,
-    pendingStrategy: presetRefSchema.nullable(),
+    pendingStrategy: pendingStrategySchema.nullable(),
     pendingLoot: presetRefSchema.nullable(),
 
     /** What the simulation is allowed to assume about the bag (part 3 §2.5). */
@@ -109,6 +132,8 @@ export const checkpointEnvelopeSchema = z
 
 export type CheckpointEnvelope = z.infer<typeof checkpointEnvelopeSchema>;
 export type PendingReward = z.infer<typeof pendingRewardSchema>;
+export type PresetRef = z.infer<typeof presetRefSchema>;
+export type PendingStrategy = z.infer<typeof pendingStrategySchema>;
 
 export class EnvelopeError extends Error {
   readonly code = 'INVALID_ENVELOPE' as const;

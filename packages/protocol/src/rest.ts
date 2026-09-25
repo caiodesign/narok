@@ -166,7 +166,16 @@ export const lockCommandSchema = lockRequestSchema.extend({ expectedStateVersion
 export const equipCommandSchema = equipRequestSchema.extend({ expectedStateVersion: version });
 export const sellCommandSchema = sellRequestSchema.extend({ expectedStateVersion: version });
 export const startHuntCommandSchema = startHuntSchema.extend({ expectedStateVersion: version });
-export const applyStrategyCommandSchema = applyStrategySchema.extend({ expectedStateVersion: version });
+/**
+ * Apply-next-encounter is an intervention on the running hunt, so besides the
+ * account guard it carries the hunt generation the player was looking at
+ * (part 2 §4): a command formed before another intervention is refused as
+ * stale rather than merged.
+ */
+export const applyStrategyCommandSchema = applyStrategySchema.extend({
+  expectedStateVersion: version,
+  expectedGeneration: z.number().int().nonnegative(),
+});
 
 export type RouteAuth = 'none' | 'session';
 

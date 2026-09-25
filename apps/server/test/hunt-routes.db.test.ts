@@ -250,3 +250,71 @@ describe('GET /api/hunts/current and POST /api/hunts/current/stop', () => {
     }
   });
 });
+
+describe('POST /api/hunts/current/strategy (apply next encounter)', () => {
+  async function running(who: Player) {
+    const refs = await setup(who);
+    await start(who, { ...refs, mapId: 'prototype', expectedStateVersion: await version(who.accountId) });
+    const [other] = await db
+      .insert(schema.strategyPresets)
+      .values({ accountId: who.accountId, name: 'Other', payload: strategyPayload({ wipeLimit: 3 }), payloadSchemaVersion: 1, gridHash: validated.gridHash })
+      .returning();
+    return { refs, other };
+  }
+
+  function apply(who: Player, body: Record<string, unknown>, key: string = crypto.randomUUID()) {
+    return app.inject({
+      method: 'POST',
+      url: '/api/hunts/current/strategy',
+      headers: { origin, cookie: who.cookie, 'idempotency-key': key },
+      payload: body,
+    });
+  }
+
+  test('queues the preset for the next spawn and names active and pending versions separately', async () => {
+    const me = await player();
+    const { refs, other } = await running(me);
+    const response = await apply(me, {
+      presetId: other.id,
+      presetVersion: 1,
+      expectedGeneration: 1,
+      expectedStateVersion: await version(me.accountId),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      generation: 2,
+      activeStrategy: { presetId: refs.strategyPresetId, presetVersion: 1 },
+      pendingStrategy: { presetId: other.id, presetVersion: 1 },
+    });
+
+    const current = await app.inject({ method: 'GET', url: '/api/hunts/current', headers: { origin, cookie: me.cookie } });
+    expect(current.json()).toMatchObject({ pendingStrategy: { presetId: other.id, presetVersion: 1 } });
+  });
+
+  test('a stale generation is a recoverable conflict carrying the current values', async () => {
+    const me = await player();
+    const { other } = await running(me);
+    const current = await version(me.accountId);
+    const response = await apply(me, { presetId: other.id, presetVersion: 1, expectedGeneration: 7, expectedStateVersion: current });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      code: 'CONFLICT_STATE_VERSION',
+      field: 'expectedGeneration',
+      retryable: true,
+      stateVersion: current,
+      generation: 1,
+    });
+  });
+
+  test('another account’s preset is NOT_OWNED, and a missing generation guard is a validation error', async () => {
+    const me = await player();
+    const them = await player();
+    await running(me);
+    const { other: theirs } = await running(them);
+    const foreign = await apply(me, { presetId: theirs.id, presetVersion: 1, expectedGeneration: 1, expectedStateVersion: await version(me.accountId) });
+    expect(foreign.json()).toMatchObject({ code: 'NOT_OWNED', field: 'presetId' });
+
+    const unguarded = await apply(me, { presetId: theirs.id, presetVersion: 1, expectedStateVersion: 0 });
+    expect(unguarded.json()).toMatchObject({ code: 'VALIDATION', field: 'expectedGeneration' });
+  });
+});

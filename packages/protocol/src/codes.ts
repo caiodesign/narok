@@ -82,6 +82,11 @@ export const errorEnvelopeSchema = z
     field: z.string().max(DIAGNOSTIC_FIELD_MAX),
     retryable: z.boolean(),
     stateVersion: z.number().int().nonnegative().optional(),
+    /**
+     * The hunt's current generation, on a stale-generation conflict (part 2
+     * §4): with `stateVersion`, the current values a client refetches against.
+     */
+    generation: z.number().int().nonnegative().optional(),
   })
   .strict();
 

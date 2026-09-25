@@ -185,14 +185,14 @@ describe('reward identity (P-29)', () => {
 
 describe('the pending strategy is a snapshot, not a pointer to a live preset', () => {
   test('it carries its own version, so a later edit cannot rewrite what was queued', () => {
-    const queued = envelope({
-      pendingStrategy: { presetId: '33333333-3333-4333-8333-333333333333', presetVersion: 4 },
-    });
-    const decoded = decodeCheckpoint(encodeCheckpoint(queued));
-    expect(decoded.pendingStrategy).toEqual({
+    const pending = {
       presetId: '33333333-3333-4333-8333-333333333333',
       presetVersion: 4,
-    });
+      commandId: 'hunt.strategy:k1',
+      acknowledgedAtSimMs: 12_000,
+    };
+    const decoded = decodeCheckpoint(encodeCheckpoint(envelope({ pendingStrategy: pending })));
+    expect(decoded.pendingStrategy).toEqual(pending);
     expect(decoded.activeStrategy.presetVersion, 'the active version is untouched').toBe(1);
   });
 });
