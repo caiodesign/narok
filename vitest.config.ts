@@ -19,14 +19,14 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['**/test/**/*.test.{ts,tsx}'],
-          exclude: ['**/node_modules/**', '**/artifacts/**', '**/e2e/**', '**/*.db.test.ts'],
+          exclude: ['**/node_modules/**', '**/.claude/**', '**/artifacts/**', '**/e2e/**', '**/*.db.test.ts'],
         },
       },
       {
         test: {
           name: 'db',
           include: ['**/test/**/*.db.test.ts'],
-          exclude: ['**/node_modules/**', '**/artifacts/**', '**/e2e/**'],
+          exclude: ['**/node_modules/**', '**/.claude/**', '**/artifacts/**', '**/e2e/**'],
           pool: 'forks',
           poolOptions: { forks: { singleFork: true } },
           fileParallelism: false,
