@@ -100,14 +100,14 @@ export function App(): React.JSX.Element {
   /**
    * Writes the whole session to a local JSON file. Enabled as soon as a run has
    * started, because a run that errored or stopped early is exactly the one worth
-   * sending on. `simulationVersion` is the literal `'a1'` the sim stamps into
+   * sending on. `simulationVersion` is the literal `'b1'` the sim stamps into
    * every state; the projection does not carry it and `PublicState` is not ours
    * to extend (ruling R83), so this mirrors `tools/balance`'s benchmark metadata.
    */
   const onExport = useCallback(() => {
     const bundle = buildSessionExport({
       versions: {
-        simulationVersion: 'a1',
+        simulationVersion: 'b1',
         contentVersion: content.version,
         gridHash: content.gridHash,
       },

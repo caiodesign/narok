@@ -45,4 +45,12 @@ export interface Content {
   shapes: Record<ShapeId, [number, number][]>;
   elements: Record<Element, Record<Element, number>>;
   walkMs: number; regenMs: number; encounterLimitMs: number; respawnMs: number;
+  /**
+   * Duration of the simulated travel segment a stop consumes on its way back to
+   * town (owner decision 2026-09-21, spec §4.0; ruling R114). OPEN CONTENT INPUT:
+   * `null` until the owner chooses the number — neither layer-1 nor the
+   * milestone B parts give one, and part 3 §8 #9 only bounds it below by the
+   * map's walk interval. Nothing may substitute a default for it.
+   */
+  townReturnTravelMs: number | null;
 }

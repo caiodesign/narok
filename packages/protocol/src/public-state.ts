@@ -20,7 +20,7 @@ const count = z.number().int();
 const timestamp = z.number().int().nonnegative();
 
 export const phaseSchema = z.enum(['walking', 'fighting', 'resting', 'respawning', 'stopped']);
-export const stopReasonSchema = z.enum(['wipe-limit', 'stalemate', 'operator']);
+export const stopReasonSchema = z.enum(['wipe-limit', 'stalemate', 'operator', 'retreat', 'potion-floor']);
 
 /**
  * Three fields whose runtime check is "a string" but whose *type* is narrower

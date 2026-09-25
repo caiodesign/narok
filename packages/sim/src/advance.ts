@@ -137,8 +137,8 @@ function assertCompatible(state: SimState, content: Content): void {
   if (state.schemaVersion !== 1) {
     throw new SimError('WRONG_VERSION', 'state.schemaVersion', 'expected schema version 1');
   }
-  if (state.simulationVersion !== 'a1') {
-    throw new SimError('WRONG_VERSION', 'state.simulationVersion', 'expected simulation version a1');
+  if (state.simulationVersion !== 'b1') {
+    throw new SimError('WRONG_VERSION', 'state.simulationVersion', 'expected simulation version b1');
   }
   if (state.contentVersion !== content.version) {
     throw new SimError('WRONG_VERSION', 'state.contentVersion', 'state was produced by different content');

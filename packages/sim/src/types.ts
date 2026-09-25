@@ -13,7 +13,15 @@ import type { Battlefield } from './battlefield/types';
 export type ActorId = string;
 export type PositionId = string & { readonly __position: unique symbol };
 export type Phase = 'walking' | 'fighting' | 'resting' | 'respawning' | 'stopped';
-export type StopReason = 'wipe-limit' | 'stalemate' | 'operator';
+/**
+ * The closed stop vocabulary of simulation version `b1` (ruling R114, part 2
+ * §9 #5): A's `wipe-limit`, `stalemate` and `operator`, plus `retreat` (the
+ * party abandons its encounter for town) and `potion-floor` (layer-1 §6.6's
+ * "return when HP potions fall below N"). A full bag is not a stop — the drop is
+ * lost and the hunt continues (spec §4.0) — and reaching the offline cap is not
+ * a stop either: it bounds accrual and leaves the hunt running.
+ */
+export type StopReason = 'wipe-limit' | 'stalemate' | 'operator' | 'retreat' | 'potion-floor';
 export type TargetMode =
   | { kind: 'lowest-hp' | 'highest-hp' | 'highest-level' | 'nearest' }
   | { kind: 'attacking'; partyId: ActorId };
@@ -61,7 +69,7 @@ export interface Metrics {
   actors: Record<ActorId, { damageDealt: number; damageReceived: number; healingDone: number }>;
 }
 export interface SimState {
-  schemaVersion: 1; simulationVersion: 'a1'; contentVersion: string; gridHash: string;
+  schemaVersion: 1; simulationVersion: 'b1'; contentVersion: string; gridHash: string;
   nowMs: number; rng: number; nextQueueSeq: number; nextDomainSeq: number;
   epoch: number; encounterCount: number; encounterStartedAt: number | null;
   phase: Phase; stopReason: StopReason | null; input: LabInput;

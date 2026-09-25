@@ -135,7 +135,7 @@ test(
     expect(typeof report.metadata.cpuModel).toBe('string');
     expect(report.metadata.cpuCount).toBeGreaterThan(0);
     expect(report.metadata.totalMemoryBytes).toBeGreaterThan(0);
-    expect(report.metadata.simulationVersion).toBe('a1');
+    expect(report.metadata.simulationVersion).toBe('b1');
     expect(typeof report.metadata.contentVersion).toBe('string');
     expect(typeof report.metadata.gridHash).toBe('string');
     expect(typeof report.metadata.commandLine).toBe('string');

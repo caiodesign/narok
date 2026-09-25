@@ -165,6 +165,8 @@
     "wipe-limit": "Wipe limit reached",
     "stalemate": "Encounter time limit reached",
     "operator": "Stopped by the operator",
+    "retreat": "Retreated to town",
+    "potion-floor": "HP potions fell below the floor",
     "none": "No stop recorded"
   },
   "error": {

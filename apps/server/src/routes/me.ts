@@ -42,7 +42,7 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
       stateVersion: account.stateVersion,
       premium: account.premium,
       versions: {
-        simulationVersion: 'a1',
+        simulationVersion: 'b1',
         contentVersion: content.version,
         gridHash: content.gridHash,
       },

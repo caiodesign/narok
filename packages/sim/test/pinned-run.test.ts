@@ -18,7 +18,7 @@ import { lab, runTo } from './fixtures';
 interface PinnedFixture {
   contentVersion: string;
   gridHash: string;
-  simulationVersion: 'a1';
+  simulationVersion: 'b1';
   untilMs: number;
   input: LabInput;
   observed: {

@@ -20,7 +20,7 @@ test('startState builds a full-resource party at default placement with zero coo
   const state = startState(content, grid, labInput());
 
   expect(state.schemaVersion).toBe(1);
-  expect(state.simulationVersion).toBe('a1');
+  expect(state.simulationVersion).toBe('b1');
   expect(state.contentVersion).toBe(content.version);
   expect(state.gridHash).toBe(content.gridHash);
   expect(state.nowMs).toBe(0);

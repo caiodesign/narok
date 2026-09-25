@@ -45,7 +45,7 @@ function writeActorsCompanion(
 ): void {
   const payload = {
     parameters,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     runs: rows.map((row) => ({

@@ -21,7 +21,8 @@ import type {
 const MAX_TIME = 1_000_000_000_000;
 
 const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'respawning', 'stopped'];
-const STOP_REASONS: readonly StopReason[] = ['wipe-limit', 'stalemate', 'operator'];
+/** Ruling R114: the closed `b1` union; any other value is refused, never passed through. */
+const STOP_REASONS: readonly StopReason[] = ['wipe-limit', 'stalemate', 'operator', 'retreat', 'potion-floor'];
 const SIDES = ['party', 'enemy'] as const;
 const FAMILIES: readonly Family[] = ['beast', 'undead', 'demon', 'plant', 'insect', 'humanoid'];
 const ELEMENTS: readonly Element[] = ['neutral', 'fire', 'water', 'earth', 'wind'];
@@ -342,7 +343,8 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   const root = requireRecord(value, '$');
 
   requireVersion(root.schemaVersion, 'schemaVersion', 1);
-  requireVersion(root.simulationVersion, 'simulationVersion', 'a1');
+  // R114: `b1` came with the closed B stop vocabulary, so an A-era `a1` snapshot is refused.
+  requireVersion(root.simulationVersion, 'simulationVersion', 'b1');
   requireVersion(root.contentVersion, 'contentVersion', content.version);
   requireVersion(root.gridHash, 'gridHash', content.gridHash);
 
@@ -438,7 +440,7 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
 
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs,
