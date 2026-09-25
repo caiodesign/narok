@@ -20,6 +20,7 @@ import {
   persistHunt,
   precomputeHunt,
   readHunt,
+  recoverFaultedHunt,
   startHunt,
   type HuntPlan,
   type LifecycleDeps,
@@ -499,6 +500,60 @@ describe('P-38 / B-30: a faulted hunt', () => {
     const tiny = { ...h.deps, config: { ...h.deps.config, maxCheckpointBytes: 64 } };
     const refused = await rejection(() => persistHunt(tiny, account.id, { live: true }));
     expect(refused.code).toBe('HUNT_FAULTED');
+    expect((await huntRow(account.id)).status).toBe('faulted');
+  });
+});
+
+describe('P-38: recovery from a fault is explicit and validated', () => {
+  test('it returns the hunt to town from the last valid checkpoint, inventing no settlement', async () => {
+    const account = await insertAccount(db);
+    const h = harness({}, async () => {
+      throw new SimError('INVALID_STATE', 'actors.p0.hp', 'injected');
+    });
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    const valid = await huntRow(account.id);
+    h.clock.now = T0 + 60_000;
+    await rejection(() => persistHunt(h.deps, account.id, { live: true }));
+
+    const version = await accountVersion(account.id);
+    await recoverFaultedHunt(h.deps, { accountId: account.id, expectedStateVersion: version });
+
+    const row = await huntRow(account.id);
+    expect(row.status).toBe('stopped');
+    const before = decodeCheckpoint(Buffer.from(valid.checkpoint).toString('utf8'));
+    const after = decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8'));
+    expect(after.state, 'the engine state is the last valid one, unadvanced').toBe(before.state);
+    expect(after.stopContext).toEqual({ reason: 'operator', atSimMs: 0, atWallMs: T0 + 60_000 });
+    expect(row.faultedReason, 'the reason stays for the record').toContain('INVALID_STATE');
+
+    // Town again: a new hunt may start.
+    const { deps } = harness();
+    await expect(
+      startHunt(deps, { accountId: account.id, expectedStateVersion: version + 1, plan: plan() }),
+    ).resolves.toMatchObject({ generation: 1 });
+  });
+
+  test('it is refused for a hunt that is not faulted', async () => {
+    const account = await insertAccount(db);
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    const refused = await rejection(() =>
+      recoverFaultedHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 }),
+    );
+    expect(refused).toEqual({ code: 'RULE_VIOLATION', field: 'hunt.status' });
+  });
+
+  test('it is guarded: a stale expected version is a conflict and changes nothing', async () => {
+    const account = await insertAccount(db);
+    const h = harness({}, async () => {
+      throw new SimError('INVALID_STATE', 'x', 'injected');
+    });
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 1_000;
+    await rejection(() => persistHunt(h.deps, account.id, { live: true }));
+
+    const refused = await rejection(() => recoverFaultedHunt(h.deps, { accountId: account.id, expectedStateVersion: 0 }));
+    expect(refused.code).toBe('CONFLICT_STATE_VERSION');
     expect((await huntRow(account.id)).status).toBe('faulted');
   });
 });

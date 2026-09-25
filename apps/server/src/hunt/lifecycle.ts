@@ -347,6 +347,69 @@ async function faultHunt(deps: LifecycleDeps, accountId: string, reason: FaultRe
   throw new AppError('HUNT_FAULTED', 'hunt.status');
 }
 
+export interface RecoverCommand {
+  readonly accountId: string;
+  readonly expectedStateVersion: number;
+  readonly idempotency?: IdempotencySpec;
+}
+
+/**
+ * The one command a faulted hunt accepts (P-38): an explicit, guarded return
+ * to town. The engine state is the last valid checkpoint, not advanced and not
+ * repaired, so no settlement is invented and no wipe is charged. The fault
+ * reason stays on the row for the record; the archive row already holds the
+ * reproduction inputs.
+ */
+export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCommand): Promise<void> {
+  const nowWall = deps.now();
+
+  await withAccountTx(
+    deps.db,
+    {
+      accountId: command.accountId,
+      expectedStateVersion: command.expectedStateVersion,
+      operation: 'hunt.recover',
+      idempotency: command.idempotency,
+    },
+    async (tx) => {
+      let loaded;
+      try {
+        loaded = await loadCheckpoint(tx, command.accountId, deps.pins);
+      } catch (error) {
+        if (error instanceof CheckpointMissingError) throw new AppError('NOT_FOUND', 'hunt');
+        if (error instanceof CheckpointVersionError) throw new AppError('CONTENT_VERSION_MISMATCH', error.field);
+        throw error;
+      }
+      if (loaded.status !== 'faulted') throw new AppError('RULE_VIOLATION', 'hunt.status');
+
+      const envelope = decodeCheckpoint(loaded.encoded);
+      const atSimMs = deps.sim.decode(envelope.state).nowMs;
+      const encoded = encodeCheckpoint({
+        ...envelope,
+        stopContext: { reason: 'operator', atSimMs, atWallMs: nowWall },
+      });
+
+      await saveCheckpoint(tx, {
+        accountId: command.accountId,
+        status: 'stopped',
+        mapId: loaded.mapId,
+        encoded,
+        checkpointSchemaVersion: ENVELOPE_VERSION,
+        simulationVersion: loaded.simulationVersion,
+        contentVersion: loaded.contentVersion,
+        gridHash: loaded.gridHash,
+        simAnchorMs: loaded.simAnchorMs,
+        wallAnchorAt: loaded.wallAnchorAt,
+        lastSeenAt: loaded.lastSeenAt,
+        generation: loaded.generation,
+        maxBytes: deps.config.maxCheckpointBytes,
+      });
+    },
+  );
+
+  deps.precompute.discard(command.accountId);
+}
+
 /**
  * Runs a segment, translating an engine failure into the right outcome: a
  * version mismatch is the client's to resolve, anything else faults the hunt.
