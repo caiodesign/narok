@@ -26,7 +26,7 @@ import {
   saveCheckpoint,
   type CheckpointVersions,
 } from '../db/repositories/hunts';
-import { withAccountTx, type Database, type IdempotencySpec, type Tx } from '../db/tx';
+import { ConflictError, withAccountTx, type Database, type IdempotencySpec, type Tx } from '../db/tx';
 import { AppError } from '../errors';
 import { SegmentPool } from '../workers/pool';
 import type { SegmentResult } from '../workers/segment';
@@ -106,6 +106,8 @@ export function drawHuntSeed(random: () => number = cryptoU32): number {
 // ---------------------------------------------------------------------------
 
 export interface PrecomputeKey {
+  /** Every hunt starts at (1, 0), so the hunt itself is part of the key. */
+  readonly huntId: string;
   readonly generation: number;
   readonly checkpointSeq: number;
 }
@@ -122,7 +124,10 @@ export class PrecomputeCache {
   get(accountId: string, key: PrecomputeKey): SegmentResult | undefined {
     const entry = this.entries.get(accountId);
     if (entry === undefined) return undefined;
-    const same = entry.key.generation === key.generation && entry.key.checkpointSeq === key.checkpointSeq;
+    const same =
+      entry.key.huntId === key.huntId &&
+      entry.key.generation === key.generation &&
+      entry.key.checkpointSeq === key.checkpointSeq;
     return same ? entry.result : undefined;
   }
 
@@ -182,6 +187,20 @@ export async function readHunt(deps: LifecycleDeps, accountId: string): Promise<
     mapId: loaded.mapId,
     stateVersion,
   };
+}
+
+function keyOf(envelope: CheckpointEnvelope): PrecomputeKey {
+  return { huntId: envelope.huntId, generation: envelope.generation, checkpointSeq: envelope.checkpointSeq };
+}
+
+/**
+ * Jobs coalesce only when they start from the same checkpoint. Keyed by
+ * account alone, a caller that read a newer checkpoint could join a job
+ * running from an older one and commit its result on top of the newer row.
+ */
+function jobKey(accountId: string, envelope: CheckpointEnvelope): string {
+  const key = keyOf(envelope);
+  return `${accountId}:${key.huntId}:${key.generation}:${key.checkpointSeq}`;
 }
 
 function anchorsOf(envelope: CheckpointEnvelope): HuntAnchors {
@@ -323,28 +342,41 @@ interface FaultReason {
  */
 async function faultHunt(deps: LifecycleDeps, accountId: string, reason: FaultReason): Promise<never> {
   deps.precompute.discard(accountId);
-  const stateVersion = await readAccountVersion(deps.db, accountId);
 
-  await withAccountTx(
-    deps.db,
-    { accountId, expectedStateVersion: stateVersion, operation: 'hunt.fault', maxAttempts: 3 },
-    async (tx) => {
-      const [row] = await tx
-        .select({ status: schema.hunts.status })
-        .from(schema.hunts)
-        .where(eq(schema.hunts.accountId, accountId));
-      // Already faulted by a concurrent caller: one archive row, not two.
-      if (row === undefined || row.status === 'faulted') return;
-
-      await archiveCheckpoint(tx, accountId, 'fault');
-      await tx
-        .update(schema.hunts)
-        .set({ status: 'faulted', faultedReason: JSON.stringify(reason), updatedAt: new Date() })
-        .where(eq(schema.hunts.accountId, accountId));
-    },
-  );
+  // Each attempt re-reads the version: a fault must land even while other
+  // commands keep committing, or the next persist would run the engine again.
+  for (let attempt = 1; ; attempt++) {
+    const stateVersion = await readAccountVersion(deps.db, accountId);
+    try {
+      await withAccountTx(deps.db, { accountId, expectedStateVersion: stateVersion, operation: 'hunt.fault' }, (tx) =>
+        markFaulted(tx, accountId, reason),
+      );
+      break;
+    } catch (error) {
+      const contended = error instanceof ConflictError && error.code === 'CONFLICT_STATE_VERSION';
+      if (!contended || attempt >= FAULT_ATTEMPTS) throw error;
+    }
+  }
 
   throw new AppError('HUNT_FAULTED', 'hunt.status');
+}
+
+/** Bounded, like every retry (P-22); each attempt starts from a fresh read. */
+const FAULT_ATTEMPTS = 5;
+
+async function markFaulted(tx: Tx, accountId: string, reason: FaultReason): Promise<void> {
+  const [row] = await tx
+    .select({ status: schema.hunts.status })
+    .from(schema.hunts)
+    .where(eq(schema.hunts.accountId, accountId));
+  // Already faulted by a concurrent caller: one archive row, not two.
+  if (row === undefined || row.status === 'faulted') return;
+
+  await archiveCheckpoint(tx, accountId, 'fault');
+  await tx
+    .update(schema.hunts)
+    .set({ status: 'faulted', faultedReason: JSON.stringify(reason), updatedAt: new Date() })
+    .where(eq(schema.hunts.accountId, accountId));
 }
 
 export interface RecoverCommand {
@@ -402,6 +434,7 @@ export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCo
         wallAnchorAt: loaded.wallAnchorAt,
         lastSeenAt: loaded.lastSeenAt,
         generation: loaded.generation,
+        faultedReason: loaded.faultedReason,
         maxBytes: deps.config.maxCheckpointBytes,
       });
     },
@@ -473,13 +506,13 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
   const segment = await runOrFault(
     deps,
     accountId,
-    accountId,
+    jobKey(accountId, envelope),
     { encodedState: envelope.state, simTarget: window.simTarget, collect: 'summary' },
     nowWall,
   );
   await deps.hooks?.afterSegment?.();
 
-  const next = nextAnchors(anchors, nowWall, segment, options);
+  const next = nextAnchors(anchors, nowWall, window.simTarget, segment, options);
   const stopped = segment.completion === 'stopped';
   const updated: CheckpointEnvelope = {
     ...envelope,
@@ -546,25 +579,33 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
 }
 
 /**
- * The anchors after a commit. A segment that ran to its target (or stopped)
- * re-anchors to now. One cut short by the work bound anchors at the wall
- * instant it actually reached, so the remainder is still owed rather than
- * silently forfeited.
+ * The anchors after a commit.
+ *
+ * A segment that covered its whole window (or that the engine stopped)
+ * re-anchors to now and, on a live connection, refreshes presence.
+ *
+ * One that fell short — cut by the work bound, or a coalesced result computed
+ * for an earlier instant than this caller's — anchors at the wall instant it
+ * actually reached and leaves presence alone. Refreshing presence there would
+ * re-base the offline cap on an unfinished settlement, and the next one could
+ * then credit past the cap (B-L03); re-anchoring to now would forfeit the
+ * uncovered remainder instead of leaving it owed.
  */
 function nextAnchors(
   anchors: HuntAnchors,
   nowWall: number,
+  simTarget: number,
   segment: SegmentResult,
   options: PersistOptions,
 ): Pick<CheckpointEnvelope, 'wallAnchorMs' | 'simAnchorMs' | 'pausedWallMs' | 'lastSeenAt'> {
-  const lastSeenAt = options.live ? nowWall : anchors.lastSeenAt;
+  const short = segment.completion !== 'stopped' && segment.simNowMs < simTarget;
 
-  if (segment.completion === 'capped') {
+  if (short) {
     return {
       wallAnchorMs: stopWallInstant(anchors, segment.simNowMs),
       simAnchorMs: segment.simNowMs,
       pausedWallMs: 0,
-      lastSeenAt,
+      lastSeenAt: anchors.lastSeenAt,
     };
   }
 
@@ -573,7 +614,7 @@ function nextAnchors(
     wallAnchorMs: settled.wallAnchorMs,
     simAnchorMs: settled.simAnchorMs,
     pausedWallMs: settled.pausedWallMs,
-    lastSeenAt,
+    lastSeenAt: options.live ? settled.lastSeenAt : anchors.lastSeenAt,
   };
 }
 
@@ -588,7 +629,7 @@ function nextAnchors(
  */
 export async function precomputeHunt(deps: LifecycleDeps, accountId: string): Promise<SegmentResult> {
   const loaded = await readHunt(deps, accountId);
-  const key = { generation: loaded.envelope.generation, checkpointSeq: loaded.envelope.checkpointSeq };
+  const key = keyOf(loaded.envelope);
 
   const cached = deps.precompute.get(accountId, key);
   if (cached !== undefined) return cached;
@@ -600,7 +641,7 @@ export async function precomputeHunt(deps: LifecycleDeps, accountId: string): Pr
     accountId,
     // Its own job slot: a precompute must never be handed a settlement's
     // result by the pool's coalescing, or the reverse.
-    `${accountId}:precompute`,
+    `${jobKey(accountId, loaded.envelope)}:precompute`,
     {
       encodedState: loaded.envelope.state,
       simTarget: committedAt + deps.config.precomputeHorizonMs,

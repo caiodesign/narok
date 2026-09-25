@@ -67,6 +67,11 @@ export interface SaveCheckpointSpec extends CheckpointVersions {
   readonly lastSeenAt: Date;
   readonly generation?: number;
   readonly paused?: boolean;
+  /**
+   * Written on every save, so a new hunt never inherits an old fault. Only
+   * the explicit recovery passes the previous reason through.
+   */
+  readonly faultedReason?: string | null;
   readonly maxBytes: number;
 }
 
@@ -89,6 +94,7 @@ export async function saveCheckpoint(tx: Database | Tx, spec: SaveCheckpointSpec
     lastSeenAt: spec.lastSeenAt,
     generation: spec.generation ?? 0,
     paused: spec.paused ?? false,
+    faultedReason: spec.faultedReason ?? null,
     updatedAt: new Date(),
   };
 

@@ -27,6 +27,7 @@ import {
 } from '../src/hunt/lifecycle';
 import { defaultHuntConfig, validateHuntConfig } from '../src/hunt/config';
 import { SegmentPool, inlineExecutor, type SegmentExecutor } from '../src/workers/pool';
+import { runSegment } from '../src/workers/segment';
 import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
 
 let db: Db;
@@ -341,6 +342,95 @@ describe('step 6: persist', () => {
   });
 });
 
+describe('a segment that falls short of its window', () => {
+  test('B-L03: a work-bound cut keeps presence where it was, so the cap cannot be re-based', async () => {
+    const account = await insertAccount(db);
+    // A tiny work bound: every persist is cut short of its target.
+    const cut: SegmentExecutor = async (request) =>
+      runSegment(sim, { ...request, maxScheduledEvents: 1, maxContinuations: 5 });
+    const h = harness({}, cut);
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+
+    // The player returns after 19 hours.
+    h.clock.now = T0 + 68_400_000;
+    const first = await persistHunt(h.deps, account.id, { live: true });
+    expect(first.completion).toBe('capped');
+
+    const envelope = decodeCheckpoint(Buffer.from((await huntRow(account.id)).checkpoint).toString('utf8'));
+    expect(envelope.lastSeenAt, 'presence is not refreshed by a partial settlement').toBe(T0);
+    expect(envelope.wallAnchorMs, 'anchored where the segment actually reached').toBe(T0 + envelope.simAnchorMs);
+
+    // However many partial settlements follow, the total never passes the 12 h cap.
+    const full = { ...h.deps, pool: new SegmentPool(inlineExecutor(sim)) };
+    await persistHunt(full, account.id, { live: true });
+    const settled = decodeCheckpoint(Buffer.from((await huntRow(account.id)).checkpoint).toString('utf8'));
+    expect(sim.decode(settled.state).nowMs).toBeLessThanOrEqual(43_200_000);
+    expect(settled.lastSeenAt, 'a complete settlement refreshes presence').toBe(T0 + 68_400_000);
+  });
+
+  test('a joined result shorter than this caller’s window is anchored where it reached', async () => {
+    const account = await insertAccount(db);
+    // A gate: the first job does not finish until the second has joined it.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let started!: () => void;
+    const running = new Promise<void>((resolve) => (started = resolve));
+    const inner = inlineExecutor(sim);
+    const gated: SegmentExecutor = async (request) => {
+      started();
+      await gate;
+      return inner(request);
+    };
+    const h = harness({}, gated);
+    // Count joiners by wrapping the pool.
+    let runs = 0;
+    const pool = h.deps.pool;
+    const counting = Object.assign(Object.create(Object.getPrototypeOf(pool)), pool, {
+      run: (key: string, request: Parameters<SegmentPool['run']>[1]) => {
+        runs += 1;
+        return pool.run(key, request);
+      },
+    }) as SegmentPool;
+    // The first caller is delayed after its segment, so the joiner - whose own
+    // window reaches 15 s - is the one that commits the 10 s result.
+    let afterSegmentCalls = 0;
+    const deps = {
+      ...h.deps,
+      pool: counting,
+      hooks: {
+        afterSegment: async () => {
+          afterSegmentCalls += 1;
+          if (afterSegmentCalls === 1) await new Promise((resolve) => setTimeout(resolve, 300));
+        },
+      },
+    };
+    await startHunt({ ...deps, pool: new SegmentPool(inlineExecutor(sim)) }, {
+      accountId: account.id,
+      expectedStateVersion: 0,
+      plan: plan(),
+    });
+
+    h.clock.now = T0 + 10_000;
+    const first = persistHunt(deps, account.id, { live: true });
+    await running;
+    h.clock.now = T0 + 15_000;
+    const second = persistHunt(deps, account.id, { live: true });
+    while (runs < 2) await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(pool.size, 'the second persist joined the first job').toBe(1);
+    release();
+
+    const outcomes = await Promise.allSettled([first, second]);
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled'), 'one commits, one conflicts').toHaveLength(1);
+
+    const envelope = decodeCheckpoint(Buffer.from((await huntRow(account.id)).checkpoint).toString('utf8'));
+    expect(envelope.simAnchorMs).toBe(10_000);
+    expect(envelope.lastSeenAt, 'a short settlement does not refresh presence').toBe(T0);
+    // The joiner committed, the wall anchor matches the sim time actually
+    // reached, so the next settlement still owes every uncredited millisecond.
+    expect(envelope.wallAnchorMs - T0).toBe(envelope.simAnchorMs);
+  });
+});
+
 describe('B-25: recovery replays from the durable checkpoint', () => {
   test('a crash between the worker and the commit re-simulates to identical bytes', async () => {
     // Control: one clean persist.
@@ -404,20 +494,30 @@ describe('step 3: precompute is memory only', () => {
     const after = await huntRow(account.id);
     expect(Buffer.from(after.checkpoint).equals(Buffer.from(before.checkpoint))).toBe(true);
     expect(await accountVersion(account.id)).toBe(1);
-    expect(h.deps.precompute.get(account.id, { generation: 1, checkpointSeq: 0 })).toBe(ahead);
+    expect(h.deps.precompute.get(account.id, { huntId: (await readHunt(h.deps, account.id)).envelope.huntId, generation: 1, checkpointSeq: 0 })).toBe(ahead);
   });
 
   test('a superseding commit discards it, so it can never be a reward source', async () => {
     const account = await insertAccount(db);
     const h = harness();
-    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
-    await precomputeHunt(h.deps, account.id);
+    const started = await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    const before = await precomputeHunt(h.deps, account.id);
 
     h.clock.now = T0 + 20_000;
     await persistHunt(h.deps, account.id, { live: true });
 
-    expect(h.deps.precompute.get(account.id, { generation: 1, checkpointSeq: 0 })).toBeUndefined();
-    expect(h.deps.precompute.get(account.id, { generation: 1, checkpointSeq: 1 })).toBeUndefined();
+    expect(h.deps.precompute.get(account.id, { huntId: started.huntId, generation: 1, checkpointSeq: 0 })).toBeUndefined();
+    // A fresh precompute runs from the new checkpoint, not the discarded one.
+    const after = await precomputeHunt(h.deps, account.id);
+    expect(after).not.toBe(before);
+    expect(after.simNowMs).toBe(20_000 + h.deps.config.precomputeHorizonMs);
+  });
+
+  test('a new hunt never reads an old hunt’s precomputation, though both start at (1, 0)', () => {
+    const cache = new PrecomputeCache();
+    const result = { simNowMs: 1 } as never;
+    cache.set('a', { huntId: 'old', generation: 1, checkpointSeq: 0 }, result);
+    expect(cache.get('a', { huntId: 'new', generation: 1, checkpointSeq: 0 })).toBeUndefined();
   });
 });
 
@@ -491,6 +591,37 @@ describe('P-38 / B-30: a faulted hunt', () => {
     expect(sim.decode(now.state).metrics.wipes).toBe(0);
   });
 
+  test('a fault still lands when another command commits between its read and its write', async () => {
+    const account = await insertAccount(db);
+    let raced = false;
+    const h = harness({}, async () => {
+      if (!raced) {
+        raced = true;
+        // A town command commits while the failing segment runs.
+        await db.update(schema.accounts).set({ stateVersion: 50 }).where(eq(schema.accounts.id, account.id));
+      }
+      throw new SimError('INVALID_STATE', 'x', 'injected');
+    });
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 1_000;
+    expect((await rejection(() => persistHunt(h.deps, account.id, { live: true }))).code).toBe('HUNT_FAULTED');
+    expect((await huntRow(account.id)).status).toBe('faulted');
+  });
+
+  test('an engine version refusal is the client’s to resolve, not a fault', async () => {
+    const account = await insertAccount(db);
+    const h = harness({}, async () => {
+      throw new SimError('WRONG_VERSION', 'simulationVersion', 'injected');
+    });
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 1_000;
+    expect(await rejection(() => persistHunt(h.deps, account.id, { live: true }))).toEqual({
+      code: 'CONTENT_VERSION_MISMATCH',
+      field: 'simulationVersion',
+    });
+    expect((await huntRow(account.id)).status).toBe('running');
+  });
+
   test('a checkpoint past the size cap faults rather than truncating', async () => {
     const account = await insertAccount(db);
     const h = harness();
@@ -526,11 +657,12 @@ describe('P-38: recovery from a fault is explicit and validated', () => {
     expect(after.stopContext).toEqual({ reason: 'operator', atSimMs: 0, atWallMs: T0 + 60_000 });
     expect(row.faultedReason, 'the reason stays for the record').toContain('INVALID_STATE');
 
-    // Town again: a new hunt may start.
+    // Town again: a new hunt may start, and it does not inherit the old fault.
     const { deps } = harness();
     await expect(
       startHunt(deps, { accountId: account.id, expectedStateVersion: version + 1, plan: plan() }),
     ).resolves.toMatchObject({ generation: 1 });
+    expect((await huntRow(account.id)).faultedReason).toBeNull();
   });
 
   test('it is refused for a hunt that is not faulted', async () => {
