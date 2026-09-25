@@ -16,6 +16,7 @@ import { drizzleStores } from './db/repositories/accounts';
 import * as schema from './db/schema';
 import { defaultHuntConfig, validateHuntConfig } from './hunt/config';
 import { LifecycleFeed } from './hunt/feed';
+import { CommandSequencer } from './hunt/commands';
 import { drawHuntSeed, PrecomputeCache, type LifecycleDeps } from './hunt/lifecycle';
 import { memoryStores } from './store/memory';
 import { inlineExecutor, SegmentPool } from './workers/pool';
@@ -79,10 +80,15 @@ export function compose(env: NodeJS.ProcessEnv, onLog?: (line: string) => void):
     precompute: new PrecomputeCache(),
   };
 
+  // One command order per account, shared by the routes' commands and the
+  // socket's settlements (R116, R120).
+  const sequencer = new CommandSequencer(now);
   const feed = new LifecycleFeed({
     lifecycle,
     retainedEvents: config.bounds.unackedEventsPerSocket,
     releaseTickMs: RELEASE_TICK_MS,
+    sequencer,
+    onLog,
   });
 
   // The audit and command-result stores are task 4's; until then the app's
@@ -100,7 +106,7 @@ export function compose(env: NodeJS.ProcessEnv, onLog?: (line: string) => void):
         commands: fallback.commands,
       },
       huntFeed: feed,
-      hunts: { lifecycle, feed },
+      hunts: { lifecycle, feed, sequencer },
     },
     close: () => client.end({ timeout: 5 }),
   };

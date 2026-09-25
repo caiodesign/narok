@@ -33,10 +33,11 @@
 import { and, eq, sql } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { loadCheckpoint, saveCheckpoint } from '../db/repositories/hunts';
-import { withAccountTx, type IdempotencySpec } from '../db/tx';
+import { ConflictError, withAccountTx, type IdempotencySpec } from '../db/tx';
 import { AppError, notOwned } from '../errors';
 import { encodeCheckpoint, ENVELOPE_VERSION, type PresetRef } from './envelope';
 import {
+  CONTENDED_ATTEMPTS,
   persistHunt,
   readAccountVersion,
   readHunt,
@@ -156,20 +157,43 @@ async function run(
       // A replay answers what the first attempt answered, whatever moved since.
       const replay = await storedResult<HuntView>(deps, accountId, request.idempotency);
       if (replay !== undefined) return stamped(replay);
-      await expectCurrent(deps, accountId, request);
       return stamped(
-        await stopHunt(deps, { accountId, idempotency: request.idempotency, atWall: stamp.commandAtWall }),
+        await retryContended(async () => {
+          await expectCurrent(deps, accountId, request);
+          return stopHunt(deps, { accountId, idempotency: request.idempotency, atWall: stamp.commandAtWall });
+        }),
       );
     }
 
     case 'heartbeat': {
-      await expectCurrent(deps, accountId, request);
-      const settled = await persistHunt(deps, accountId, { live: true, atWall: stamp.commandAtWall });
+      const settled = await retryContended(async () => {
+        await expectCurrent(deps, accountId, request);
+        return persistHunt(deps, accountId, { live: true, atWall: stamp.commandAtWall });
+      });
       return stamped(view(deps.sim, settled.envelope, deps.sim.decode(settled.envelope.state), settled.stateVersion));
     }
 
     case 'apply-strategy':
       return stamped(await applyStrategy(deps, accountId, command, request, stamp));
+  }
+}
+
+/**
+ * Retries an attempt that lost the account version race to a write the
+ * command did not cause — another process's settlement committed between this
+ * command's read and its commit (R120). Only the transaction layer's
+ * `ConflictError` is retried: the client's own stale expectation is an
+ * `AppError` from {@link expectCurrent}, re-checked on every attempt, and is
+ * refused recoverably, never retried away (B-L12). Bounded (P-22).
+ */
+async function retryContended<T>(attempt: () => Promise<T>): Promise<T> {
+  for (let tries = 1; ; tries++) {
+    try {
+      return await attempt();
+    } catch (error) {
+      const contended = error instanceof ConflictError && error.code === 'CONFLICT_STATE_VERSION';
+      if (!contended || tries >= CONTENDED_ATTEMPTS) throw error;
+    }
   }
 }
 
@@ -213,6 +237,21 @@ async function applyStrategy(
 
   // Ownership, then the guard, then the settlement, then the rule (P-12, B-L12, B-L13).
   await ownedPreset(deps, accountId, command.presetId);
+  const result = await retryContended(() => applyStrategyOnce(deps, accountId, command, request, stamp));
+
+  // The private precomputation was formed under the old generation.
+  deps.precompute.discard(accountId);
+  return result;
+}
+
+/** One attempt: the guard, the settlement, then the rule against the settled state. */
+async function applyStrategyOnce(
+  deps: LifecycleDeps,
+  accountId: string,
+  command: Extract<HuntCommand, { kind: 'apply-strategy' }>,
+  request: CommandRequest,
+  stamp: CommandStamp,
+): Promise<HuntView> {
   await expectCurrent(deps, accountId, request);
   const settled = await persistHunt(deps, accountId, { live: true, atWall: stamp.commandAtWall });
 
@@ -232,7 +271,7 @@ async function applyStrategy(
     { commandId: request.idempotency?.key ?? `${stamp.commandAtWall}:${stamp.receiveSeq}` },
   );
 
-  const result = await withAccountTx(
+  return withAccountTx(
     deps.db,
     {
       accountId,
@@ -270,10 +309,6 @@ async function applyStrategy(
       return view(deps.sim, updated, state, settled.stateVersion + 1);
     },
   );
-
-  // The private precomputation was formed under the old generation.
-  deps.precompute.discard(accountId);
-  return result;
 }
 
 /**

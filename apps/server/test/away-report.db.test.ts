@@ -16,7 +16,7 @@ import { readAwayReport } from '../src/reports/away';
 import { memoryStores } from '../src/store/memory';
 import { SocketSession, socketBounds } from '../src/ws/socket';
 import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
-import { accountVersion, huntRow, plan, rig, T0 } from './hunt-db-harness';
+import { accountVersion, checkpointOf, huntRow, plan, rig, T0 } from './hunt-db-harness';
 
 let db: Db;
 
@@ -174,5 +174,51 @@ describe('reading a report credits nothing (B-17)', () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+describe('a report that cannot be stored (review fix)', () => {
+  test('is logged with the account and hunt, and the connection carries on without it', async () => {
+    const account = await insertAccount(db);
+    const lines: string[] = [];
+    const r = rig(db, {
+      feed: {
+        onLog: (line) => lines.push(line),
+        recordReport: async () => {
+          throw new Error('injected: report insert failed');
+        },
+      },
+    });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    r.clock.now = T0 + 90_000;
+
+    const sent: ServerMessage[] = [];
+    let closedWith: string | undefined;
+    const session = new SocketSession({
+      accountId: account.id,
+      feed: r.feed,
+      authorize: async () => true,
+      bounds: { ...socketBounds(defaultConfig()), unackedEvents: 100_000 },
+      transport: { send: (message) => sent.push(message), close: (code) => (closedWith = code) },
+    });
+    await session.receive(JSON.stringify({ type: 'hello' }));
+
+    const { huntId } = await checkpointOf(db, account.id);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`account=${account.id}`);
+    expect(lines[0]).toContain(`hunt=${huntId}`);
+    expect(lines[0]).toContain('injected: report insert failed');
+
+    // The settlement stands, the snapshot went out, no report was announced, the socket is open.
+    expect(sent.map((message) => message.type)).toEqual(['snapshot']);
+    expect(closedWith).toBeUndefined();
+    expect((await huntRow(db, account.id)).lastSeenAt.getTime()).toBe(T0 + 90_000);
+    expect(await reports(account.id)).toEqual([]);
+
+    // And the socket keeps serving: a heartbeat still settles and answers.
+    r.clock.now = T0 + 95_000;
+    await session.receive(JSON.stringify({ type: 'heartbeat' }));
+    expect(closedWith).toBeUndefined();
+    expect((await huntRow(db, account.id)).lastSeenAt.getTime()).toBe(T0 + 95_000);
   });
 });

@@ -501,8 +501,12 @@ async function faultHunt(deps: LifecycleDeps, accountId: string, reason: FaultRe
   throw new AppError('HUNT_FAULTED', 'hunt.status');
 }
 
-/** Bounded, like every retry (P-22); each attempt starts from a fresh read. */
-const FAULT_ATTEMPTS = 5;
+/**
+ * Bounded, like every retry (P-22); each attempt starts from a fresh read.
+ * Shared by the fault write and by a command's own settlement (R120).
+ */
+export const CONTENDED_ATTEMPTS = 5;
+const FAULT_ATTEMPTS = CONTENDED_ATTEMPTS;
 
 async function markFaulted(tx: Tx, accountId: string, reason: FaultReason): Promise<void> {
   const [row] = await tx

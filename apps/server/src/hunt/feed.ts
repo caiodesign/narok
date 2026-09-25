@@ -30,6 +30,7 @@ import { settlementWindow } from './clock';
 import type { CheckpointEnvelope } from './envelope';
 import { persistHunt, readHunt, type LifecycleDeps, type PersistResult } from './lifecycle';
 import { buildAwayReport, recordAwayReport } from '../reports/away';
+import { CommandSequencer } from './commands';
 
 /** Runs `fn` every `everyMs` until the returned function is called. */
 export type FeedScheduler = (fn: () => void, everyMs: number) => () => void;
@@ -52,6 +53,17 @@ export interface FeedOptions {
    */
   readonly releaseTickMs: number;
   readonly schedule?: FeedScheduler;
+  /**
+   * The per-account command order (R116, R120). Every settlement the feed
+   * makes — connect, heartbeat, cadence tick — takes its `commandAtWall` from
+   * it, so settlements and commands share one `(commandAtWall, receiveSeq)`
+   * order. Share the routes' sequencer; one is made when absent.
+   */
+  readonly sequencer?: CommandSequencer;
+  /** The server's log line sink (`AppDeps.onLog`). */
+  readonly onLog?: (line: string) => void;
+  /** Test seam: where the away report is stored. Defaults to `recordAwayReport`. */
+  readonly recordReport?: typeof recordAwayReport;
 }
 
 interface Window {
@@ -77,11 +89,13 @@ export class LifecycleFeed implements HuntFeed {
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly tickers = new Map<string, () => void>();
   private readonly schedule: FeedScheduler;
+  private readonly sequencer: CommandSequencer;
 
   constructor(private readonly options: FeedOptions) {
     positive('retainedEvents', options.retainedEvents);
     positive('releaseTickMs', options.releaseTickMs);
     this.schedule = options.schedule ?? intervalScheduler;
+    this.sequencer = options.sequencer ?? new CommandSequencer(options.lifecycle.now);
   }
 
   // -- HuntFeed ------------------------------------------------------------
@@ -227,7 +241,10 @@ export class LifecycleFeed implements HuntFeed {
   private async settle(accountId: string, collect: 'events' | 'summary'): Promise<PersistResult | undefined> {
     let committed;
     try {
-      committed = await persistHunt(this.deps, accountId, { live: true, collect });
+      // In the account's command order, settled to the instant it was stamped at.
+      committed = await this.sequencer.submit(accountId, (stamp) =>
+        persistHunt(this.deps, accountId, { live: true, collect, atWall: stamp.commandAtWall }),
+      );
     } catch (error) {
       if (error instanceof ConflictError && error.code === 'CONFLICT_STATE_VERSION') {
         const loaded = await readHunt(this.deps, accountId);
@@ -262,12 +279,18 @@ export class LifecycleFeed implements HuntFeed {
       after: sim.decode(committed.envelope.state),
       rewardsCredited: committed.rewards.length,
     });
+    const record = this.options.recordReport ?? recordAwayReport;
     try {
-      return await recordAwayReport(this.deps.db, accountId, report, {
+      return await record(this.deps.db, accountId, report, {
         nowWall: committed.envelope.lastSeenAt,
         retentionMs: this.deps.config.reportRetentionMs,
       });
-    } catch {
+    } catch (error) {
+      // Logged, never swallowed silently; the connection carries on without it.
+      const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      this.options.onLog?.(
+        `away report not stored account=${accountId} hunt=${committed.envelope.huntId} error=${reason.slice(0, 200)}`,
+      );
       return undefined;
     }
   }

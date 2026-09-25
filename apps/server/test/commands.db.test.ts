@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { applyCommand } from '../src/hunt/commands';
-import { startHunt } from '../src/hunt/lifecycle';
+import { persistHunt, startHunt } from '../src/hunt/lifecycle';
 import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
 import { sim } from './hunt-fixtures';
 import {
@@ -303,5 +303,99 @@ describe('idempotency', () => {
     const envelope = await checkpointOf(db, account.id);
     expect(envelope.generation).toBe(2);
     expect(sim.decode(envelope.state).nowMs, 'a replay settles nothing').toBe(1_000);
+  });
+});
+
+describe('a settlement committed inside a command’s own settle (R120)', () => {
+  /**
+   * "Another process" — its own pool and command queue — commits a settlement
+   * at a later wall instant after this command read the checkpoint and before
+   * it committed. The command must neither be refused for a conflict it did
+   * not cause nor re-anchor backwards to its earlier stamp.
+   */
+  async function racing() {
+    const account = await insertAccount(db);
+    const elsewhere = rig(db);
+    let raced = false;
+    const r = rig(db, {
+      lifecycle: {
+        hooks: {
+          afterSegment: async () => {
+            if (raced) return;
+            raced = true;
+            elsewhere.clock.now = T0 + 3_000;
+            await persistHunt(elsewhere.lifecycle, account.id, { live: true });
+          },
+        },
+      },
+    });
+    const active = await insertStrategyPreset(db, account.id, rules());
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({}, active.id) });
+    const other = await insertStrategyPreset(db, account.id, rules({ wipeLimit: 3 }));
+    return { account, r, other };
+  }
+
+  test('the command retries its settlement and applies; no wall interval is credited twice', async () => {
+    const { account, r, other } = await racing();
+    r.clock.now = T0 + 1_000;
+
+    const outcome = await applyCommand(r.commands, account, {
+      command: { kind: 'apply-strategy', presetId: other.id, presetVersion: 1 },
+      expectedGeneration: 1,
+    });
+    expect(outcome.commandAtWall).toBe(T0 + 1_000);
+    expect(outcome.view?.generation).toBe(2);
+
+    // The stale stamp did not rewind the anchor or presence.
+    const applied = await checkpointOf(db, account.id);
+    expect(applied.wallAnchorMs).toBe(T0 + 3_000);
+    expect(applied.lastSeenAt).toBe(T0 + 3_000);
+    expect(sim.decode(applied.state).nowMs).toBe(3_000);
+
+    // The next settlement credits only what is new since the race.
+    r.clock.now = T0 + 5_000;
+    const heartbeat = await persistHunt(r.lifecycle, account.id, { live: true });
+    expect(heartbeat.creditedSimMs).toBe(2_000);
+    expect(sim.decode((await checkpointOf(db, account.id)).state).nowMs).toBe(5_000);
+  });
+
+  test('the client’s own stale expectation is still refused recoverably, not retried away (B-L12)', async () => {
+    const { account, r, other } = await racing();
+    r.clock.now = T0 + 1_000;
+    const version = await accountVersion(db, account.id);
+
+    // The other settlement moves the account version the client read.
+    const refused = await rejection(() =>
+      applyCommand(r.commands, account, {
+        command: { kind: 'apply-strategy', presetId: other.id, presetVersion: 1 },
+        expectedStateVersion: version,
+      }),
+    );
+    expect(refused).toEqual({ code: 'CONFLICT_STATE_VERSION', field: 'expectedStateVersion', stateVersion: version + 1, generation: 1 });
+    expect((await checkpointOf(db, account.id)).pendingStrategy).toBeNull();
+  });
+});
+
+describe('the socket’s settlements share the command order (R120)', () => {
+  test('a heartbeat queued behind a command waits for it and is stamped when it reaches the head', async () => {
+    const { account, r } = await running();
+    await r.feed.connect(account.id);
+    const before = (await checkpointOf(db, account.id)).checkpointSeq;
+
+    let release!: () => void;
+    const blocker = r.commands.sequencer.submit(account.id, () => new Promise<void>((resolve) => (release = resolve)));
+    r.clock.now = T0 + 2_000;
+    const heartbeat = r.feed.heartbeat(account.id);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await checkpointOf(db, account.id)).checkpointSeq, 'nothing settles while the command holds the order').toBe(before);
+
+    r.clock.now = T0 + 4_000;
+    release();
+    await blocker;
+    await heartbeat;
+    const after = await checkpointOf(db, account.id);
+    expect(after.checkpointSeq).toBe(before + 1);
+    expect(sim.decode(after.state).nowMs).toBe(4_000);
   });
 });

@@ -83,13 +83,24 @@ export function anchorsOf(envelope: CheckpointEnvelope): HuntAnchors {
   };
 }
 
+/**
+ * The wall instant a settlement may use: never earlier than the checkpoint's
+ * own anchor. A settlement stamped before another one committed (a command
+ * waiting behind a heartbeat, a second process) must not rewind the anchor or
+ * presence — re-anchoring backwards would let the next settlement credit the
+ * same wall interval twice (B-17, B-18; ruling R120).
+ */
+export function effectiveWall(envelope: CheckpointEnvelope, nowWall: number): number {
+  return Math.max(nowWall, envelope.wallAnchorMs);
+}
+
 /** The window and the engine request for a settlement at `nowWall`. */
 export function settlementRequest(
   envelope: CheckpointEnvelope,
   nowWall: number,
   options: SettleOptions = {},
 ): { window: SettlementWindow; request: SegmentRequest } {
-  const window = settlementWindow(anchorsOf(envelope), nowWall);
+  const window = settlementWindow(anchorsOf(envelope), effectiveWall(envelope, nowWall));
   return {
     window,
     request: {
@@ -138,7 +149,8 @@ function nextAnchors(
     wallAnchorMs: settled.wallAnchorMs,
     simAnchorMs: settled.simAnchorMs,
     pausedWallMs: settled.pausedWallMs,
-    lastSeenAt: live ? settled.lastSeenAt : anchors.lastSeenAt,
+    // Presence only ever moves forward.
+    lastSeenAt: live ? Math.max(anchors.lastSeenAt, settled.lastSeenAt) : anchors.lastSeenAt,
   };
 }
 
@@ -149,11 +161,12 @@ function isShort(window: SettlementWindow, segment: SegmentResult): boolean {
 /** Turns an engine result for `window` into the next checkpoint. Pure. */
 export function applySegment(
   envelope: CheckpointEnvelope,
-  nowWall: number,
+  requestedWall: number,
   window: SettlementWindow,
   segment: SegmentResult,
   options: SettleOptions = {},
 ): Settlement {
+  const nowWall = effectiveWall(envelope, requestedWall);
   const anchors = anchorsOf(envelope);
   const short = isShort(window, segment);
 

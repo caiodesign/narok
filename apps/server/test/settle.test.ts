@@ -134,6 +134,24 @@ describe('re-anchoring to now makes uncovered time unrecoverable (B-L04) and a r
     const first = await settle(offline, W0 + 90_000, real);
     const backwards = await settle(first.envelope, W0 + 30_000, real);
     expect(backwards.creditedSimMs).toBe(0);
+    // Neither the anchor nor presence moves backwards (R120).
+    expect(backwards.envelope.wallAnchorMs).toBe(W0 + 90_000);
+    expect(backwards.envelope.lastSeenAt).toBe(W0 + 90_000);
+    expect(backwards.envelope.simAnchorMs).toBe(90_000);
+    expect(backwards.envelope.state).toBe(first.envelope.state);
+  });
+
+  test('backwards then forwards: the wall interval is credited exactly once (R120)', async () => {
+    // A command stamped at t1 settling after a heartbeat already committed t2 > t1.
+    const t2 = await settle(offline, W0 + 90_000, real);
+    const stale = await settle(t2.envelope, W0 + 30_000, real);
+    const next = await settle(stale.envelope, W0 + 120_000, real);
+
+    expect(t2.creditedSimMs + stale.creditedSimMs + next.creditedSimMs).toBe(120_000);
+    expect(next.creditedSimMs).toBe(30_000);
+    expect(sim.decode(next.envelope.state).nowMs).toBe(120_000);
+    expect(next.envelope.wallAnchorMs).toBe(W0 + 120_000);
+    expect(next.envelope.lastSeenAt).toBe(W0 + 120_000);
   });
 });
 

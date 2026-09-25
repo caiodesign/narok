@@ -8,7 +8,7 @@ import * as schema from '../src/db/schema';
 import { CommandSequencer, type CommandDeps } from '../src/hunt/commands';
 import { defaultHuntConfig, type HuntConfig } from '../src/hunt/config';
 import { decodeCheckpoint } from '../src/hunt/envelope';
-import { LifecycleFeed, type FeedScheduler } from '../src/hunt/feed';
+import { LifecycleFeed, type FeedOptions, type FeedScheduler } from '../src/hunt/feed';
 import { PrecomputeCache, type HuntPlan, type LifecycleDeps } from '../src/hunt/lifecycle';
 import type { RewardSource } from '../src/hunt/rewards';
 import { SegmentPool, inlineExecutor, type SegmentExecutor } from '../src/workers/pool';
@@ -42,6 +42,7 @@ export interface RigOptions {
   readonly rewardSource?: RewardSource;
   readonly config?: Partial<HuntConfig>;
   readonly lifecycle?: Partial<LifecycleDeps>;
+  readonly feed?: Partial<FeedOptions>;
 }
 
 export function rig(db: Db, options: RigOptions = {}) {
@@ -61,7 +62,15 @@ export function rig(db: Db, options: RigOptions = {}) {
   };
   const commands: CommandDeps = { lifecycle, sequencer: new CommandSequencer(lifecycle.now) };
   const noTicks: FeedScheduler = () => () => undefined;
-  const feed = new LifecycleFeed({ lifecycle, retainedEvents: 5_000, releaseTickMs: 1_000, schedule: noTicks });
+  // One command order for the account, shared by commands and the feed's settlements (R120).
+  const feed = new LifecycleFeed({
+    lifecycle,
+    retainedEvents: 5_000,
+    releaseTickMs: 1_000,
+    schedule: noTicks,
+    sequencer: commands.sequencer,
+    ...options.feed,
+  });
   return { clock, lifecycle, commands, feed };
 }
 
