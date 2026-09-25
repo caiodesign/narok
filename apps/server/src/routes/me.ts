@@ -30,7 +30,11 @@ function requireIdempotencyKey(request: FastifyRequest): string {
   return key;
 }
 
-export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): void {
+export function registerAccountRoutes(
+  app: FastifyInstance,
+  ctx: RouteContext,
+  options: { readonly huntsWired?: boolean } = {},
+): void {
   const { stores, config, now, parse } = ctx;
   const caller = (request: FastifyRequest) => requireSession(request, stores, config, now());
 
@@ -68,7 +72,8 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
     return { itemId: item.id, locked: body.locked, stateVersion: account.stateVersion };
   });
 
-  app.post('/api/hunts', async (request) => {
+  // With the lifecycle wired, `routes/hunts.ts` owns this route.
+  if (options.huntsWired !== true) app.post('/api/hunts', async (request) => {
     await caller(request);
     requireIdempotencyKey(request);
     // Strict schemas: a smuggled `seed`, `elapsedMs` or `commandAt` is rejected

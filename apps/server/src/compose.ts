@@ -79,6 +79,12 @@ export function compose(env: NodeJS.ProcessEnv, onLog?: (line: string) => void):
     precompute: new PrecomputeCache(),
   };
 
+  const feed = new LifecycleFeed({
+    lifecycle,
+    retainedEvents: config.bounds.unackedEventsPerSocket,
+    releaseTickMs: RELEASE_TICK_MS,
+  });
+
   // The audit and command-result stores are task 4's; until then the app's
   // own routes keep the in-memory ones, and hunt commands write both tables
   // directly inside their transactions.
@@ -93,11 +99,8 @@ export function compose(env: NodeJS.ProcessEnv, onLog?: (line: string) => void):
         audit: fallback.audit,
         commands: fallback.commands,
       },
-      huntFeed: new LifecycleFeed({
-        lifecycle,
-        retainedEvents: config.bounds.unackedEventsPerSocket,
-        releaseTickMs: RELEASE_TICK_MS,
-      }),
+      huntFeed: feed,
+      hunts: { lifecycle, feed },
     },
     close: () => client.end({ timeout: 5 }),
   };

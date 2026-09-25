@@ -218,7 +218,5 @@ describe('the segment is a candidate, not a commit', () => {
   });
 });
 
-describe("P-02: the account state is the server's", () => {
-  // Needs the gameplay routes (`routes/hunts.ts`), which land later in task 3.
-  test.todo('a client-supplied snapshot is never accepted as account state on any gameplay route');
-});
+// P-02 — a client-supplied snapshot is never accepted as account state — is
+// proved against the real routes in `hunt-routes.db.test.ts`.

@@ -70,7 +70,9 @@ describe('compose', () => {
       });
       const cookie = sessionCookie(login.headers['set-cookie']);
       const plain = await app.inject({ method: 'GET', url: '/ws', headers: { origin, cookie } });
-      expect(plain.json()).toMatchObject({ code: 'VALIDATION' });
+      // The whole envelope, not just the code: a regression once left every
+      // route answering in Fastify's own error shape once the socket was wired.
+      expect(plain.json()).toEqual({ code: 'VALIDATION', field: expect.any(String), retryable: false });
     } finally {
       await app.close();
       await composed.close();

@@ -106,6 +106,26 @@ export const presetPayloadSchema = z
   .object({ payload: z.unknown(), payloadSchemaVersion: positiveInt, name: z.string().min(1).max(40) })
   .strict();
 
+/**
+ * What a saved strategy preset holds, payload schema version 1 (owner decision
+ * 2026-09-25, spec §4.0.1): placement and one strategy per party slot, plus
+ * the wipe limit and the rest thresholds. Slots are `p0`–`p2` in party order.
+ * The rules inside each strategy are validated by the engine itself at start,
+ * so there is one validator for them, not two.
+ */
+const partySlot = z.string().regex(/^p[0-2]$/);
+export const STRATEGY_PAYLOAD_SCHEMA_VERSION = 1;
+export const strategyPresetPayloadSchema = z
+  .object({
+    placement: z.record(partySlot, z.string().min(1).max(16)),
+    strategies: z.record(partySlot, z.unknown()),
+    /** A total, not extra retries: 1 by default, configurable to 5 (layer-1 §6.6). */
+    wipeLimit: z.number().int().min(1).max(5),
+    rest: z.object({ hpStart: z.number().int(), mpStart: z.number().int() }).strict(),
+  })
+  .strict();
+export type StrategyPresetPayload = z.infer<typeof strategyPresetPayloadSchema>;
+
 export const lootPreviewSchema = z.object({ payload: z.unknown(), payloadSchemaVersion: positiveInt }).strict();
 
 /**

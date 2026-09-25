@@ -345,7 +345,8 @@ function inTownAt(checkpoint: Uint8Array): number {
 
 export interface StopCommand {
   readonly accountId: string;
-  readonly expectedStateVersion: number;
+  /** Optional: the stop route is unguarded (part 1 §3), a stop needs no read. */
+  readonly expectedStateVersion?: number;
   readonly idempotency?: IdempotencySpec;
 }
 
@@ -380,7 +381,7 @@ export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promi
   // The caller's guard is checked against the version it read, before the
   // settlement moves it; a stale intent settles nothing on its behalf.
   const current = await readAccountVersion(deps.db, command.accountId);
-  if (current !== command.expectedStateVersion) {
+  if (command.expectedStateVersion !== undefined && current !== command.expectedStateVersion) {
     throw new ConflictError('CONFLICT_STATE_VERSION', 'expectedStateVersion', current);
   }
 
