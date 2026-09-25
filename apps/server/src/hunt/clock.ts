@@ -76,14 +76,14 @@ export function settlementWindow(anchors: HuntAnchors, nowWall: number): Settlem
 /**
  * Settle → commit → refresh presence → **re-anchor** (layer-1 §4.4 step 2).
  *
- * `creditedSimMs` is what the engine actually simulated, which may be less than
+ * `simNowMs` is where the engine actually stopped, which may be short of
  * the window asked for. Presence still moves to `nowWall`: that asymmetry is
  * the mechanism, not an oversight.
  */
-export function reanchor(anchors: HuntAnchors, nowWall: number, creditedSimMs: number): HuntAnchors {
+export function reanchor(anchors: HuntAnchors, nowWall: number, simNowMs: number): HuntAnchors {
   return {
     wallAnchorMs: nowWall,
-    simAnchorMs: creditedSimMs,
+    simAnchorMs: simNowMs,
     pausedWallMs: 0,
     lastSeenAt: nowWall,
     offlineCapMs: anchors.offlineCapMs,
