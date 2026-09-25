@@ -477,10 +477,19 @@ async function runOrFault(
 export interface PersistOptions {
   /** Refresh presence only when a connection is live (part 2 §3's anchor table). */
   readonly live: boolean;
+  /**
+   * `'events'` when a connected client will be shown the settled window;
+   * summary otherwise. Either way the committed state is identical.
+   */
+  readonly collect?: 'events' | 'summary';
 }
 
 export interface PersistResult {
   readonly creditedSimMs: number;
+  /** The settled window's events, when `collect` asked for them; every one has elapsed. */
+  readonly events: SegmentResult['events'];
+  /** The committed checkpoint, so a caller need not read it back. */
+  readonly envelope: CheckpointEnvelope;
   readonly completion: SegmentResult['completion'] | 'inert';
   readonly stateVersion: number;
 }
@@ -495,7 +504,7 @@ export interface PersistResult {
 export async function persistHunt(deps: LifecycleDeps, accountId: string, options: PersistOptions): Promise<PersistResult> {
   const loaded = await readHunt(deps, accountId);
   if (loaded.status !== 'running') {
-    return { creditedSimMs: 0, completion: 'inert', stateVersion: loaded.stateVersion };
+    return { creditedSimMs: 0, events: [], envelope: loaded.envelope, completion: 'inert', stateVersion: loaded.stateVersion };
   }
 
   const nowWall = deps.now();
@@ -506,8 +515,8 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
   const segment = await runOrFault(
     deps,
     accountId,
-    jobKey(accountId, envelope),
-    { encodedState: envelope.state, simTarget: window.simTarget, collect: 'summary' },
+    `${jobKey(accountId, envelope)}:${options.collect ?? 'summary'}`,
+    { encodedState: envelope.state, simTarget: window.simTarget, collect: options.collect ?? 'summary' },
     nowWall,
   );
   await deps.hooks?.afterSegment?.();
@@ -573,6 +582,8 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
 
   return {
     creditedSimMs: segment.creditedSimMs,
+    events: segment.events,
+    envelope: updated,
     completion: segment.completion,
     stateVersion: loaded.stateVersion + 1,
   };
