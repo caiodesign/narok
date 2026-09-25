@@ -28,6 +28,7 @@ import { registerOriginGuard } from './plugins/origin';
 import { requireSession } from './plugins/session';
 import { registerAuthRoutes } from './routes/auth';
 import { registerAccountRoutes } from './routes/me';
+import { registerSocket, type HuntFeed } from './ws/socket';
 import { memoryStores } from './store/memory';
 import type { RouteContext } from './routes/context';
 import type { Stores } from './store/ports';
@@ -40,6 +41,12 @@ export interface AppDeps {
   readonly now?: () => number;
   /** Captures the startup line and every request log, for the P-06 test. */
   readonly onLog?: (line: string) => void;
+  /**
+   * The hunt lifecycle as the socket sees it. Absent until the lifecycle is
+   * wired, in which case `/ws` keeps its task 1 refusals and answers
+   * MAINTENANCE past them.
+   */
+  readonly huntFeed?: HuntFeed;
 }
 
 /**
@@ -87,18 +94,22 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerAccountRoutes(app, ctx);
 
   /**
-   * The socket endpoint exists from task 1 so its *refusals* are decided here
-   * with everything else: a foreign origin never reaches it, and a caller
-   * without a live session is `UNAUTHENTICATED` rather than upgraded. The
-   * protocol it would speak is task 3, so a call that passes both checks is
-   * told plainly that there is nothing to upgrade to yet.
+   * The socket endpoint's *refusals* are decided here with everything else: a
+   * foreign origin never reaches it, and a caller without a live session is
+   * `UNAUTHENTICATED` rather than upgraded. Without a hunt feed there is no
+   * protocol to speak, so a call that passes both checks is told plainly that
+   * there is nothing to upgrade to.
    */
-  app.get('/ws', async (request) => {
-    await requireSession(request, stores, config, now());
-    // Not a fault: the endpoint exists and is not serving yet. INTERNAL would
-    // have put a known-absent feature into the fault metrics of P-41.
-    throw new AppError('MAINTENANCE', 'ws');
-  });
+  if (deps.huntFeed === undefined) {
+    app.get('/ws', async (request) => {
+      await requireSession(request, stores, config, now());
+      // Not a fault: the endpoint exists and is not serving. INTERNAL would
+      // have put a known-absent feature into the fault metrics of P-41.
+      throw new AppError('MAINTENANCE', 'ws');
+    });
+  } else {
+    await registerSocket(app, ctx, deps.huntFeed);
+  }
 
   app.setNotFoundHandler(async (_request, reply) => {
     const error = new AppError('NOT_FOUND', 'route');

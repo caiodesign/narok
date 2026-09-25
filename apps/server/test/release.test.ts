@@ -85,6 +85,14 @@ describe('P-16: a violation is raised, never trimmed', () => {
     expect(() => release(batch, 5_000, { lastSeq: 3, releasedSimMs: 0 })).toThrowError(ProtocolViolation);
   });
 
+  test('an already-sent seq restamped after the released clock is refused, not skipped as a replay', () => {
+    const first = release([event(0, 400), event(1, 900)], 1_000, START);
+    // Whether or not the new stamp has elapsed yet: seq 1 went out at or
+    // before 1_000, so no later instant can be true of it.
+    expect(() => release([event(1, 1_800)], 2_000, first.cursor)).toThrowError(ProtocolViolation);
+    expect(() => release([event(1, 1_800)], 1_500, first.cursor)).toThrowError(ProtocolViolation);
+  });
+
   test('assertReleasable refuses a frame carrying an unelapsed event', () => {
     expect(() => assertReleasable([event(0, 5_000)], 1_000, -1)).toThrowError(ProtocolViolation);
     try {

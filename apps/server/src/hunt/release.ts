@@ -63,12 +63,20 @@ export function release(
   let withheld = 0;
 
   for (const event of ordered) {
+    if (event.seq <= cursor.lastSeq) {
+      // Already sent. Not an error: a reconnect legitimately replays a batch.
+      // But an event that was sent had elapsed when it went, so a "replay"
+      // stamped after everything released so far is a rewritten past, not a
+      // replay, and skipping it would be exactly the trimming P-16 forbids.
+      if (event.at > cursor.releasedSimMs) {
+        throw new ProtocolViolation('at', `event seq ${event.seq} was released, but now claims at ${event.at}`);
+      }
+      continue;
+    }
     if (event.at > releaseSimMs) {
       withheld += 1;
       continue;
     }
-    // Already sent. Not an error: a reconnect legitimately replays a batch.
-    if (event.seq <= cursor.lastSeq) continue;
 
     if (event.seq <= lastSeq) {
       throw new ProtocolViolation('seq', `event seq ${event.seq} is not greater than the last released ${lastSeq}`);

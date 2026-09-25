@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "11.0.2",
+    "@fastify/websocket": "11.0.2",
     "@narok/data": "workspace:*",
     "@narok/protocol": "workspace:*",
     "@narok/sim": "workspace:*",
@@ -19,6 +20,7 @@
     "zod": "4.1.13"
   },
   "devDependencies": {
+    "@types/ws": "8.18.1",
     "drizzle-kit": "^0.31.11"
   }
 }
