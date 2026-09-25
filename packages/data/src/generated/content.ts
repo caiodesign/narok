@@ -482,6 +482,7 @@ export const content: Content = {
       "slowBp": 0
     }
   },
-  "version": "d32c6cd45b1ee49eae6ab0f3fa5f1d4b5a1ab657bb9dc18a4db18c7da50816ef",
+  "townReturnTravelMs": null,
+  "version": "517cf564b1987e3d67a3475c90f2bb4f8681a1d058fe02610094fa8b3850656d",
   "walkMs": 2000
 };

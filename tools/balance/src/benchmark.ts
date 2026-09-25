@@ -111,7 +111,7 @@ function buildMetadata(): BenchmarkMetadata {
     cpuModel: cpuList[0]?.model ?? 'unknown',
     cpuCount: cpuList.length,
     totalMemoryBytes: totalmem(),
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     commandLine: process.argv.slice(1).join(' '),

@@ -165,7 +165,7 @@ export function fightFixture(): SimState {
 
   const state: SimState = {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs: 2_000,

@@ -148,6 +148,7 @@ function buildFillerContent(): Content {
     regenMs: 1,
     encounterLimitMs: STRESS_ENCOUNTER_LIMIT_MS,
     respawnMs: 1,
+    townReturnTravelMs: null,
   };
 }
 
@@ -247,7 +248,7 @@ export function buildStressFixture(seed = 1): StressFixture {
 
   const state: SimState = {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs: 0,

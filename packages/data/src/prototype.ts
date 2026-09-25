@@ -337,4 +337,7 @@ export const prototypeDefinition: Omit<Content, 'version' | 'gridHash'> = {
   regenMs: 5_000,
   encounterLimitMs: 120_000,
   respawnMs: 30_000,
+  // OPEN CONTENT INPUT (R114): the owner has not chosen the town-return travel
+  // duration, and no source gives one. Left null deliberately — do not fill in.
+  townReturnTravelMs: null,
 };

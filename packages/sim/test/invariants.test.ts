@@ -80,7 +80,7 @@ function duelState(nowMs: number, enemyHp: number): SimState {
   };
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs,
@@ -314,7 +314,7 @@ test('incompatible states and targets are rejected with documented codes', () =>
     'state.schemaVersion',
   );
   expectSimError(
-    () => sim.advance({ ...state, simulationVersion: 'a2' as unknown as 'a1' }, 10),
+    () => sim.advance({ ...state, simulationVersion: 'a1' as unknown as 'b1' }, 10),
     'WRONG_VERSION',
     'state.simulationVersion',
   );

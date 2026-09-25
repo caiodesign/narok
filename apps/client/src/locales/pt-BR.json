@@ -165,6 +165,8 @@
     "wipe-limit": "Limite de derrotas atingido",
     "stalemate": "Limite de tempo do encontro atingido",
     "operator": "Parado pelo operador",
+    "retreat": "Retirada para a cidade",
+    "potion-floor": "Poções de HP abaixo do mínimo",
     "none": "Nenhuma parada registrada"
   },
   "error": {

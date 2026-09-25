@@ -41,7 +41,7 @@ function targetReasonState(): SimState {
   };
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: 'test-content',
     gridHash: 'test-grid',
     nowMs: 2_000,

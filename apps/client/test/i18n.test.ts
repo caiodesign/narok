@@ -98,6 +98,8 @@ describe('locale resources', () => {
       'wipe-limit': true,
       stalemate: true,
       operator: true,
+      retreat: true,
+      'potion-floor': true,
     };
     const targetReasons: Record<NonNullable<PublicActor['targetReason']>, true> = {
       forced: true,

@@ -36,7 +36,7 @@ function multiActorState(
   }
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs: 10_000,

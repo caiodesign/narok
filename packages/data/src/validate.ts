@@ -299,6 +299,10 @@ export function validateContent(value: unknown): Content {
   const regenMs = requireSafeInt(root.regenMs, 'regenMs', 1, 1_000_000);
   const encounterLimitMs = requireSafeInt(root.encounterLimitMs, 'encounterLimitMs', 1, 100_000_000);
   const respawnMs = requireSafeInt(root.respawnMs, 'respawnMs', 1, 1_000_000);
+  // R114: an explicit `null` marks the open input; a missing key is still refused.
+  const townReturnTravelMs = root.townReturnTravelMs === null
+    ? null
+    : requireSafeInt(root.townReturnTravelMs, 'townReturnTravelMs', 1, 100_000_000);
   return {
     version,
     gridHash,
@@ -313,5 +317,6 @@ export function validateContent(value: unknown): Content {
     regenMs,
     encounterLimitMs,
     respawnMs,
+    townReturnTravelMs,
   };
 }
