@@ -22,6 +22,7 @@ import {
   readHunt,
   recoverFaultedHunt,
   startHunt,
+  stopHunt,
   type HuntPlan,
   type LifecycleDeps,
 } from '../src/hunt/lifecycle';
@@ -73,6 +74,7 @@ function harness(overrides: Partial<LifecycleDeps> = {}, executor?: SegmentExecu
   const deps: LifecycleDeps = {
     db,
     sim,
+    content: validated,
     pins: { simulationVersion: sim.start(withSeed(plan(), 1)).simulationVersion, contentVersion: validated.version, gridHash: validated.gridHash },
     config: defaultHuntConfig(),
     now: () => clock.now,
@@ -654,11 +656,11 @@ describe('P-38: recovery from a fault is explicit and validated', () => {
     const before = decodeCheckpoint(Buffer.from(valid.checkpoint).toString('utf8'));
     const after = decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8'));
     expect(after.state, 'the engine state is the last valid one, unadvanced').toBe(before.state);
-    expect(after.stopContext).toEqual({ reason: 'operator', atSimMs: 0, atWallMs: T0 + 60_000 });
+    expect(after.stopContext).toEqual({ reason: 'operator', atSimMs: 0, atWallMs: T0 + 60_000, inTownAtWallMs: T0 + 60_000 });
     expect(row.faultedReason, 'the reason stays for the record').toContain('INVALID_STATE');
 
     // Town again: a new hunt may start, and it does not inherit the old fault.
-    const { deps } = harness();
+    const deps = { ...h.deps, pool: new SegmentPool(inlineExecutor(sim)) };
     await expect(
       startHunt(deps, { accountId: account.id, expectedStateVersion: version + 1, plan: plan() }),
     ).resolves.toMatchObject({ generation: 1 });
@@ -687,6 +689,123 @@ describe('P-38: recovery from a fault is explicit and validated', () => {
     const refused = await rejection(() => recoverFaultedHunt(h.deps, { accountId: account.id, expectedStateVersion: 0 }));
     expect(refused.code).toBe('CONFLICT_STATE_VERSION');
     expect((await huntRow(account.id)).status).toBe('faulted');
+  });
+});
+
+describe('stop: settle, then return to town (spec §4.0, §4.0.1)', () => {
+  const TRAVEL = validated.townReturnTravelMs!;
+
+  test('the owner’s travel time is ten seconds of content', () => {
+    expect(TRAVEL).toBe(10_000);
+  });
+
+  test('it settles to the command instant first, then stops, abandoning the encounter', async () => {
+    const account = await insertAccount(db);
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+
+    h.clock.now = T0 + 45_000;
+    const stopped = await stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 });
+
+    const row = await huntRow(account.id);
+    expect(row.status).toBe('stopped');
+    const envelope = decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8'));
+    const state = sim.decode(envelope.state);
+    expect(state.nowMs, 'the elapsed time was settled before the stop').toBe(45_000);
+    expect(state.phase).toBe('stopped');
+    expect(state.stopReason).toBe('operator');
+    expect(state.queue).toEqual([]);
+    expect(envelope.stopContext).toEqual({
+      reason: 'operator',
+      atSimMs: 45_000,
+      atWallMs: T0 + 45_000,
+      inTownAtWallMs: T0 + 45_000 + TRAVEL,
+    });
+    expect(envelope.generation, 'a stop opens a new generation').toBe(2);
+    expect(stopped.generation).toBe(2);
+    expect(stopped.state.phase).toBe('stopped');
+  });
+
+  test('B-L18: stopping preserves rng, metrics, wipes and encounter count exactly', async () => {
+    const control = await insertAccount(db);
+    const settledOnly = harness();
+    await startHunt(settledOnly.deps, { accountId: control.id, expectedStateVersion: 0, plan: plan() });
+    settledOnly.clock.now = T0 + 45_000;
+    await persistHunt(settledOnly.deps, control.id, { live: true });
+    const settled = sim.decode(decodeCheckpoint(Buffer.from((await huntRow(control.id)).checkpoint).toString('utf8')).state);
+
+    const account = await insertAccount(db);
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 45_000;
+    await stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 });
+    const stopped = sim.decode(decodeCheckpoint(Buffer.from((await huntRow(account.id)).checkpoint).toString('utf8')).state);
+
+    for (const key of ['rng', 'metrics', 'encounterCount', 'actors', 'nowMs', 'epoch'] as const) {
+      expect(JSON.stringify(stopped[key]), key).toBe(JSON.stringify(settled[key]));
+    }
+  });
+
+  test('a new hunt waits for the party to reach town', async () => {
+    const account = await insertAccount(db);
+    const h = harness();
+    const first = await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 5_000;
+    await stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 });
+    const version = await accountVersion(account.id);
+
+    h.clock.now = T0 + 5_000 + TRAVEL - 1;
+    expect(await rejection(() => startHunt(h.deps, { accountId: account.id, expectedStateVersion: version, plan: plan() }))).toEqual({
+      code: 'RULE_VIOLATION',
+      field: 'hunt.travel',
+    });
+
+    h.clock.now = T0 + 5_000 + TRAVEL;
+    const second = await startHunt(h.deps, { accountId: account.id, expectedStateVersion: version, plan: plan() });
+    expect(second.huntId, 'a new hunt is a new reward namespace').not.toBe(first.huntId);
+  });
+
+  test('stopping a hunt that is not running is refused', async () => {
+    const account = await insertAccount(db);
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 1_000;
+    await stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 });
+
+    const version = await accountVersion(account.id);
+    expect(await rejection(() => stopHunt(h.deps, { accountId: account.id, expectedStateVersion: version }))).toEqual({
+      code: 'RULE_VIOLATION',
+      field: 'hunt.status',
+    });
+  });
+
+  test('a replayed stop returns the stored answer and stops once', async () => {
+    const account = await insertAccount(db);
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 1_000;
+    const command = { accountId: account.id, expectedStateVersion: 1, idempotency: { key: 'stop-1', requestHash: 'h' } };
+
+    const first = await stopHunt(h.deps, command);
+    h.clock.now = T0 + 2_000;
+    const second = await stopHunt(h.deps, command);
+    expect(second).toEqual(first);
+  });
+
+  test('an intent that turns out invalid still leaves its settlement committed', async () => {
+    const account = await insertAccount(db);
+    const h = harness();
+    // A lone ranger wipes within the hour, so the settlement itself stops the hunt.
+    const solo = plan({ classes: ['ranger'], placement: defaultPlacement(['ranger']), strategies: { p0: defaultStrategy('ranger') } });
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: solo });
+
+    h.clock.now = T0 + 3_600_000;
+    const refused = await rejection(() => stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 }));
+    expect(refused).toEqual({ code: 'RULE_VIOLATION', field: 'hunt.status' });
+
+    const row = await huntRow(account.id);
+    expect(row.status, 'the settlement stood').toBe('stopped');
+    expect(sim.decode(decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8')).state).stopReason).toBe('wipe-limit');
   });
 });
 

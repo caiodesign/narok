@@ -300,9 +300,9 @@ test('stop changes only phase, stopReason and queue in the canonical encoding (B
   const changed = Object.keys(before)
     .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
     .sort();
-  // The return-to-town travel segment's own time accrual is the fourth permitted
-  // difference. The engine does not simulate it: its duration is the open content
-  // input `townReturnTravelMs`, so here `nowMs` and the walk metrics hold still too.
+  // The return-to-town travel is the fourth permitted difference, and it is not
+  // in the engine: the server records it as a wall-clock arrival in the
+  // checkpoint envelope (spec §4.0.1), so `nowMs` and the walk metrics hold still.
   expect(changed).toEqual(['phase', 'queue', 'stopReason']);
   for (const key of ['rng', 'actors', 'metrics', 'encounterCount', 'nowMs', 'epoch', 'input']) {
     expect(JSON.stringify(after[key])).toBe(JSON.stringify(before[key]));

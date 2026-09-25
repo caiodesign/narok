@@ -65,6 +65,7 @@ export function compose(env: NodeJS.ProcessEnv, onLog?: (line: string) => void):
   const lifecycle: LifecycleDeps = {
     db,
     sim,
+    content: validated,
     pins: {
       simulationVersion: SIMULATION_VERSION,
       contentVersion: validated.version,

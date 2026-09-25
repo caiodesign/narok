@@ -123,6 +123,13 @@ Recorded in layer-1 where they belong (§4.5, §7.4, §7.5, §15) and applied in
 | Bag, Character and Away stylesheets | **Ported verbatim**, like Hunt and Strategy: byte-identical sheets frozen under a new ruling continuing the R1xx sequence, with anything the product needs confined to a labelled additions block. |
 | Two-handed weapons | **They lock the off-hand.** A two-handed weapon occupies `weapon` and forces `offhand` empty; equipping one auto-unequips the off-hand in town, and the command fails if the bag cannot hold what comes off. |
 
+### 4.0.1 Decided by the owner, 2026-09-25
+
+| Decision | What was decided |
+|---|---|
+| Town-return travel | **10 seconds** (`townReturnTravelMs = 10_000`), on the prototype map whose walk interval is 2 s. Long enough that stopping is a real choice, short enough not to punish it; a content value, tunable per content version without code. |
+| What a strategy preset holds | **Placement, per-character strategies, the wipe limit and the rest thresholds.** The start command names a preset and carries none of them itself. |
+
 ### 4.1 Blocks writing the milestone B plan
 
 These change the shape of the work, so the plan cannot be sequenced around them. The nine rows the

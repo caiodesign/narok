@@ -63,6 +63,7 @@ function rig(executor?: SegmentExecutor) {
   const lifecycle: LifecycleDeps = {
     db,
     sim,
+    content: validated,
     pins: {
       simulationVersion: 'b1',
       contentVersion: validated.version,

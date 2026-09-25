@@ -11,11 +11,12 @@
  * What leaves this module for a client is `project(state)` plus `generation`
  * and the event cursor — never the seed, never the queue (B-08).
  *
- * Stop and the return-to-town travel segment are not here yet: the travel
- * duration is an open content input (`townReturnTravelMs: null`), and a stop
- * that consumes it cannot be written until the owner sets it.
+ * A stop is settle-then-apply like every intervention: the elapsed time is
+ * committed first, then the encounter is abandoned and the party travels to
+ * town for the content's `townReturnTravelMs` (spec §4.0, §4.0.1).
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import type { Content } from '@narok/data';
 import { SimError, type LabInput, type PublicState, type Simulation, type SimState } from '@narok/sim';
 import * as schema from '../db/schema';
 import {
@@ -60,6 +61,8 @@ export interface LifecycleHooks {
 export interface LifecycleDeps {
   readonly db: Database;
   readonly sim: Simulation;
+  /** The validated content the simulation was built from; the travel time lives here. */
+  readonly content: Content;
   /** The deployed versions. A checkpoint under any other is refused, never substituted (P-28). */
   readonly pins: CheckpointVersions;
   readonly config: HuntConfig;
@@ -293,11 +296,14 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
     async (tx) => {
       // Checked under the account lock, so two starts cannot both see "none".
       const [existing] = await tx
-        .select({ status: schema.hunts.status })
+        .select({ status: schema.hunts.status, checkpoint: schema.hunts.checkpoint })
         .from(schema.hunts)
         .where(eq(schema.hunts.accountId, command.accountId));
       if (existing?.status === 'faulted') throw new AppError('HUNT_FAULTED', 'hunt.status');
       if (existing?.status === 'running') throw new AppError('RULE_VIOLATION', 'hunt.status');
+      if (existing !== undefined && inTownAt(existing.checkpoint) > T0) {
+        throw new AppError('RULE_VIOLATION', 'hunt.travel');
+      }
 
       await saveCheckpoint(tx, {
         accountId: command.accountId,
@@ -315,6 +321,116 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
 
       await deps.hooks?.beforeCommit?.();
       return view(deps.sim, envelope, state, command.expectedStateVersion + 1);
+    },
+  );
+
+  deps.precompute.discard(command.accountId);
+  return result;
+}
+
+/** When the previous hunt's party reaches town; `-Infinity` when nothing is in transit. */
+function inTownAt(checkpoint: Uint8Array): number {
+  try {
+    const stop = decodeCheckpoint(Buffer.from(checkpoint).toString('utf8')).stopContext;
+    return stop?.inTownAtWallMs ?? Number.NEGATIVE_INFINITY;
+  } catch {
+    // An older envelope cannot carry a journey; it blocks nothing.
+    return Number.NEGATIVE_INFINITY;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 7 for stop: settle, then return to town
+// ---------------------------------------------------------------------------
+
+export interface StopCommand {
+  readonly accountId: string;
+  readonly expectedStateVersion: number;
+  readonly idempotency?: IdempotencySpec;
+}
+
+/**
+ * The owner's stop (spec §4.0): stopping *is* the return to town. The elapsed
+ * time is settled and committed first, and that settlement stands even if the
+ * stop itself is then refused — settling is not conditional on the intent
+ * being legal (part 2 §1 step 7). Then the encounter is abandoned with the
+ * engine's own queue-clearing stop, which preserves damage, spent resources,
+ * RNG progression and metrics exactly (B-L18), and the party travels to town.
+ */
+export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promise<HuntView> {
+  // A replay answers from its stored result without settling again.
+  if (command.idempotency !== undefined) {
+    const [stored] = await deps.db
+      .select({ requestHash: schema.commandResults.requestHash, response: schema.commandResults.response })
+      .from(schema.commandResults)
+      .where(
+        and(
+          eq(schema.commandResults.accountId, command.accountId),
+          eq(schema.commandResults.idempotencyKey, command.idempotency.key),
+        ),
+      );
+    if (stored !== undefined) {
+      if (stored.requestHash !== command.idempotency.requestHash) {
+        throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'idempotency-key');
+      }
+      return stored.response as HuntView;
+    }
+  }
+
+  // The caller's guard is checked against the version it read, before the
+  // settlement moves it; a stale intent settles nothing on its behalf.
+  const current = await readAccountVersion(deps.db, command.accountId);
+  if (current !== command.expectedStateVersion) {
+    throw new ConflictError('CONFLICT_STATE_VERSION', 'expectedStateVersion', current);
+  }
+
+  const settled = await persistHunt(deps, command.accountId, { live: true });
+  const nowWall = deps.now();
+  const travelMs = deps.content.townReturnTravelMs ?? 0;
+
+  const result = await withAccountTx(
+    deps.db,
+    {
+      accountId: command.accountId,
+      expectedStateVersion: settled.stateVersion,
+      operation: 'hunt.stop',
+      idempotency: command.idempotency,
+    },
+    async (tx) => {
+      const loaded = await loadCheckpoint(tx, command.accountId, deps.pins);
+      if (loaded.status !== 'running') throw new AppError('RULE_VIOLATION', 'hunt.status');
+
+      const envelope = decodeCheckpoint(loaded.encoded);
+      const state = deps.sim.stop(deps.sim.decode(envelope.state));
+      const updated: CheckpointEnvelope = {
+        ...envelope,
+        generation: envelope.generation + 1,
+        checkpointSeq: envelope.checkpointSeq + 1,
+        stopContext: {
+          reason: 'operator',
+          atSimMs: state.nowMs,
+          atWallMs: nowWall,
+          inTownAtWallMs: nowWall + travelMs,
+        },
+        state: deps.sim.encode(state),
+      };
+
+      await saveCheckpoint(tx, {
+        accountId: command.accountId,
+        status: 'stopped',
+        mapId: loaded.mapId,
+        encoded: encodeCheckpoint(updated),
+        checkpointSchemaVersion: ENVELOPE_VERSION,
+        ...versionsOf(state),
+        simAnchorMs: updated.simAnchorMs,
+        wallAnchorAt: new Date(updated.wallAnchorMs),
+        lastSeenAt: new Date(updated.lastSeenAt),
+        generation: updated.generation,
+        maxBytes: deps.config.maxCheckpointBytes,
+      });
+      await deps.hooks?.beforeCommit?.();
+
+      return view(deps.sim, updated, state, settled.stateVersion + 1);
     },
   );
 
@@ -418,7 +534,8 @@ export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCo
       const atSimMs = deps.sim.decode(envelope.state).nowMs;
       const encoded = encodeCheckpoint({
         ...envelope,
-        stopContext: { reason: 'operator', atSimMs, atWallMs: nowWall },
+        // No journey: recovery is an operator action, not the player's stop.
+        stopContext: { reason: 'operator', atSimMs, atWallMs: nowWall, inTownAtWallMs: nowWall },
       });
 
       await saveCheckpoint(tx, {
@@ -535,6 +652,9 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
             atSimMs: segment.simNowMs,
             // From the pre-settlement anchors (part 2 §3).
             atWallMs: stopWallInstant(anchors, segment.simNowMs),
+            // The owner's travel rule is for the player's stop; an engine stop
+            // found by a settlement has long since been overtaken by the clock.
+            inTownAtWallMs: stopWallInstant(anchors, segment.simNowMs),
           }
         : envelope.stopContext,
     state: segment.encodedState,

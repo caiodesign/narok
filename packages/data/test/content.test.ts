@@ -76,14 +76,16 @@ test('rejects a noninteger monster HP', () => {
   expectInvalidContent(value, 'monsters.briar-boar.hp');
 });
 
-// The owner decided (spec §4.0) that stopping a hunt returns to town through a
-// simulated travel segment whose duration is a content constant. Neither
-// layer-1 nor the milestone B parts give that number (part 3 §8 #9 only bounds
-// it below by the map's walk interval), so it ships as an explicit open input:
-// `null` until the owner sets it, never a placeholder value (ruling R114).
-test('the town-return travel duration is an open content input', () => {
-  expect(prototypeDefinition.townReturnTravelMs).toBeNull();
-  expect(validateContent(baseContent()).townReturnTravelMs).toBeNull();
+// Owner decision 2026-09-25 (spec §4.0.1): stopping costs ten seconds of
+// travel to town, against the prototype map's 2 s walk (part 3 §8 #9 bounds it
+// below by the walk interval).
+test("the town-return travel duration is the owner's ten seconds", () => {
+  expect(prototypeDefinition.townReturnTravelMs).toBe(10_000);
+  expect(prototypeDefinition.townReturnTravelMs).toBeGreaterThanOrEqual(prototypeDefinition.walkMs);
+});
+
+test('null remains a valid, explicit "no journey" for other content', () => {
+  expect(validateContent({ ...baseContent(), townReturnTravelMs: null }).townReturnTravelMs).toBeNull();
 });
 
 test('accepts a positive integer town-return travel duration once one is chosen', () => {

@@ -18,7 +18,7 @@
 import { z } from 'zod';
 
 /** Bumped when the envelope's own shape changes, independent of the engine. */
-export const ENVELOPE_VERSION = 1;
+export const ENVELOPE_VERSION = 2;
 
 /**
  * A reward rolled but not yet committed. Bounded, because the checkpoint is
@@ -85,9 +85,20 @@ export const checkpointEnvelopeSchema = z
       })
       .strict(),
 
-    /** Why the hunt ended, when it has. Never invented for a running hunt. */
+    /**
+     * Why the hunt ended, when it has. Never invented for a running hunt.
+     * `inTownAtWallMs` is when the party reaches town: a player's stop costs
+     * the content's travel time (spec §4.0.1), and a new hunt cannot start
+     * before it. It is wall time, not sim time, so the stopped engine state is
+     * never ahead of the clock a client may be shown.
+     */
     stopContext: z
-      .object({ reason: z.string().max(64), atSimMs: z.number().int().nonnegative(), atWallMs: z.number().int() })
+      .object({
+        reason: z.string().max(64),
+        atSimMs: z.number().int().nonnegative(),
+        atWallMs: z.number().int(),
+        inTownAtWallMs: z.number().int(),
+      })
       .strict()
       .nullable(),
 
