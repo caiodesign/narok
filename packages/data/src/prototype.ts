@@ -1,14 +1,22 @@
+import { RARITY_RULES } from './items';
 import type {
+  BonusDefinition,
+  BonusKind,
   ClassDefinition,
   ClassId,
   Content,
   Element,
+  Family,
+  Handedness,
+  ItemDefinition,
   MonsterDefinition,
+  OnboardingGrant,
   RecipeDefinition,
   RecipeId,
   ShapeId,
   SkillDefinition,
   SkillId,
+  Slot,
 } from './types';
 
 /** Prototype map identifier. Not a {@link Content} field; the map is fixed for milestone A. */
@@ -216,7 +224,11 @@ const skills: Record<SkillId, SkillDefinition> = {
   },
 };
 
-const monsters: Record<string, MonsterDefinition> = {
+/** Milestone A's monster fields; the B drop fields are added below from {@link OPEN_CONTENT_INPUTS}. */
+type MonsterBase = Omit<MonsterDefinition,
+  'equipment' | 'consumables' | 'dropMultiplier' | 'goldMin' | 'goldMax'>;
+
+const monsterBases: Record<string, MonsterBase> = {
   'briar-boar': {
     id: 'briar-boar',
     level: 10,
@@ -273,6 +285,221 @@ const monsters: Record<string, MonsterDefinition> = {
   },
 };
 
+/**
+ * OPEN CONTENT INPUTS — provisional, pending owner balance.
+ *
+ * Part 3 §8 (#2, #3, #8) and layer-1 §7.1–§7.2 leave every equipment and bonus
+ * number open: base stats, bonus pools and spans, stacking choices, drop
+ * multipliers, monster equipment lists and the onboarding grant's fixed value.
+ * Validation, loadout composition and later drop tests need real content, so
+ * the prototype table below is built from exactly these values and nothing
+ * else (controller ruling, task 5). They are placeholders to exercise
+ * structure, chosen small and at the lowest tier only; tests assert structure
+ * and composition, never these particular numbers. Replace them with measured
+ * values; do not cite them as balance.
+ *
+ * Not open, and therefore not listed: rarity bonus counts and protection
+ * (layer-1 §7.1, §7.5), the 1/10/20/30/40 tier ladder (layer-1 §7.1), gold
+ * ranges (`goldMin = goldMax = rawGold`, so B's gold draw banks A's gold
+ * exactly), `basePrice` (`null`: prices are deferred, spec §4.0), and the class
+ * weapons' ATK/MATK/interval/range/kind, which copy each class's milestone A
+ * weapon fields so an equipped tier-1 class weapon is exactly A's baseline.
+ */
+export const OPEN_CONTENT_INPUTS = {
+  /** Handedness of each class weapon; the bow and the staff are two-handed. */
+  weaponHandedness: {
+    guardian: 'one-handed', cleric: 'one-handed', ranger: 'two-handed', arcanist: 'two-handed',
+  } satisfies Record<ClassId, Handedness>,
+  /** Tier-1 armour of each non-weapon definition. Accessories carry bonuses only (Part 3 §1.1). */
+  armour: {
+    'wooden-buckler': { armorDef: 2, armorMdef: 0 },
+    'leather-cap': { armorDef: 1, armorMdef: 1 },
+    'padded-vest': { armorDef: 3, armorMdef: 1 },
+    'wool-cloak': { armorDef: 1, armorMdef: 1 },
+    'leather-boots': { armorDef: 1, armorMdef: 0 },
+    'copper-ring': { armorDef: 0, armorMdef: 0 },
+    'bone-charm': { armorDef: 0, armorMdef: 0 },
+  },
+  /**
+   * Per-kind tier-1 value span (flat points, or basis points where the unit is
+   * `bp`), stacking rule and pool membership. Every family/element variant is
+   * its own identity sharing its kind's span (assumes Part 3 §8 #2; revisit if
+   * the owner decides otherwise). Only tier 1 is authored:
+   * `ceil(maxMonsterLevel / 10)` is 1 for the prototype map.
+   */
+  bonusKinds: {
+    attribute: { span: { min: 1, max: 3 }, stacking: 'sum', slots: ['weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2'] },
+    'atk-pct': { span: { min: 100, max: 300 }, stacking: 'sum', slots: ['weapon', 'accessory1', 'accessory2'] },
+    'matk-pct': { span: { min: 100, max: 300 }, stacking: 'sum', slots: ['weapon', 'accessory1', 'accessory2'] },
+    'family-damage': { span: { min: 200, max: 500 }, stacking: 'sum', slots: ['weapon', 'accessory1', 'accessory2'] },
+    'element-damage': { span: { min: 200, max: 500 }, stacking: 'sum', slots: ['weapon', 'accessory1', 'accessory2'] },
+    'element-resist': { span: { min: 300, max: 800 }, stacking: 'max', slots: ['offhand', 'head', 'body', 'cloak', 'shoes'] },
+    crit: { span: { min: 100, max: 300 }, stacking: 'sum', slots: ['weapon', 'head', 'accessory1', 'accessory2'] },
+    'attack-speed': { span: { min: 200, max: 500 }, stacking: 'max', slots: ['weapon', 'shoes', 'accessory1', 'accessory2'] },
+    'max-hp': { span: { min: 200, max: 500 }, stacking: 'sum', slots: ['offhand', 'head', 'body', 'cloak', 'shoes'] },
+    'hp-regen': { span: { min: 1, max: 3 }, stacking: 'sum', slots: ['body', 'cloak', 'accessory1', 'accessory2'] },
+    'mp-regen': { span: { min: 1, max: 2 }, stacking: 'sum', slots: ['head', 'cloak', 'accessory1', 'accessory2'] },
+    'heal-power': { span: { min: 200, max: 500 }, stacking: 'sum', slots: ['weapon', 'accessory1', 'accessory2'] },
+  } satisfies Record<BonusKind, { span: { min: number; max: number }; stacking: 'sum' | 'max'; slots: Slot[] }>,
+  /** Fitting bonuses (rolled at weight 2) of each definition. */
+  fittingBonuses: {
+    'guardian-sword': ['str', 'atk-pct'],
+    'cleric-mace': ['heal-power', 'int'],
+    'ranger-bow': ['dex', 'crit'],
+    'arcanist-staff': ['int', 'matk-pct'],
+    'wooden-buckler': ['vit', 'max-hp'],
+    'leather-cap': ['int', 'mp-regen'],
+    'padded-vest': ['vit', 'max-hp'],
+    'wool-cloak': ['agi', 'hp-regen'],
+    'leather-boots': ['agi', 'attack-speed'],
+    'copper-ring': ['luk', 'crit'],
+    'bone-charm': ['dex', 'hp-regen'],
+  } satisfies Record<string, string[]>,
+  /** Every monster lists every prototype definition, at the normal multiplier (layer-1 §7.2: normal x1). */
+  dropMultiplier: 1,
+  /**
+   * Onboarding grant (Part 3 §8 #11): each class's weapon at item level 1 with
+   * its first fitting bonus fixed at that bonus's tier-1 span maximum.
+   */
+  onboardingBonusValue: 'tier-1 span max',
+} as const;
+
+const ATTRIBUTE_KEYS = ['str', 'agi', 'vit', 'int', 'dex', 'luk'] as const;
+const FAMILY_VARIANTS: readonly Family[] = ['beast', 'undead', 'demon', 'plant', 'insect', 'humanoid'];
+const ELEMENT_VARIANTS: readonly Element[] = ['fire', 'water', 'earth', 'wind'];
+
+function bonus(
+  id: string,
+  kind: BonusKind,
+  target: Partial<Pick<BonusDefinition, 'attribute' | 'family' | 'element'>> = {},
+): BonusDefinition {
+  const rule = OPEN_CONTENT_INPUTS.bonusKinds[kind];
+  const flat = kind === 'attribute' || kind === 'hp-regen' || kind === 'mp-regen';
+  return {
+    id,
+    kind,
+    unit: flat ? 'flat' : 'bp',
+    attribute: target.attribute ?? null,
+    family: target.family ?? null,
+    element: target.element ?? null,
+    slots: [...rule.slots],
+    spans: [{ ...rule.span }],
+    stacking: rule.stacking,
+  };
+}
+
+const bonusList: BonusDefinition[] = [
+  ...ATTRIBUTE_KEYS.map((attribute) => bonus(attribute, 'attribute', { attribute })),
+  bonus('atk-pct', 'atk-pct'),
+  bonus('matk-pct', 'matk-pct'),
+  ...FAMILY_VARIANTS.map((family) => bonus(`${family}-damage`, 'family-damage', { family })),
+  ...ELEMENT_VARIANTS.map((element) => bonus(`${element}-damage`, 'element-damage', { element })),
+  ...ELEMENT_VARIANTS.map((element) => bonus(`${element}-resist`, 'element-resist', { element })),
+  bonus('crit', 'crit'),
+  bonus('attack-speed', 'attack-speed'),
+  bonus('max-hp', 'max-hp'),
+  bonus('hp-regen', 'hp-regen'),
+  bonus('mp-regen', 'mp-regen'),
+  bonus('heal-power', 'heal-power'),
+];
+
+const bonuses: Record<string, BonusDefinition> = Object.fromEntries(
+  bonusList.map((entry) => [entry.id, entry]),
+);
+
+type DefinitionId = keyof typeof OPEN_CONTENT_INPUTS.fittingBonuses;
+
+const CLASS_WEAPONS = {
+  guardian: 'guardian-sword', cleric: 'cleric-mace', ranger: 'ranger-bow', arcanist: 'arcanist-staff',
+} as const satisfies Record<ClassId, DefinitionId>;
+
+/** A tier-1 class weapon carrying its class's milestone A weapon fields verbatim. */
+function classWeapon(classId: ClassId): ItemDefinition {
+  const id = CLASS_WEAPONS[classId];
+  const cls = classes[classId];
+  return {
+    id,
+    slot: 'weapon',
+    tier: 1,
+    levelRequirement: 1,
+    classes: [classId],
+    handedness: OPEN_CONTENT_INPUTS.weaponHandedness[classId],
+    weaponAtk: cls.weaponAtk,
+    weaponMatk: cls.weaponMatk,
+    armorDef: 0,
+    armorMdef: 0,
+    basicIntervalMs: cls.basicIntervalMs,
+    basicRange: cls.basicRange,
+    basicKind: cls.basicKind,
+    basePrice: null,
+    fittingBonuses: [...OPEN_CONTENT_INPUTS.fittingBonuses[id]],
+  };
+}
+
+/** A tier-1 non-weapon definition usable by any class. */
+function gear(id: keyof typeof OPEN_CONTENT_INPUTS.armour, slot: Exclude<Slot, 'weapon'>): ItemDefinition {
+  return {
+    id,
+    slot,
+    tier: 1,
+    levelRequirement: 1,
+    classes: null,
+    handedness: slot === 'offhand' ? 'offhand' : 'none',
+    weaponAtk: 0,
+    weaponMatk: 0,
+    ...OPEN_CONTENT_INPUTS.armour[id],
+    basicIntervalMs: null,
+    basicRange: null,
+    basicKind: null,
+    basePrice: null,
+    fittingBonuses: [...OPEN_CONTENT_INPUTS.fittingBonuses[id]],
+  };
+}
+
+const CLASS_IDS: readonly ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
+
+const itemList: ItemDefinition[] = [
+  ...CLASS_IDS.map(classWeapon),
+  gear('wooden-buckler', 'offhand'),
+  gear('leather-cap', 'head'),
+  gear('padded-vest', 'body'),
+  gear('wool-cloak', 'cloak'),
+  gear('leather-boots', 'shoes'),
+  gear('copper-ring', 'accessory1'),
+  gear('bone-charm', 'accessory2'),
+];
+
+const items: Record<string, ItemDefinition> = Object.fromEntries(
+  itemList.map((entry) => [entry.id, entry]),
+);
+
+const monsters: Record<string, MonsterDefinition> = Object.fromEntries(
+  Object.entries(monsterBases).map(([id, base]) => [id, {
+    ...base,
+    equipment: itemList.map((entry) => entry.id).sort(),
+    // No consumable definitions exist until potions arrive (ruling R126).
+    consumables: [],
+    dropMultiplier: OPEN_CONTENT_INPUTS.dropMultiplier,
+    goldMin: base.rawGold,
+    goldMax: base.rawGold,
+  }]),
+);
+
+function onboarding(classId: ClassId): OnboardingGrant {
+  const weapon = items[CLASS_WEAPONS[classId]]!;
+  const bonusId = weapon.fittingBonuses[0]!;
+  return {
+    definitionId: weapon.id,
+    rarity: 'uncommon',
+    itemLevel: 1,
+    bonuses: [{ bonusId, value: bonuses[bonusId]!.spans[0]!.max }],
+  };
+}
+
+const onboardingGrant = Object.fromEntries(
+  CLASS_IDS.map((classId) => [classId, onboarding(classId)]),
+) as Record<ClassId, OnboardingGrant>;
+
 const recipes: Record<RecipeId, RecipeDefinition> = {
   melee: {
     id: 'melee',
@@ -314,9 +541,10 @@ const elements: Record<Element, Record<Element, number>> = {
 };
 
 /**
- * Source content definitions for milestone A, minus the digest fields computed by
+ * Source content definitions, minus the digest fields computed by
  * `packages/data/scripts/build-content.ts`. See the milestone A spec for provenance
- * of every numeric value.
+ * of every milestone A numeric value, and {@link OPEN_CONTENT_INPUTS} for the
+ * provisional equipment values milestone B adds.
  */
 export const prototypeDefinition: Omit<Content, 'version' | 'gridHash'> = {
   grid: {
@@ -339,4 +567,8 @@ export const prototypeDefinition: Omit<Content, 'version' | 'gridHash'> = {
   respawnMs: 30_000,
   // Owner decision 2026-09-25 (spec §4.0.1): ten seconds, against a 2 s walk.
   townReturnTravelMs: 10_000,
+  items,
+  bonuses,
+  rarities: structuredClone(RARITY_RULES),
+  onboardingGrant,
 };

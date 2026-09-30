@@ -24,6 +24,8 @@ export { createGrid, gridCoordinates, gridPosition, defaultPlacement } from './b
 export type { Battlefield } from './battlefield/types';
 export { derive, damage, effectiveHeal } from './math';
 export type { DamageInput } from './math';
+export { resolveLoadout, deriveCharacter, offenseBonusFor, resistFor } from './loadout';
+export type { ResolvedLoadout } from './loadout';
 export { startState, defaultStrategy, validatePendingRules } from './state';
 export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';

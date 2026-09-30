@@ -11,6 +11,7 @@ import type {
   SkillDefinition,
   SkillId,
 } from '@narok/data';
+import { RARITY_RULES } from '@narok/data';
 import { createGrid, gridPosition } from '../src/battlefield/grid';
 import type { Battlefield } from '../src/battlefield/types';
 import { schedule } from '../src/scheduler';
@@ -149,6 +150,11 @@ function buildFillerContent(): Content {
     encounterLimitMs: STRESS_ENCOUNTER_LIMIT_MS,
     respawnMs: 1,
     townReturnTravelMs: null,
+    // Inert: the stress fight equips nothing and rolls no drops.
+    items: {},
+    bonuses: {},
+    rarities: structuredClone(RARITY_RULES),
+    onboardingGrant: {} as Content['onboardingGrant'],
   };
 }
 

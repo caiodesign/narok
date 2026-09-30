@@ -17,7 +17,7 @@ function multiplySafe(a: number, b: number): number {
 }
 
 /** Applies a basis-point factor (`10,000 = 100%`) to `value`, flooring the result. */
-function scale(value: number, bp: number): number {
+export function scale(value: number, bp: number): number {
   return Math.floor(multiplySafe(value, bp) / 10000);
 }
 
@@ -65,16 +65,30 @@ export interface DamageInput {
   critical: boolean;
   defense: number;
   hit: boolean;
+  /**
+   * Attacker's family- and element-damage bonuses for this hit (Part 3 §1.4),
+   * applied between skill power and the element chart. Defaults to 10,000.
+   */
+  offenseBonusBp?: number;
+  /**
+   * Defender's resistance to the incoming element (Part 3 §1.4), applied after
+   * family and before variance. Defaults to 10,000.
+   */
+  resistBp?: number;
 }
 
 /**
  * Computes damage per the milestone A spec §4: zero immediately for a miss, otherwise
- * skill power, element, family, and variance factors are applied in order (flooring
- * after each), then a 1.5x crit multiplier, then defense mitigation with a minimum of
- * one damage. Random rolls (crit/accuracy/variance) are the caller's responsibility.
+ * skill power, equipment offense bonus, element, family, equipment resistance and
+ * variance factors are applied in order (flooring after each), then a 1.5x crit
+ * multiplier, then defense mitigation with a minimum of one damage. The two
+ * equipment factors (Part 3 §1.4) default to 10,000, and `scale(x, 10000) === x` for
+ * integer `x`, so an unequipped call is bit-identical to milestone A. Random rolls
+ * (crit/accuracy/variance) are the caller's responsibility.
  */
 export function damage(input: DamageInput): number {
-  const { offense, powerBp, elementBp, familyBp, varianceBp, critical, defense, hit } = input;
+  const { offense, powerBp, elementBp, familyBp, varianceBp, critical, defense, hit,
+    offenseBonusBp = 10_000, resistBp = 10_000 } = input;
   if (!hit) return 0;
 
   assertNonNegativeInteger(offense, 'offense');
@@ -83,10 +97,14 @@ export function damage(input: DamageInput): number {
   assertNonNegativeInteger(familyBp, 'familyBp');
   assertNonNegativeInteger(varianceBp, 'varianceBp');
   assertNonNegativeInteger(defense, 'defense');
+  assertNonNegativeInteger(offenseBonusBp, 'offenseBonusBp');
+  assertNonNegativeInteger(resistBp, 'resistBp');
 
   let raw = scale(offense, powerBp);
+  raw = scale(raw, offenseBonusBp);
   raw = scale(raw, elementBp);
   raw = scale(raw, familyBp);
+  raw = scale(raw, resistBp);
   raw = scale(raw, varianceBp);
   if (critical) raw = scale(raw, 15_000);
 

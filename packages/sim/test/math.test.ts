@@ -110,3 +110,20 @@ test('damage scales for every element pair in the chart', () => {
     }
   }
 });
+
+test('equipment factors are floored steps after power and after family (Part 3 §1.4)', () => {
+  // 115 -> power 11000: 126 -> offense bonus 10700: 134 -> element 15000: 201
+  // -> family 12500: 251 -> resist 9500: 238 -> variance 9000: 214 -> defense 10: 194.
+  // Moving either equipment factor one step earlier or later changes the result.
+  expect(damage({
+    offense: 115, powerBp: 11_000, offenseBonusBp: 10_700, elementBp: 15_000,
+    familyBp: 12_500, resistBp: 9_500, varianceBp: 9_000, critical: false, defense: 10, hit: true,
+  })).toBe(194);
+});
+
+test('equipment factors must be non-negative integers', () => {
+  const base = { offense: 100, powerBp: 10_000, elementBp: 10_000, familyBp: 10_000,
+    varianceBp: 10_000, critical: false, defense: 0, hit: true };
+  expect(() => damage({ ...base, offenseBonusBp: -1 })).toThrow(RangeError);
+  expect(() => damage({ ...base, resistBp: 0.5 })).toThrow(RangeError);
+});
