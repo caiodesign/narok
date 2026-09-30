@@ -17,7 +17,15 @@
  */
 import { and, eq } from 'drizzle-orm';
 import type { Content } from '@narok/data';
-import { SimError, type LabInput, type PublicState, type Simulation, type SimState } from '@narok/sim';
+import {
+  SimError,
+  takeDispositionedRewards,
+  type HuntSetup,
+  type LabInput,
+  type PublicState,
+  type Simulation,
+  type SimState,
+} from '@narok/sim';
 import * as schema from '../db/schema';
 import {
   archiveCheckpoint,
@@ -38,11 +46,10 @@ import {
   encodeCheckpoint,
   ENVELOPE_VERSION,
   type CheckpointEnvelope,
-  type PendingReward,
   type PresetRef,
 } from './envelope';
-import { strategyVersions } from './pending';
-import type { RewardSink } from './rewards';
+import { lootVersions, strategyVersions } from './pending';
+import { commitRewards, identifyRewards, indexDropProtection, type HuntReward, type RewardSink } from './rewards';
 import { settle, type Settlement } from './settle';
 
 /**
@@ -55,7 +62,12 @@ export interface HuntPlan {
   readonly input: Omit<LabInput, 'seed'>;
   readonly activeStrategy: PresetRef;
   readonly activeLoot: PresetRef;
-  readonly inventoryProjection: CheckpointEnvelope['inventoryProjection'];
+  /**
+   * The account-side inputs the engine rolls and dispositions drops against
+   * (part 3 §2.5): the active loot preset's validated payload, the bag, and the
+   * account's bad-luck counters. Copied into the checkpoint at start.
+   */
+  readonly setup: Required<HuntSetup>;
 }
 
 /** Test-only seams for injecting a crash at the two instants that matter. */
@@ -81,8 +93,8 @@ export interface LifecycleDeps {
   readonly precompute: PrecomputeCache;
   readonly hooks?: LifecycleHooks;
   /**
-   * Where drained rewards are written, inside the commit transaction (R117).
-   * Absent while the engine accrues none; task 6 wires the real one.
+   * Where drained rewards are written, inside the commit transaction (R117,
+   * R132). Defaults to {@link commitRewards}; a test may observe or fail it.
    */
   readonly rewardSink?: RewardSink;
 }
@@ -98,6 +110,9 @@ export interface HuntView {
   /** The rules in force now, and the version queued for the next spawn — separately (UI spec §5). */
   readonly activeStrategy: PresetRef;
   readonly pendingStrategy: PresetRef | null;
+  /** The loot filter in force and the one applied after the cutoff, separately (UI spec §6). */
+  readonly activeLoot: PresetRef;
+  readonly pendingLoot: PresetRef | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +247,7 @@ function versionsOf(state: SimState): CheckpointVersions {
 
 export function view(sim: Simulation, envelope: CheckpointEnvelope, state: SimState, stateVersion: number): HuntView {
   const versions = strategyVersions(envelope);
+  const loot = lootVersions(envelope);
   return {
     huntId: envelope.huntId,
     generation: envelope.generation,
@@ -240,7 +256,29 @@ export function view(sim: Simulation, envelope: CheckpointEnvelope, state: SimSt
     state: sim.project(state),
     activeStrategy: versions.activeVersion,
     pendingStrategy: versions.pendingVersion,
+    activeLoot: loot.activeVersion,
+    pendingLoot: loot.pendingVersion,
   };
+}
+
+/**
+ * Commits drained rewards and the bad-luck index inside a checkpoint's own
+ * transaction (P-27; rulings R128, R132): no reward exists without the commit
+ * that produced it, and `account_drop_protection` always equals the counters
+ * the committed checkpoint carries.
+ */
+async function commitHuntRewards(
+  deps: LifecycleDeps,
+  tx: Tx,
+  accountId: string,
+  state: SimState,
+  rewards: readonly HuntReward[],
+  stateVersionAfter: number,
+): Promise<void> {
+  await indexDropProtection(tx, accountId, state.dropProtection);
+  if (rewards.length === 0) return;
+  const sink = deps.rewardSink ?? commitRewards;
+  await sink(tx, rewards, { accountId, stateVersionAfter, contentVersion: state.contentVersion });
 }
 
 /**
@@ -285,7 +323,7 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
   // Simulated outside the transaction; `start` is cheap, but the rule is the rule.
   let state: SimState;
   try {
-    state = deps.sim.start({ ...command.plan.input, seed: deps.drawSeed() });
+    state = deps.sim.start({ ...command.plan.input, seed: deps.drawSeed() }, command.plan.setup);
   } catch (error) {
     if (error instanceof SimError && (error.code === 'INVALID_INPUT' || error.code === 'INVALID_CONTENT')) {
       throw new AppError('VALIDATION', `plan.${error.field}`);
@@ -305,14 +343,10 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
     pausedWallMs: 0,
     lastSeenAt: T0,
     offlineCapMs: deps.config.offlineCapMs,
-    rewardSeq: 0,
-    pendingRewards: [],
-    pity: { epicPlus: 0, legendary: 0 },
     activeStrategy: command.plan.activeStrategy,
     activeLoot: command.plan.activeLoot,
     pendingStrategy: null,
     pendingLoot: null,
-    inventoryProjection: command.plan.inventoryProjection,
     stopContext: null,
     state: deps.sim.encode(state),
   };
@@ -425,7 +459,9 @@ export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promi
       if (loaded.status !== 'running') throw new AppError('RULE_VIOLATION', 'hunt.status');
 
       const envelope = decodeCheckpoint(loaded.encoded);
-      const state = deps.sim.stop(deps.sim.decode(envelope.state));
+      // The engine's stop dispositions the drops the abandoned encounter's
+      // kills rolled (R127); they are credited with this commit.
+      const { state, rewards: dropped } = takeDispositionedRewards(deps.sim.stop(deps.sim.decode(envelope.state)));
       const updated: CheckpointEnvelope = {
         ...envelope,
         generation: envelope.generation + 1,
@@ -452,6 +488,7 @@ export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promi
         generation: updated.generation,
         maxBytes: deps.config.maxCheckpointBytes,
       });
+      await commitHuntRewards(deps, tx, command.accountId, state, identifyRewards(envelope.huntId, dropped), settled.stateVersion + 1);
       await deps.hooks?.beforeCommit?.();
 
       return view(deps.sim, updated, state, settled.stateVersion + 1);
@@ -647,7 +684,7 @@ export interface PersistResult {
   readonly stop: Settlement['stop'];
   readonly uncovered: Settlement['uncovered'];
   /** Every reward drained and committed, in order, across every round. */
-  readonly rewards: readonly PendingReward[];
+  readonly rewards: readonly HuntReward[];
   /** Checkpoints committed: more than one when a full reward carrier forced a commit. */
   readonly commits: number;
 }
@@ -684,7 +721,7 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
 
   let creditedSimMs = 0;
   const events: SegmentResult['events'] = [];
-  const rewards: PendingReward[] = [];
+  const rewards: HuntReward[] = [];
   let window: SettlementWindow | null = null;
   let commits = 0;
 
@@ -772,12 +809,9 @@ async function persistRound(
           generation: updated.generation,
           maxBytes: deps.config.maxCheckpointBytes,
         });
-        // Drained rewards reach their tables in the checkpoint's transaction,
-        // so no reward exists without the commit that produced it (P-27).
-        if (settlement.rewards.length > 0) {
-          if (deps.rewardSink === undefined) throw new Error('rewards drained with nowhere to commit them');
-          await deps.rewardSink(tx, accountId, settlement.rewards, loaded.stateVersion + 1);
-        }
+        // Drained rewards and the bad-luck index reach their tables in the
+        // checkpoint's transaction, so neither exists without it (P-27).
+        await commitHuntRewards(deps, tx, accountId, state, settlement.rewards, loaded.stateVersion + 1);
         await deps.hooks?.beforeCommit?.();
       },
     );

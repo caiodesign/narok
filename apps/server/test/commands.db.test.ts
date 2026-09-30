@@ -20,6 +20,7 @@ import {
   rig,
   rules,
   T0,
+  dropProtectionRows,
 } from './hunt-db-harness';
 
 let db: Db;
@@ -212,7 +213,10 @@ describe('the command classes of part 2 §4', () => {
     expect(sim.decode(envelope.state).nowMs).toBe(1_500);
     expect(envelope.generation).toBe(3);
     expect(envelope.stopContext?.reason).toBe('operator');
-    expect(envelope.pity).toEqual({ epicPlus: 0, legendary: 0 });
+    // The counters accrued to the stop are kept, in the checkpoint and its index.
+    const counters = sim.decode(envelope.state).dropProtection;
+    expect(counters.epicPlus).toBe(sim.decode(envelope.state).metrics.kills);
+    expect(await dropProtectionRows(db, account.id)).toEqual(counters);
     // Stopping does not activate the pending version (B-L17).
     expect(envelope.pendingStrategy).toMatchObject({ presetId: other.id });
     expect(sim.decode(envelope.state).pendingRules).not.toBeNull();

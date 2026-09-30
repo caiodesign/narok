@@ -10,7 +10,15 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { content, validateContent } from '@narok/data';
-import { createGrid, createSimulation, defaultPlacement, defaultStrategy, SimError } from '@narok/sim';
+import {
+  createGrid,
+  createSimulation,
+  defaultBag,
+  defaultPlacement,
+  defaultStrategy,
+  SimError,
+  starterLoot,
+} from '@narok/sim';
 import * as schema from '../src/db/schema';
 import { AppError } from '../src/errors';
 import { decodeCheckpoint } from '../src/hunt/envelope';
@@ -53,7 +61,7 @@ function plan(overrides: Partial<HuntPlan['input']> = {}): HuntPlan {
     },
     activeStrategy: { presetId: crypto.randomUUID(), presetVersion: 1 },
     activeLoot: { presetId: crypto.randomUUID(), presetVersion: 1 },
-    inventoryProjection: { capacity: 100, usedSlots: 0, stackHeadroom: {} },
+    setup: { loot: starterLoot(), bag: defaultBag(), dropProtection: { epicPlus: 0, legendary: 0 } },
   };
 }
 
@@ -189,11 +197,10 @@ describe('step 1: start', () => {
       simAnchorMs: 0,
       lastSeenAt: T0,
       pausedWallMs: 0,
-      rewardSeq: 0,
-      pendingRewards: [],
       stopContext: null,
     });
     expect(sim.decode(envelope.state).input.seed, 'the seed is persisted in the checkpoint').toBe(12_345);
+    expect(sim.decode(envelope.state).nextRewardSeq, 'a new hunt is a new reward namespace').toBe(0);
     expect(started.stateVersion).toBe(1);
     expect(await accountVersion(account.id)).toBe(1);
   });
@@ -468,7 +475,7 @@ describe('B-25: recovery replays from the durable checkpoint', () => {
     const recovered = decodeCheckpoint(Buffer.from((await huntRow(account.id)).checkpoint).toString('utf8'));
     expect(recovered.state, 'the replay reproduces the engine state byte for byte').toBe(expected.state);
     expect(recovered.checkpointSeq, 'committed exactly once').toBe(1);
-    expect(recovered.rewardSeq).toBe(expected.rewardSeq);
+    expect(sim.decode(recovered.state).nextRewardSeq).toBe(sim.decode(expected.state).nextRewardSeq);
   });
 
   test('a checkpoint pinned to another content version fails closed and is not substituted', async () => {

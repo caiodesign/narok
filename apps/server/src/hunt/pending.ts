@@ -14,6 +14,7 @@
  * records only which preset version it is, so the UI can name the active and
  * pending versions separately without inferring one from the other.
  */
+import { LOOT_PRESET_SCHEMA_VERSION, LootPresetError, validateLootPreset, type LootPreset } from '@narok/loot';
 import {
   STRATEGY_PAYLOAD_SCHEMA_VERSION,
   strategyPresetPayloadSchema,
@@ -105,6 +106,70 @@ export function reconcileActivation(envelope: CheckpointEnvelope, pendingRulesQu
   if (envelope.pendingStrategy === null || pendingRulesQueued) return envelope;
   const { presetId, presetVersion } = envelope.pendingStrategy;
   return { ...envelope, activeStrategy: { presetId, presetVersion }, pendingStrategy: null };
+}
+
+/**
+ * Validates a stored loot preset payload through the one validator the
+ * simulation and the client preview share (`packages/loot`), or refuses it
+ * with a stable field under `lootPreset.`.
+ */
+export function presetLoot(payload: unknown, payloadSchemaVersion: number = LOOT_PRESET_SCHEMA_VERSION): LootPreset {
+  if (payloadSchemaVersion !== LOOT_PRESET_SCHEMA_VERSION) {
+    throw new AppError('VALIDATION', 'lootPreset.payloadSchemaVersion');
+  }
+  try {
+    return validateLootPreset(payload);
+  } catch (error) {
+    if (error instanceof LootPresetError) {
+      throw new AppError('VALIDATION', error.field === '$' ? 'lootPreset' : `lootPreset.${error.field}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Applies a loot filter to every drop after the acknowledged cutoff (part 3
+ * §3.3, UI spec §6; ruling R131). The engine takes it at once when nothing
+ * rolled is still waiting for its encounter to end; otherwise the rewards
+ * already rolled keep the filter they were rolled under, and the envelope
+ * names the new version as pending until the engine promotes it. Never
+ * retroactive: settled rewards and existing inventory are not touched.
+ */
+export function queueLoot(
+  sim: Simulation,
+  envelope: CheckpointEnvelope,
+  preset: PresetSnapshot,
+  ack: { readonly commandId: string },
+): CheckpointEnvelope {
+  const loot = presetLoot(preset.payload, preset.payloadSchemaVersion);
+  const state = sim.decode(envelope.state);
+  const applied = sim.queueLoot(state, loot);
+  const ref = { presetId: preset.presetId, presetVersion: preset.presetVersion };
+
+  if (applied.pendingLoot === null) {
+    return { ...envelope, activeLoot: ref, pendingLoot: null, state: sim.encode(applied) };
+  }
+  return {
+    ...envelope,
+    pendingLoot: { ...ref, commandId: ack.commandId, acknowledgedAtSimMs: state.nowMs },
+    state: sim.encode(applied),
+  };
+}
+
+/** After a settlement: the engine promoted the applied filter, so its version is now the active one. */
+export function reconcileLoot(envelope: CheckpointEnvelope, pendingLootQueued: boolean): CheckpointEnvelope {
+  if (envelope.pendingLoot === null || pendingLootQueued) return envelope;
+  const { presetId, presetVersion } = envelope.pendingLoot;
+  return { ...envelope, activeLoot: { presetId, presetVersion }, pendingLoot: null };
+}
+
+/** The loot filter versions the UI shows: active and pending, separately. */
+export function lootVersions(envelope: CheckpointEnvelope): StrategyVersions {
+  const pending = envelope.pendingLoot;
+  return {
+    activeVersion: envelope.activeLoot,
+    pendingVersion: pending === null ? null : { presetId: pending.presetId, presetVersion: pending.presetVersion },
+  };
 }
 
 export interface StrategyVersions {

@@ -27,9 +27,9 @@
 import type { DomainEvent, StopReason } from '@narok/sim';
 import type { SegmentRequest, SegmentResult } from '../workers/segment';
 import { reanchor, settlementWindow, stopWallInstant, type HuntAnchors, type SettlementWindow } from './clock';
-import type { CheckpointEnvelope, PendingReward } from './envelope';
-import { reconcileActivation } from './pending';
-import { allocateRewards, drainRewards, rewardRoom } from './rewards';
+import { REWARD_CARRIER_CAP, type CheckpointEnvelope } from './envelope';
+import { reconcileActivation, reconcileLoot } from './pending';
+import { identifyRewards, type HuntReward } from './rewards';
 
 /** Runs one segment. The lifecycle hands in its worker pool; a test hands in the engine or a stub. */
 export type SegmentRunner = (request: SegmentRequest) => SegmentResult | Promise<SegmentResult>;
@@ -64,10 +64,10 @@ export interface Settlement {
    * segment cut short leaves its remainder owed rather than uncovered.
    */
   readonly uncovered: { readonly afterStopMs: number; readonly afterCapMs: number };
-  /** The next checkpoint: re-anchored, activation reconciled, carrier drained. */
+  /** The next checkpoint: re-anchored, activations reconciled, dispositioned rewards drained. */
   readonly envelope: CheckpointEnvelope;
-  /** Drained from the carrier; the caller commits them with `envelope`, atomically. */
-  readonly rewards: readonly PendingReward[];
+  /** Drained from the engine state; the caller commits them with `envelope`, atomically. */
+  readonly rewards: readonly HuntReward[];
   readonly events: readonly DomainEvent[];
   /** Whether a queued strategy became active inside this window. */
   readonly activated: boolean;
@@ -107,7 +107,7 @@ export function settlementRequest(
       encodedState: envelope.state,
       simTarget: window.simTarget,
       collect: options.collect ?? 'summary',
-      rewardRoom: rewardRoom(envelope, options.rewardCap),
+      rewardRoom: Math.min(options.rewardCap ?? REWARD_CARRIER_CAP, REWARD_CARRIER_CAP),
     },
   };
 }
@@ -204,8 +204,8 @@ export function applySegment(
   };
 
   const activated = envelope.pendingStrategy !== null && !segment.pendingRulesQueued;
-  const withRewards = allocateRewards(reconcileActivation(settled, segment.pendingRulesQueued), segment.rewards);
-  const { envelope: drained, drained: rewards } = drainRewards(withRewards);
+  const reconciled = reconcileLoot(reconcileActivation(settled, segment.pendingRulesQueued), segment.pendingLootQueued);
+  const rewards = identifyRewards(envelope.huntId, segment.rewards);
 
   return {
     creditedSimMs: segment.creditedSimMs,
@@ -214,7 +214,7 @@ export function applySegment(
     completion: segment.completion,
     stop,
     uncovered,
-    envelope: drained,
+    envelope: reconciled,
     rewards,
     events: segment.events,
     activated,

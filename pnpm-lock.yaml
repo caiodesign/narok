@@ -90,6 +90,9 @@ importers:
       '@narok/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@narok/loot':
+        specifier: workspace:*
+        version: link:../../packages/loot
       '@narok/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

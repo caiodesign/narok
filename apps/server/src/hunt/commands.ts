@@ -21,6 +21,7 @@
  * | heartbeat       | yes           | no               | no              |
  * | stop            | yes           | yes              | no              |
  * | apply-strategy  | yes           | yes              | no (reads one)  |
+ * | apply-loot      | yes           | yes              | no (reads one)  |
  * | save-strategy-  | no            | no               | yes (only that) |
  * |   preset        |               |                  |                 |
  *
@@ -35,11 +36,12 @@ import * as schema from '../db/schema';
 import { loadCheckpoint, saveCheckpoint } from '../db/repositories/hunts';
 import { ConflictError, withAccountTx, type IdempotencySpec } from '../db/tx';
 import { AppError, notOwned } from '../errors';
-import { encodeCheckpoint, ENVELOPE_VERSION, type PresetRef } from './envelope';
+import { encodeCheckpoint, ENVELOPE_VERSION, type CheckpointEnvelope, type PresetRef } from './envelope';
 import {
   CONTENDED_ATTEMPTS,
   persistHunt,
   readAccountVersion,
+  type PersistResult,
   readHunt,
   stopHunt,
   storedResult,
@@ -47,7 +49,7 @@ import {
   type HuntView,
   type LifecycleDeps,
 } from './lifecycle';
-import { presetRules, queueStrategy } from './pending';
+import { presetRules, queueLoot, queueStrategy, type PresetSnapshot } from './pending';
 
 export interface CommandStamp {
   /** The server command time. Settlement is to this instant, never to the client's. */
@@ -104,6 +106,8 @@ export type HuntCommand =
   | { readonly kind: 'stop' }
   /** Apply next encounter (UI spec §5): queue that exact validated version. */
   | { readonly kind: 'apply-strategy'; readonly presetId: string; readonly presetVersion: number }
+  /** Apply loot filter (UI spec §6): that exact validated version, for drops after the cutoff. */
+  | { readonly kind: 'apply-loot'; readonly presetId: string; readonly presetVersion: number }
   /** Save a preset: the row changes, a running hunt does not (UI spec §5). */
   | { readonly kind: 'save-strategy-preset'; readonly presetId: string; readonly payload: unknown };
 
@@ -174,7 +178,8 @@ async function run(
     }
 
     case 'apply-strategy':
-      return stamped(await applyStrategy(deps, accountId, command, request, stamp));
+    case 'apply-loot':
+      return stamped(await applyPreset(deps, accountId, command, request, stamp));
   }
 }
 
@@ -224,10 +229,35 @@ async function ownedPreset(deps: LifecycleDeps, accountId: string, presetId: str
   return row;
 }
 
-async function applyStrategy(
+async function ownedLootPreset(deps: LifecycleDeps, accountId: string, presetId: string) {
+  const [row] = await deps.db
+    .select()
+    .from(schema.lootPresets)
+    .where(and(eq(schema.lootPresets.id, presetId), eq(schema.lootPresets.accountId, accountId)));
+  if (row === undefined) throw notOwned('presetId');
+  return row;
+}
+
+type ApplyCommand = Extract<HuntCommand, { kind: 'apply-strategy' | 'apply-loot' }>;
+
+/** The preset a command names, as a snapshot: its version and its payload, read once. */
+async function presetSnapshot(deps: LifecycleDeps, accountId: string, command: ApplyCommand): Promise<PresetSnapshot> {
+  const row = command.kind === 'apply-strategy'
+    ? await ownedPreset(deps, accountId, command.presetId)
+    : await ownedLootPreset(deps, accountId, command.presetId);
+  return { presetId: row.id, presetVersion: row.presetVersion, payload: row.payload, payloadSchemaVersion: row.payloadSchemaVersion };
+}
+
+/**
+ * Apply next encounter and apply loot filter: the same intervention shape
+ * (part 2 §4). Settle to the command time, then queue that exact validated
+ * version against the settled state — a strategy for the next spawn (R115), a
+ * loot filter for the drops after this cutoff (R131).
+ */
+async function applyPreset(
   deps: LifecycleDeps,
   accountId: string,
-  command: Extract<HuntCommand, { kind: 'apply-strategy' }>,
+  command: ApplyCommand,
   request: CommandRequest,
   stamp: CommandStamp,
 ): Promise<HuntView> {
@@ -236,8 +266,8 @@ async function applyStrategy(
   if (replay !== undefined) return replay;
 
   // Ownership, then the guard, then the settlement, then the rule (P-12, B-L12, B-L13).
-  await ownedPreset(deps, accountId, command.presetId);
-  const result = await retryContended(() => applyStrategyOnce(deps, accountId, command, request, stamp));
+  await presetSnapshot(deps, accountId, command);
+  const result = await retryContended(() => applyPresetOnce(deps, accountId, command, request, stamp));
 
   // The private precomputation was formed under the old generation.
   deps.precompute.discard(accountId);
@@ -245,10 +275,10 @@ async function applyStrategy(
 }
 
 /** One attempt: the guard, the settlement, then the rule against the settled state. */
-async function applyStrategyOnce(
+async function applyPresetOnce(
   deps: LifecycleDeps,
   accountId: string,
-  command: Extract<HuntCommand, { kind: 'apply-strategy' }>,
+  command: ApplyCommand,
   request: CommandRequest,
   stamp: CommandStamp,
 ): Promise<HuntView> {
@@ -259,24 +289,34 @@ async function applyStrategyOnce(
   if (settled.completion === 'inert' || deps.sim.decode(settled.envelope.state).phase === 'stopped') {
     throw new AppError('RULE_VIOLATION', 'hunt.status');
   }
-  const row = await ownedPreset(deps, accountId, command.presetId);
-  if (row.presetVersion !== command.presetVersion) {
+  const preset = await presetSnapshot(deps, accountId, command);
+  if (preset.presetVersion !== command.presetVersion) {
     // The player applied a version that is no longer the saved one.
     throw new AppError('CONFLICT_STATE_VERSION', 'presetVersion', settled.stateVersion, settled.envelope.generation);
   }
-  const queued = queueStrategy(
-    deps.sim,
-    settled.envelope,
-    { presetId: row.id, presetVersion: row.presetVersion, payload: row.payload, payloadSchemaVersion: row.payloadSchemaVersion },
-    { commandId: request.idempotency?.key ?? `${stamp.commandAtWall}:${stamp.receiveSeq}` },
-  );
+  const ack = { commandId: request.idempotency?.key ?? `${stamp.commandAtWall}:${stamp.receiveSeq}` };
+  const queued = command.kind === 'apply-strategy'
+    ? queueStrategy(deps.sim, settled.envelope, preset, ack)
+    : queueLoot(deps.sim, settled.envelope, preset, ack);
 
+  return commitIntervention(deps, accountId, settled, queued, request, command.kind === 'apply-strategy' ? 'hunt.strategy' : 'hunt.loot');
+}
+
+/** Commits an applied intervention: a new generation over the settled checkpoint. */
+function commitIntervention(
+  deps: LifecycleDeps,
+  accountId: string,
+  settled: PersistResult,
+  queued: CheckpointEnvelope,
+  request: CommandRequest,
+  operation: string,
+): Promise<HuntView> {
   return withAccountTx(
     deps.db,
     {
       accountId,
       expectedStateVersion: settled.stateVersion,
-      operation: 'hunt.strategy',
+      operation,
       idempotency: request.idempotency,
     },
     async (tx) => {

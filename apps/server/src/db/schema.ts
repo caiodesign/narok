@@ -136,6 +136,14 @@ export const items = pgTable(
     bonuses: jsonb('bonuses').notNull(),
     tradeable: boolean('tradeable').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    /** Assigned at acquisition: a Legendary drop is protected (part 3 §3.2). */
+    protected: boolean('protected').notNull().default(false),
+    /**
+     * Where the item came from: a reward id `"<huntId>:<rewardSeq>"` or a grant
+     * key. Unique per account, so a re-simulated commit can never credit one
+     * reward twice (part 2 §2, B-25).
+     */
+    sourceRef: text('source_ref'),
     equippedCharacterId: uuid('equipped_character_id').references(() => characters.id, { onDelete: 'set null' }),
     equippedSlot: text('equipped_slot'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -153,6 +161,7 @@ export const items = pgTable(
     // No trading before Layer 4 (layer-1 §7.1, §14).
     check('items_not_tradeable_in_beta', sql`${table.tradeable} = false`),
     index('items_bag_idx').on(table.accountId).where(sql`${table.equippedCharacterId} is null`),
+    uniqueIndex('items_source_idx').on(table.accountId, table.sourceRef).where(sql`${table.sourceRef} is not null`),
   ],
 );
 

@@ -35,6 +35,7 @@ function stub(result: Partial<SegmentResult>, seen: SegmentRequest[] = []): Segm
       continuations: 1,
       rewards: [],
       pendingRulesQueued: false,
+      pendingLootQueued: false,
       ...result,
     };
   };

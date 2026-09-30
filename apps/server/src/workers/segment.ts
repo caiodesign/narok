@@ -18,9 +18,16 @@
  *   spec calls the first one "detailed"; the engine's own vocabulary is
  *   `'events'` and that is what travels, so there is one name for it in code.
  */
-import type { AdvanceOptions, DomainEvent, Simulation, SimState, StopReason } from '@narok/sim';
+import {
+  takeDispositionedRewards,
+  type AdvanceOptions,
+  type DomainEvent,
+  type PendingReward,
+  type Simulation,
+  type SimState,
+  type StopReason,
+} from '@narok/sim';
 import { REWARD_CARRIER_CAP } from '../hunt/envelope';
-import { NO_REWARDS, type RewardDraft, type RewardSource } from '../hunt/rewards';
 
 /** The engine's own default work budget (contracts §5); halved only to fit the reward carrier. */
 const ENGINE_DEFAULT_BUDGET = 10_000;
@@ -71,10 +78,16 @@ export interface SegmentResult {
   readonly reachedTarget: boolean;
   /** How many `advance` calls it took. An operational signal, not a rule. */
   readonly continuations: number;
-  /** The rewards read off the states this segment passed through, in order; ids come later. */
-  readonly rewards: readonly RewardDraft[];
+  /**
+   * The dispositioned rewards drained off the states this segment passed
+   * through, in `rewardSeq` order (R132); ids come later. The candidate state
+   * no longer carries them.
+   */
+  readonly rewards: readonly PendingReward[];
   /** Whether a queued strategy is still waiting for a spawn at the segment's end (R115). */
   readonly pendingRulesQueued: boolean;
+  /** Whether an applied loot filter is still waiting for earlier drops to settle (R131). */
+  readonly pendingLootQueued: boolean;
 }
 
 export class RewardCarrierStalled extends Error {
@@ -100,7 +113,7 @@ const DEFAULT_MAX_CONTINUATIONS = 10_000;
  * simulated time *or* by events popped from the queue — so a budget that
  * cannot advance fails loudly instead of spinning.
  */
-export function runSegment(sim: Simulation, request: SegmentRequest, source: RewardSource = NO_REWARDS): SegmentResult {
+export function runSegment(sim: Simulation, request: SegmentRequest): SegmentResult {
   const limit = request.maxContinuations ?? DEFAULT_MAX_CONTINUATIONS;
   if (!Number.isSafeInteger(limit) || limit < 1) {
     throw new RangeError(`maxContinuations must be a positive integer, got ${limit}`);
@@ -116,7 +129,7 @@ export function runSegment(sim: Simulation, request: SegmentRequest, source: Rew
 
   let current: SimState = started;
   const events: DomainEvent[] = [];
-  const rewards: RewardDraft[] = [];
+  const rewards: PendingReward[] = [];
   let continuations = 0;
 
   const finish = (completion: SegmentResult['completion']): SegmentResult => ({
@@ -130,6 +143,7 @@ export function runSegment(sim: Simulation, request: SegmentRequest, source: Rew
     continuations,
     rewards,
     pendingRulesQueued: current.pendingRules !== null,
+    pendingLootQueued: current.pendingLoot !== null,
   });
 
   let budget = fullBudget;
@@ -140,12 +154,13 @@ export function runSegment(sim: Simulation, request: SegmentRequest, source: Rew
     const options: AdvanceOptions = { collect: request.collect, maxScheduledEvents: budget };
     const result = sim.advance(current, request.simTarget, options);
 
-    // Rewards are read from the states on either side of the step, never from
-    // its events (part 2 §6). A step that would overfill the carrier is
-    // discarded and retried smaller from the same state — the split invariant
-    // makes that free — until it fits, or ends the segment for a commit.
-    const drafts = source(current, result.state);
-    if (rewards.length + drafts.length > room) {
+    // Rewards are read from the state the step produced, never from its events
+    // (part 2 §6): the dispositioned ones are drained off it. A step that would
+    // overfill the carrier is discarded and retried smaller from the same
+    // state — the split invariant makes that free — until it fits, or ends the
+    // segment for a commit.
+    const drained = takeDispositionedRewards(result.state);
+    if (rewards.length + drained.rewards.length > room) {
       if (budget > 1) {
         budget = Math.ceil(budget / 2);
         continue;
@@ -156,11 +171,11 @@ export function runSegment(sim: Simulation, request: SegmentRequest, source: Rew
     budget = fullBudget;
     continuations += 1;
 
-    current = result.state;
+    current = drained.state;
     // A loop, not a spread: a large budget can yield more events than a call
     // accepts as arguments.
     for (const event of result.events) events.push(event);
-    for (const draft of drafts) rewards.push(draft);
+    for (const reward of drained.rewards) rewards.push(reward);
 
     if (result.reachedTarget) return finish(current.phase === 'stopped' ? 'stopped' : 'target');
 

@@ -17,6 +17,21 @@ import { ENVELOPE_VERSION, type CheckpointEnvelope } from '../src/hunt/envelope'
 
 export const validated = validateContent(content);
 export const sim = createSimulation(validated, createGrid(validated.grid, validated.shapes));
+
+/**
+ * The bundled content with every monster at the largest drop multiplier
+ * content accepts (7,610 ppm x 131), so nearly every kill drops and a few
+ * simulated minutes carry many rewards. Its own version string: a checkpoint
+ * rolled under it is pinned to it, never to the bundle.
+ */
+export const rich = validateContent({
+  ...structuredClone(content),
+  version: `${content.version}-rich`,
+  monsters: Object.fromEntries(
+    Object.entries(content.monsters).map(([id, monster]) => [id, { ...structuredClone(monster), dropMultiplier: 131 }]),
+  ),
+});
+export const richSim = createSimulation(rich, createGrid(rich.grid, rich.shapes));
 export const party = ['guardian', 'cleric', 'ranger'] as const;
 
 /** An instant in 2027, far from zero so a wrong subtraction cannot hide. */
@@ -64,14 +79,10 @@ export function envelope(overrides: Partial<CheckpointEnvelope> = {}): Checkpoin
     pausedWallMs: 0,
     lastSeenAt: W0,
     offlineCapMs: 43_200_000,
-    rewardSeq: 0,
-    pendingRewards: [],
-    pity: { epicPlus: 0, legendary: 0 },
     activeStrategy: { presetId: '33333333-3333-4333-8333-333333333333', presetVersion: 1 },
     activeLoot: { presetId: '44444444-4444-4444-8444-444444444444', presetVersion: 1 },
     pendingStrategy: null,
     pendingLoot: null,
-    inventoryProjection: { capacity: 100, usedSlots: 0, stackHeadroom: {} },
     stopContext: null,
     state: sim.encode(startState()),
     ...overrides,

@@ -2,11 +2,11 @@
  * The checkpoint envelope (milestone B spec part 2 §2, layer-1 §4.3).
  *
  * `packages/sim` already encodes everything the *simulation* needs to resume:
- * time, RNG, queue, actors, metrics, the input. What it does not know about is
- * the account the hunt belongs to, the wall clock it is anchored to, or the
- * rewards that have been rolled but not yet committed. This module adds
- * exactly those, and adds them **around** the simulation's encoding rather
- * than inside it.
+ * time, RNG, queue, actors, metrics, the input — and, since task 6, the drops
+ * it rolled, the counters and the bag it rolled them against. What it does not
+ * know about is the account the hunt belongs to, the wall clock it is anchored
+ * to, or which preset versions it is running. This module adds exactly those,
+ * and adds them **around** the simulation's encoding rather than inside it.
  *
  * That boundary is the point. `encodeSnapshot` stays the only serialiser of
  * simulation state — no second format, no re-parsing, no field of `SimState`
@@ -21,42 +21,30 @@ import { z } from 'zod';
  * Bumped when the envelope's own shape changes, independent of the engine.
  * 3: the pending strategy carries its command id and acknowledgement instant
  * (ruling R115); its payload lives in the engine state that activates it.
+ * 4: the reward ordinal, the rolled rewards, the bad-luck counters and the bag
+ * projection moved into the engine state that rolls and dispositions drops
+ * (ruling R132) — one copy each — and the pending loot filter is acknowledged
+ * like the pending strategy.
  */
-export const ENVELOPE_VERSION = 3;
+export const ENVELOPE_VERSION = 4;
 
 /**
- * The carrier's hard bound (part 2 §9 #8). Reaching it forces a commit, the way
+ * The carrier's hard bound (part 2 §9 #8): the most dispositioned rewards one
+ * commit drains from the engine state. Reaching it forces a commit, the way
  * the work budget forces a yield; it never drops or truncates a reward.
  */
 export const REWARD_CARRIER_CAP = 512;
-
-/**
- * A reward rolled but not yet committed. Bounded, because the checkpoint is
- * read and written on every persist: past the cap a commit is forced, the same
- * way the work budget forces a yield (part 2 §9 #8).
- */
-export const pendingRewardSchema = z
-  .object({
-    rewardId: z.string().max(128),
-    atSimMs: z.number().int().nonnegative(),
-    kind: z.enum(['item', 'gold', 'exp', 'consumable']),
-    payload: z.record(z.string(), z.unknown()),
-  })
-  .strict();
-
-export const pitySchema = z
-  .object({ epicPlus: z.number().int().nonnegative(), legendary: z.number().int().nonnegative() })
-  .strict();
 
 export const presetRefSchema = z
   .object({ presetId: z.uuid(), presetVersion: z.number().int().positive() })
   .strict();
 
 /**
- * A queued strategy (part 2 §2, §4; ruling R115). The payload itself is the
- * engine's `state.pendingRules` — a deep validated copy taken at apply time —
- * so there is one copy of it, inside the validator that checks it, and this
- * side records only which preset version it was and when it was acknowledged.
+ * A queued preset (part 2 §2, §4; rulings R115, R131). The payload itself is
+ * the engine's — `state.pendingRules` for a strategy, `state.pendingLoot` for
+ * a loot filter — a deep validated copy taken at apply time, so there is one
+ * copy of it, inside the validator that checks it, and this side records only
+ * which preset version it was and when it was acknowledged.
  */
 export const pendingStrategySchema = presetRefSchema
   .extend({
@@ -85,11 +73,10 @@ export const checkpointEnvelopeSchema = z
     lastSeenAt: z.number().int(),
     offlineCapMs: z.number().int().positive(),
 
-    // Rewards. `rewardSeq` plus `huntId` is what makes a reward id reproducible
-    // and collision-safe without a UUID generator (layer-1 §4.3).
-    rewardSeq: z.number().int().nonnegative(),
-    pendingRewards: z.array(pendingRewardSchema).max(REWARD_CARRIER_CAP),
-    pity: pitySchema,
+    // Rewards live in the engine state (R132): `state.nextRewardSeq` plus
+    // `huntId` makes a reward id reproducible and collision-safe without a UUID
+    // generator (layer-1 §4.3); `state.pendingRewards` carries rolled drops,
+    // `state.dropProtection` the bad-luck counters, `state.bagState` the bag.
 
     // Strategy and loot: what is running, and what is queued for the next
     // encounter. A later edit to the saved preset must not mutate the queued
@@ -97,16 +84,7 @@ export const checkpointEnvelopeSchema = z
     activeStrategy: presetRefSchema,
     activeLoot: presetRefSchema,
     pendingStrategy: pendingStrategySchema.nullable(),
-    pendingLoot: presetRefSchema.nullable(),
-
-    /** What the simulation is allowed to assume about the bag (part 3 §2.5). */
-    inventoryProjection: z
-      .object({
-        capacity: z.number().int().nonnegative(),
-        usedSlots: z.number().int().nonnegative(),
-        stackHeadroom: z.record(z.string(), z.number().int().nonnegative()),
-      })
-      .strict(),
+    pendingLoot: pendingStrategySchema.nullable(),
 
     /**
      * Why the hunt ended, when it has. Never invented for a running hunt.
@@ -131,7 +109,6 @@ export const checkpointEnvelopeSchema = z
   .strict();
 
 export type CheckpointEnvelope = z.infer<typeof checkpointEnvelopeSchema>;
-export type PendingReward = z.infer<typeof pendingRewardSchema>;
 export type PresetRef = z.infer<typeof presetRefSchema>;
 export type PendingStrategy = z.infer<typeof pendingStrategySchema>;
 
@@ -164,14 +141,10 @@ const KEY_ORDER: readonly (keyof CheckpointEnvelope)[] = [
   'pausedWallMs',
   'lastSeenAt',
   'offlineCapMs',
-  'rewardSeq',
-  'pendingRewards',
-  'pity',
   'activeStrategy',
   'activeLoot',
   'pendingStrategy',
   'pendingLoot',
-  'inventoryProjection',
   'stopContext',
   'state',
 ];

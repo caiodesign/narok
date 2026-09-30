@@ -49,14 +49,10 @@ function envelope(overrides: Partial<CheckpointEnvelope> = {}): CheckpointEnvelo
     pausedWallMs: 0,
     lastSeenAt: 1_800_000_000_000,
     offlineCapMs: 43_200_000,
-    rewardSeq: 0,
-    pendingRewards: [],
-    pity: { epicPlus: 0, legendary: 0 },
     activeStrategy: { presetId: '33333333-3333-4333-8333-333333333333', presetVersion: 1 },
     activeLoot: { presetId: '44444444-4444-4444-8444-444444444444', presetVersion: 1 },
     pendingStrategy: null,
     pendingLoot: null,
-    inventoryProjection: { capacity: 100, usedSlots: 0, stackHeadroom: {} },
     stopContext: null,
     state: engineState(),
     ...overrides,
@@ -89,7 +85,6 @@ describe('canonical encoding', () => {
     const base = envelope();
     const shuffled: CheckpointEnvelope = {
       state: base.state,
-      pity: base.pity,
       accountId: base.accountId,
       envelopeVersion: base.envelopeVersion,
       huntId: base.huntId,
@@ -101,13 +96,10 @@ describe('canonical encoding', () => {
       pausedWallMs: base.pausedWallMs,
       lastSeenAt: base.lastSeenAt,
       offlineCapMs: base.offlineCapMs,
-      rewardSeq: base.rewardSeq,
-      pendingRewards: base.pendingRewards,
       activeStrategy: base.activeStrategy,
       activeLoot: base.activeLoot,
       pendingStrategy: base.pendingStrategy,
       pendingLoot: base.pendingLoot,
-      inventoryProjection: base.inventoryProjection,
       stopContext: base.stopContext,
     };
     expect(encodeCheckpoint(shuffled)).toBe(encodeCheckpoint(base));
@@ -133,12 +125,12 @@ describe('it fails closed rather than guessing', () => {
 
   test('a missing field is named', () => {
     const raw = JSON.parse(encodeCheckpoint(envelope())) as Record<string, unknown>;
-    delete raw.rewardSeq;
+    delete raw.checkpointSeq;
     try {
       decodeCheckpoint(JSON.stringify(raw));
       throw new Error('expected a rejection');
     } catch (error) {
-      expect((error as EnvelopeError).field).toBe('rewardSeq');
+      expect((error as EnvelopeError).field).toBe('checkpointSeq');
     }
   });
 
@@ -149,19 +141,25 @@ describe('it fails closed rather than guessing', () => {
   });
 
   test('a negative anchor or sequence is refused', () => {
-    expect(() => encodeCheckpoint(envelope({ rewardSeq: -1 }))).toThrowError(EnvelopeError);
+    expect(() => encodeCheckpoint(envelope({ checkpointSeq: -1 }))).toThrowError(EnvelopeError);
     expect(() => encodeCheckpoint(envelope({ simAnchorMs: -1 }))).toThrowError(EnvelopeError);
-    expect(() => encodeCheckpoint(envelope({ pity: { epicPlus: -1, legendary: 0 } }))).toThrowError(EnvelopeError);
   });
 
-  test('the pending reward buffer is bounded, so a persist cannot grow without limit', () => {
-    const tooMany = Array.from({ length: 513 }, (_, index) => ({
-      rewardId: `hunt:${index}`,
-      atSimMs: index,
-      kind: 'gold' as const,
-      payload: {},
-    }));
-    expect(() => encodeCheckpoint(envelope({ pendingRewards: tooMany }))).toThrowError(EnvelopeError);
+  test('the reward ordinal, the rewards, the counters and the bag live only in the engine state (R132)', () => {
+    // One copy each: a v3 envelope's own copies are unknown fields now, refused
+    // rather than silently preferred over the engine's.
+    for (const [key, value] of [
+      ['rewardSeq', 0],
+      ['pendingRewards', []],
+      ['pity', { epicPlus: 0, legendary: 0 }],
+      ['inventoryProjection', { capacity: 100, usedSlots: 0, stackHeadroom: {} }],
+    ] as const) {
+      const raw = { ...(JSON.parse(encodeCheckpoint(envelope())) as Record<string, unknown>), [key]: value };
+      expect(() => decodeCheckpoint(JSON.stringify(raw)), key).toThrowError(EnvelopeError);
+    }
+    const state = sim.decode(engineState());
+    expect(state.nextRewardSeq).toBe(0);
+    expect(state.dropProtection).toEqual({ epicPlus: 0, legendary: 0 });
   });
 });
 
@@ -180,6 +178,18 @@ describe('reward identity (P-29)', () => {
 
   test('a new hunt is a new namespace, so ids never collide across restarts', () => {
     expect(rewardIdFor('hunt-a', 0)).not.toBe(rewardIdFor('hunt-b', 0));
+  });
+});
+
+describe('the pending loot filter is acknowledged like the pending strategy (R131)', () => {
+  test('it names the version, the command and the acknowledged cutoff', () => {
+    const pending = {
+      presetId: '44444444-4444-4444-8444-444444444444',
+      presetVersion: 2,
+      commandId: 'hunt.loot:k1',
+      acknowledgedAtSimMs: 9_000,
+    };
+    expect(decodeCheckpoint(encodeCheckpoint(envelope({ pendingLoot: pending }))).pendingLoot).toEqual(pending);
   });
 });
 

@@ -149,6 +149,12 @@ export const startHuntSchema = z
 export const applyStrategySchema = z.object({ presetId: uuid, presetVersion: positiveInt }).strict();
 
 /**
+ * Apply loot filter (UI spec §6, part 3 §3.3): the preset and the version the
+ * player saw. It governs drops after the acknowledged cutoff only.
+ */
+export const applyLootSchema = z.object({ presetId: uuid, presetVersion: positiveInt }).strict();
+
+/**
  * Adds the optimistic-concurrency guard to a command formed against a read
  * (P-23). Required, never optional: a missing guard is a validation failure
  * rather than an unguarded write.
@@ -173,6 +179,11 @@ export const startHuntCommandSchema = startHuntSchema.extend({ expectedStateVers
  * stale rather than merged.
  */
 export const applyStrategyCommandSchema = applyStrategySchema.extend({
+  expectedStateVersion: version,
+  expectedGeneration: z.number().int().nonnegative(),
+});
+/** Apply loot filter is the same kind of intervention, guarded the same way (part 2 §4). */
+export const applyLootCommandSchema = applyLootSchema.extend({
   expectedStateVersion: version,
   expectedGeneration: z.number().int().nonnegative(),
 });
@@ -212,6 +223,9 @@ export const ROUTES: readonly RouteSpec[] = [
   { method: 'POST', path: '/api/hunts', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/hunts/current/stop', auth: 'session', guarded: false, idempotent: true },
   { method: 'POST', path: '/api/hunts/current/strategy', auth: 'session', guarded: true, idempotent: true },
+  // Task 6 (ruling R131): the loot filter's apply, "versioned with the hunt
+  // state" (UI spec §6) — the command part 4 §3.3 lists and part 1 §3 lacked.
+  { method: 'POST', path: '/api/hunts/current/loot', auth: 'session', guarded: true, idempotent: true },
   { method: 'GET', path: '/api/hunts/current', auth: 'session', guarded: false, idempotent: false },
   { method: 'GET', path: '/api/reports/:id', auth: 'session', guarded: false, idempotent: false },
 ];

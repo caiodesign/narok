@@ -7,8 +7,7 @@
  * that bounded it — so building it again, or reading it again, can credit
  * nothing: there is nothing in it to credit.
  *
- * The bag-full state arrives with the bag (task 6); running, stopped and
- * capped ship here.
+ * Four states: running, capped, bag-full (task 6) and stopped.
  */
 import { describe, expect, test } from 'vitest';
 import type { SimState } from '@narok/sim';
@@ -40,7 +39,14 @@ function input(overrides: Partial<AwayReportInput> = {}): AwayReportInput {
   };
 }
 
-describe('the three states that ship now, each with its own copy and actions (UI spec §8)', () => {
+/** Drops across the absence: `lost` of them to a full bag. */
+function withDrops(state: SimState, drops: Partial<SimState['metrics']['drops']>): SimState {
+  const next = structuredClone(state);
+  next.metrics.drops = { ...next.metrics.drops, ...drops };
+  return next;
+}
+
+describe('the four states, each with its own copy and actions (UI spec §8)', () => {
   test('running: the hunt is still going; the action views it and nothing restarts', () => {
     const report = buildAwayReport(input());
     expect(report.status).toBe('running');
@@ -100,20 +106,44 @@ describe('the three states that ship now, each with its own copy and actions (UI
     expect(report.wipeLimit).toBe(3);
   });
 
-  test('the three states are three different reports', () => {
+  test('bag-full: drops were lost to a full bag, the hunt kept going, and managing the bag is the primary action', () => {
+    const after = withDrops(input().after, { kept: 3, autoSold: 5, lost: 4, rolled: { common: 5, uncommon: 5, rare: 2, epic: 0, legendary: 0 } });
+    const report = buildAwayReport(input({ after }));
+    expect(report.status).toBe('bag-full');
+    expect(report.stopReason, 'a full bag is not a stop').toBeNull();
+    expect(report.copyKey).toBe('away.bagFull');
+    expect(report.actions).toEqual(['manage-bag', 'view-hunt']);
+    expect(report.outcomes.drops).toEqual({ rolled: 12, kept: 3, autoSold: 5, ignored: 0, lost: 4 });
+  });
+
+  test('a full bag outranks the cap, and a stop outranks a full bag', () => {
+    const lost = withDrops(input().after, { lost: 1 });
+    expect(buildAwayReport(input({ after: lost, window: { ...input().window, cappedBy: 'cap' } })).status).toBe('bag-full');
+    const stopped = withDrops(withMetrics(input().after, {}, { phase: 'stopped', stopReason: 'wipe-limit' }), { lost: 1 });
+    expect(buildAwayReport(input({ after: stopped })).status).toBe('stopped');
+    // Drops lost before this absence are not this absence's news.
+    const earlier = withDrops(before, { lost: 2 });
+    expect(buildAwayReport(input({ before: earlier, after: withDrops(input().after, { lost: 2 }) })).status).toBe('running');
+  });
+
+  test('the four states are four different reports', () => {
     const keys = new Set([
       buildAwayReport(input()).copyKey,
       buildAwayReport(input({ window: { ...input().window, cappedBy: 'cap' } })).copyKey,
+      buildAwayReport(input({ after: withDrops(input().after, { lost: 1 }) })).copyKey,
       buildAwayReport(input({ stop: { reason: 'stalemate', atSimMs: 1, atWallMs: W0 + 1 }, after: withMetrics(before, {}, { phase: 'stopped', stopReason: 'stalemate' }) })).copyKey,
     ]);
-    expect(keys.size).toBe(3);
+    expect(keys.size).toBe(4);
   });
 });
 
 describe('the report is built from committed deltas and credits nothing (B-17)', () => {
   test('outcomes are the metric deltas across the settlement, never the running totals', () => {
     const report = buildAwayReport(input());
-    expect(report.outcomes).toEqual({ kills: 30, wins: 10, wipes: 0, rawExp: 700, rawGold: 220 });
+    expect(report.outcomes).toEqual({
+      kills: 30, wins: 10, wipes: 0, rawExp: 700, rawGold: 220,
+      drops: { rolled: 0, kept: 0, autoSold: 0, ignored: 0, lost: 0 },
+    });
   });
 
   test('building it again from the same inputs is identical and leaves its inputs untouched', () => {

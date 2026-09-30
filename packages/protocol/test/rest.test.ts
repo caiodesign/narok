@@ -7,6 +7,8 @@
 import { describe, expect, test } from 'vitest';
 import {
   ROUTES,
+  applyLootCommandSchema,
+  applyLootSchema,
   applyStrategySchema,
   buyRequestSchema,
   equipRequestSchema,
@@ -19,11 +21,12 @@ import {
 
 describe('the route table', () => {
   test('lists every row of part 1 §3 with its method, auth, guard and idempotency', () => {
-    expect(ROUTES.length).toBe(23);
+    expect(ROUTES.length).toBe(24);
     const paths = ROUTES.map((route) => `${route.method} ${route.path}`);
     expect(paths).toContain('POST /api/auth/register');
     expect(paths).toContain('POST /api/auth/login');
     expect(paths).toContain('POST /api/hunts/current/strategy');
+    expect(paths).toContain('POST /api/hunts/current/loot');
     expect(paths).toContain('POST /api/presets/loot/preview');
   });
 
@@ -91,6 +94,16 @@ describe('request schemas', () => {
     const request = { presetId: '33333333-3333-4333-8333-333333333333', presetVersion: 4 };
     expect(applyStrategySchema.parse(request)).toEqual(request);
     expect(applyStrategySchema.safeParse({ presetId: request.presetId }).success).toBe(false);
+  });
+
+  test('applying a loot filter names the preset, the version the player saw, and both guards', () => {
+    const request = { presetId: '44444444-4444-4444-8444-444444444444', presetVersion: 2 };
+    expect(applyLootSchema.parse(request)).toEqual(request);
+    const guarded = { ...request, expectedStateVersion: 3, expectedGeneration: 1 };
+    expect(applyLootCommandSchema.parse(guarded)).toEqual(guarded);
+    expect(applyLootCommandSchema.safeParse(request).success).toBe(false);
+    // The cutoff is the server's: a client-sent instant is refused, not read.
+    expect(applyLootCommandSchema.safeParse({ ...guarded, cutoffMs: 5 }).success).toBe(false);
   });
 });
 

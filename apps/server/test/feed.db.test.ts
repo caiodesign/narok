@@ -11,7 +11,15 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import type { ServerMessage } from '@narok/protocol';
 import { content, validateContent } from '@narok/data';
-import { createGrid, createSimulation, defaultPlacement, defaultStrategy, SimError } from '@narok/sim';
+import {
+  createGrid,
+  createSimulation,
+  defaultBag,
+  defaultPlacement,
+  defaultStrategy,
+  SimError,
+  starterLoot,
+} from '@narok/sim';
 import { defaultConfig } from '../src/config';
 import * as schema from '../src/db/schema';
 import { defaultHuntConfig } from '../src/hunt/config';
@@ -42,7 +50,7 @@ function plan(): HuntPlan {
     },
     activeStrategy: { presetId: crypto.randomUUID(), presetVersion: 1 },
     activeLoot: { presetId: crypto.randomUUID(), presetVersion: 1 },
-    inventoryProjection: { capacity: 100, usedSlots: 0, stackHeadroom: {} },
+    setup: { loot: starterLoot(), bag: defaultBag(), dropProtection: { epicPlus: 0, legendary: 0 } },
   };
 }
 

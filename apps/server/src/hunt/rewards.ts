@@ -1,101 +1,159 @@
 /**
- * The reward carrier (milestone B spec part 2 §2, §6, §9 #2, #3, #8; ruling
- * R117).
+ * The reward carrier (milestone B spec part 2 §2, §6, §9 #2, #3, #8; part 3
+ * §2, §3.4; rulings R117, R127, R128, R132).
  *
  * Three rules, each one the reason a retried or re-simulated commit is safe:
  *
  * - **Rewards are read from state, never from the returned events.** Summary
- *   collection returns no events at all, so a source that read them would
- *   credit an offline settlement nothing. A {@link RewardSource} is handed the
- *   state before and after each engine step and nothing else.
+ *   collection returns no events at all, so reading them would credit an
+ *   offline settlement nothing. The engine state carries every rolled drop
+ *   with its disposition (`state.pendingRewards`), and the segment runner
+ *   drains the dispositioned ones off the states it passes through.
  * - **Ids are allocated inside the transition.** `"<huntId>:<rewardSeq>"`,
- *   numbered from the checkpoint's own `rewardSeq` — no UUID, no database
- *   sequence — so re-simulating a segment from the same checkpoint reproduces
- *   the same rewards with the same ids (B-L07).
+ *   the ordinal numbered by the engine from the checkpoint's own
+ *   `state.nextRewardSeq` — no UUID, no database sequence — so re-simulating
+ *   a segment from the same checkpoint reproduces the same rewards with the
+ *   same ids (B-L07), and `items`' unique source index refuses a second credit.
  * - **The carrier is bounded, and its bound forces a commit.** Reaching
  *   {@link REWARD_CARRIER_CAP} ends the segment early and commits it, exactly
  *   as the work budget forces a yield; the rest of the window is settled next,
  *   against the same absolute target. Nothing is dropped or altered.
  *
- * The engine emits no reward record yet (drops arrive with task 6), so the
- * production source is {@link NO_REWARDS}. The carrier is built and exercised
- * now so task 6 plugs a source into it rather than inventing a second path.
+ * One source of truth: the engine state inside the checkpoint. The envelope
+ * duplicates none of it, and `account_drop_protection` is an index of the
+ * committed counters, rewritten from them in every commit's transaction.
  */
-import type { SimState } from '@narok/sim';
-import type { Tx } from '../db/tx';
-import { REWARD_CARRIER_CAP, rewardIdFor, type CheckpointEnvelope, type PendingReward } from './envelope';
+import { eq, sql } from 'drizzle-orm';
+import type { DropProtection, PendingReward } from '@narok/sim';
+import * as schema from '../db/schema';
+import type { Database, Tx } from '../db/tx';
+import { rewardIdFor } from './envelope';
 
-/** A reward before its id: what a source reads off two consecutive states. */
-export interface RewardDraft {
-  readonly atSimMs: number;
-  readonly kind: PendingReward['kind'];
-  readonly payload: Record<string, unknown>;
+/** A dispositioned reward with its reproducible id: what a commit credits. */
+export interface HuntReward extends PendingReward {
+  readonly rewardId: string;
+  readonly disposition: NonNullable<PendingReward['disposition']>;
 }
 
-/**
- * Reads the rewards one engine step produced from the states on either side of
- * it. Must be a pure function of its two arguments: it runs inside the segment
- * worker, and a replay must see exactly what the first run saw.
- */
-export type RewardSource = (before: SimState, after: SimState) => readonly RewardDraft[];
+/** Names drained rewards within their hunt's namespace. */
+export function identifyRewards(huntId: string, rewards: readonly PendingReward[]): HuntReward[] {
+  return rewards.map((reward) => {
+    if (reward.disposition === null) throw new RangeError(`reward ${reward.rewardSeq} has no disposition yet`);
+    return {
+      ...structuredClone(reward),
+      disposition: structuredClone(reward.disposition),
+      rewardId: rewardIdFor(huntId, reward.rewardSeq),
+    };
+  });
+}
 
-/** Today's production source: the engine accrues no reward record before task 6. */
-export const NO_REWARDS: RewardSource = () => [];
+/** What a sink needs besides the rewards: whose, and under which pinned content. */
+export interface RewardCommit {
+  readonly accountId: string;
+  readonly stateVersionAfter: number;
+  /** The hunt's pinned content, which an item instance resolves its definition under (B-29). */
+  readonly contentVersion: string;
+}
 
 /**
  * Writes drained rewards to their canonical tables inside the commit
  * transaction, so a reward exists only together with the checkpoint that
- * produced it (P-27). Absent until a reward has somewhere to go.
+ * produced it (P-27).
  */
-export type RewardSink = (
-  tx: Tx,
-  accountId: string,
-  rewards: readonly PendingReward[],
-  stateVersionAfter: number,
-) => Promise<void>;
+export type RewardSink = (tx: Tx, rewards: readonly HuntReward[], commit: RewardCommit) => Promise<void>;
 
-export class RewardCarrierFull extends Error {
-  constructor(held: number, adding: number) {
-    super(`the reward carrier holds ${held} and cannot take ${adding} more`);
-    this.name = 'RewardCarrierFull';
+/**
+ * The production sink (part 3 §3.3, §3.4; ruling R132). Every reward leaves one
+ * trace keyed by its id:
+ *
+ * - **kept** equipment becomes an `items` row, its `source_ref` the reward id
+ *   (unique per account) and `protected` set at acquisition for a protected
+ *   rarity; a kept consumable adds to its stack;
+ * - **auto-sold** is audited and credits nothing: prices are deferred, so an
+ *   auto-sold item is counted, not priced (spec §4.0);
+ * - **lost** — a Keep the full bag could not hold — is audited as
+ *   `overflow-lost`, and nothing is added later (UI spec §6, §8);
+ * - **ignored** leaves the audit row of its disposition only.
+ */
+export const commitRewards: RewardSink = async (tx, rewards, commit) => {
+  for (const reward of rewards) {
+    const { item, disposition } = reward;
+    const itemDelta = item.kind === 'equipment'
+      ? { definitionId: item.definitionId, rarity: item.rarity, itemLevel: reward.itemLevel, bonuses: item.bonuses }
+      : { consumableId: item.consumableId, quantity: item.quantity };
+
+    if (disposition.outcome === 'kept' && item.kind === 'equipment') {
+      await tx.insert(schema.items).values({
+        accountId: commit.accountId,
+        baseItemId: item.definitionId,
+        baseContentVersion: commit.contentVersion,
+        rarity: item.rarity,
+        itemLevel: reward.itemLevel,
+        bonuses: item.bonuses,
+        protected: disposition.matched === 'protected',
+        sourceRef: reward.rewardId,
+      });
+    } else if (disposition.outcome === 'kept' && item.kind === 'consumable') {
+      await tx
+        .insert(schema.stackItems)
+        .values({ accountId: commit.accountId, definitionId: item.consumableId, quantity: item.quantity })
+        .onConflictDoUpdate({
+          target: [schema.stackItems.accountId, schema.stackItems.definitionId],
+          set: { quantity: sql`${schema.stackItems.quantity} + ${item.quantity}` },
+        });
+    }
+
+    await tx.insert(schema.resourceAudit).values({
+      accountId: commit.accountId,
+      reason: AUDIT_REASON[disposition.outcome],
+      sourceRef: reward.rewardId,
+      delta: { item: itemDelta, action: disposition.action, matched: disposition.matched, gold: 0 },
+      stateVersionAfter: commit.stateVersionAfter,
+    });
   }
-}
+};
 
-/** Room left in the carrier. */
-export function rewardRoom(envelope: CheckpointEnvelope, cap: number = REWARD_CARRIER_CAP): number {
-  return Math.max(0, Math.min(cap, REWARD_CARRIER_CAP) - envelope.pendingRewards.length);
+/** The audit reason of each outcome; `overflow-lost` is part 3 §3.4's name. */
+export const AUDIT_REASON: Record<HuntReward['disposition']['outcome'], string> = {
+  kept: 'drop-kept',
+  'auto-sold': 'drop-auto-sold',
+  ignored: 'drop-ignored',
+  lost: 'overflow-lost',
+};
+
+/** The reward tiers `account_drop_protection` indexes, one row each (part 3 §2.4). */
+const TIERS: readonly (keyof DropProtection)[] = ['epicPlus', 'legendary'];
+
+/**
+ * Rewrites the account's bad-luck index from the counters the committed
+ * checkpoint carries, inside that commit's transaction (part 3 §2.4, ruling
+ * R128). An index, never a source: the checkpoint is authoritative, and a
+ * replay of the same segment rewrites exactly the same values.
+ */
+export async function indexDropProtection(tx: Tx, accountId: string, protection: DropProtection): Promise<void> {
+  for (const tier of TIERS) {
+    await tx
+      .insert(schema.accountDropProtection)
+      .values({ accountId, rewardTier: tier, counter: protection[tier] })
+      .onConflictDoUpdate({
+        target: [schema.accountDropProtection.accountId, schema.accountDropProtection.rewardTier],
+        set: { counter: protection[tier], updatedAt: new Date() },
+      });
+  }
 }
 
 /**
- * Appends `drafts` to the carrier, allocating each id from `rewardSeq` in
- * order. Refuses outright rather than truncating when they would not fit; the
- * segment runner never asks it to, because it stops at the cap first.
+ * The counters a new hunt starts from: the account's, which outlive every hunt
+ * (layer-1 §4.5). Zero for an account that has never had an opportunity.
  */
-export function allocateRewards(envelope: CheckpointEnvelope, drafts: readonly RewardDraft[]): CheckpointEnvelope {
-  if (drafts.length === 0) return envelope;
-  if (envelope.pendingRewards.length + drafts.length > REWARD_CARRIER_CAP) {
-    throw new RewardCarrierFull(envelope.pendingRewards.length, drafts.length);
+export async function readDropProtection(db: Database | Tx, accountId: string): Promise<DropProtection> {
+  const rows = await db
+    .select({ rewardTier: schema.accountDropProtection.rewardTier, counter: schema.accountDropProtection.counter })
+    .from(schema.accountDropProtection)
+    .where(eq(schema.accountDropProtection.accountId, accountId));
+  const protection: DropProtection = { epicPlus: 0, legendary: 0 };
+  for (const row of rows) {
+    if (row.rewardTier === 'epicPlus' || row.rewardTier === 'legendary') protection[row.rewardTier] = row.counter;
   }
-
-  const allocated = drafts.map(
-    (draft, index): PendingReward => ({
-      rewardId: rewardIdFor(envelope.huntId, envelope.rewardSeq + index),
-      atSimMs: draft.atSimMs,
-      kind: draft.kind,
-      payload: structuredClone(draft.payload),
-    }),
-  );
-  return {
-    ...envelope,
-    rewardSeq: envelope.rewardSeq + drafts.length,
-    pendingRewards: [...envelope.pendingRewards, ...allocated],
-  };
-}
-
-/** Empties the carrier for a commit; `rewardSeq` keeps counting across drains. */
-export function drainRewards(envelope: CheckpointEnvelope): {
-  envelope: CheckpointEnvelope;
-  drained: PendingReward[];
-} {
-  return { envelope: { ...envelope, pendingRewards: [] }, drained: envelope.pendingRewards };
+  return protection;
 }

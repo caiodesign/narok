@@ -1,5 +1,6 @@
 /**
- * The hunt routes (part 1 §3): start, read, stop and apply-next-encounter.
+ * The hunt routes (part 1 §3): start, read, stop, apply-next-encounter and
+ * apply-loot-filter.
  *
  * Every mutating route resolves the caller, then checks ownership of every
  * named object, then validates the business rule — in that order, so a
@@ -9,7 +10,9 @@
  */
 import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { CONSUMABLE_STACK_MAX } from '@narok/data';
 import {
+  applyLootCommandSchema,
   applyStrategyCommandSchema,
   startHuntCommandSchema,
   STRATEGY_PAYLOAD_SCHEMA_VERSION,
@@ -23,7 +26,8 @@ import { AppError, notOwned } from '../errors';
 import { applyCommand, CommandSequencer, type CommandDeps } from '../hunt/commands';
 import type { LifecycleFeed } from '../hunt/feed';
 import { readHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../hunt/lifecycle';
-import { strategyVersions } from '../hunt/pending';
+import { lootVersions, presetLoot, strategyVersions } from '../hunt/pending';
+import { readDropProtection } from '../hunt/rewards';
 import { requireSession } from '../plugins/session';
 import type { RouteContext } from './context';
 
@@ -111,12 +115,22 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       throw new AppError('VALIDATION', path === '' ? 'strategyPreset' : `strategyPreset.${path}`);
     }
 
+    // The filter that will run at encounter end is a validated copy of the
+    // named preset, checked by the evaluator's own validator (part 3 §3.3).
+    const lootPreset = presetLoot(loot.payload, loot.payloadSchemaVersion);
+
     // Party order is the order named: the first character is p0.
     const byId = new Map(characters.map((row) => [row.id, row.classId]));
+    // The bag the engine may assume (part 3 §2.5): unequipped items and
+    // consumable stacks each take a slot; equipped items take none.
     const [bag] = await db
       .select({ used: count() })
       .from(schema.items)
       .where(and(eq(schema.items.accountId, account.id), isNull(schema.items.equippedCharacterId)));
+    const stacks = await db
+      .select({ definitionId: schema.stackItems.definitionId, quantity: schema.stackItems.quantity })
+      .from(schema.stackItems)
+      .where(eq(schema.stackItems.accountId, account.id));
     const [accountRow] = await db
       .select({ bagCapacity: schema.accounts.bagCapacity })
       .from(schema.accounts)
@@ -134,7 +148,20 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       },
       activeStrategy: { presetId: strategy.id, presetVersion: strategy.presetVersion },
       activeLoot: { presetId: loot.id, presetVersion: loot.presetVersion },
-      inventoryProjection: { capacity: accountRow?.bagCapacity ?? 0, usedSlots: bag?.used ?? 0, stackHeadroom: {} },
+      setup: {
+        loot: lootPreset,
+        bag: {
+          capacity: accountRow?.bagCapacity ?? 0,
+          usedSlots: (bag?.used ?? 0) + stacks.filter((stack) => stack.quantity > 0).length,
+          stackHeadroom: Object.fromEntries(
+            stacks
+              .filter((stack) => stack.quantity > 0)
+              .map((stack) => [stack.definitionId, CONSUMABLE_STACK_MAX - stack.quantity]),
+          ),
+        },
+        // The account's counters outlive every hunt (layer-1 §4.5).
+        dropProtection: await readDropProtection(db, account.id),
+      },
     };
 
     try {
@@ -157,6 +184,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
     const loaded = await readHunt(lifecycle, account.id);
     const state = lifecycle.sim.decode(loaded.envelope.state);
     const versions = strategyVersions(loaded.envelope);
+    const lootVersion = lootVersions(loaded.envelope);
     return {
       huntId: loaded.envelope.huntId,
       status: loaded.status,
@@ -167,6 +195,8 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       // Active and pending, separately, so the UI names both (UI spec §5).
       activeStrategy: versions.activeVersion,
       pendingStrategy: versions.pendingVersion,
+      activeLoot: lootVersion.activeVersion,
+      pendingLoot: lootVersion.pendingVersion,
       state: lifecycle.sim.project(state),
     };
   });
@@ -216,6 +246,38 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
         expectedGeneration: body.expectedGeneration,
         expectedStateVersion: body.expectedStateVersion,
         idempotency: { key: `hunt.strategy:${key}`, requestHash: await hashRequest(body) },
+      });
+      announce(account.id);
+      return outcome.view;
+    } catch (error) {
+      throw asAppError(error);
+    }
+  });
+
+  /**
+   * Apply loot filter (UI spec §6, part 3 §3.3): settle to the server's
+   * command time, then run that exact validated preset version on every drop
+   * after this cutoff. Never retroactive: nothing already dropped or already
+   * in the bag is re-evaluated. Guarded like apply-next-encounter.
+   */
+  app.post('/api/hunts/current/loot', async (request) => {
+    const { account } = await caller(request);
+    const key = requireIdempotencyKey(request);
+    const body = parse(applyLootCommandSchema, request.body);
+
+    // Ownership before any rule (P-12).
+    const [preset] = await db
+      .select({ id: schema.lootPresets.id })
+      .from(schema.lootPresets)
+      .where(and(eq(schema.lootPresets.id, body.presetId), eq(schema.lootPresets.accountId, account.id)));
+    if (preset === undefined) throw notOwned('presetId');
+
+    try {
+      const outcome = await applyCommand(commands, account, {
+        command: { kind: 'apply-loot', presetId: body.presetId, presetVersion: body.presetVersion },
+        expectedGeneration: body.expectedGeneration,
+        expectedStateVersion: body.expectedStateVersion,
+        idempotency: { key: `hunt.loot:${key}`, requestHash: await hashRequest(body) },
       });
       announce(account.id);
       return outcome.view;

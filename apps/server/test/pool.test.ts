@@ -23,6 +23,7 @@ function deferredExecutor() {
     continuations: 1,
     rewards: [],
     pendingRulesQueued: false,
+    pendingLootQueued: false,
   });
   return { executor, calls, resolvers, result };
 }

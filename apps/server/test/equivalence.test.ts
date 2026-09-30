@@ -10,7 +10,14 @@
  */
 import { describe, expect, test } from 'vitest';
 import { content, validateContent } from '@narok/data';
-import { createGrid, createSimulation, defaultPlacement, defaultStrategy, type LabInput } from '@narok/sim';
+import {
+  createGrid,
+  createSimulation,
+  defaultPlacement,
+  defaultStrategy,
+  takeDispositionedRewards,
+  type LabInput,
+} from '@narok/sim';
 import { drainSummary } from '../../../tools/balance/src/run';
 import { runSegment } from '../src/workers/segment';
 
@@ -35,14 +42,18 @@ describe('the worker path and the CLI path agree byte for byte', () => {
   test.each([1, 2, 7])('seed %i, ten minutes, summary collection', (seed) => {
     const started = sim.start(input(seed));
 
-    const viaCli = sim.encode(drainSummary(sim, started, TEN_MINUTES));
+    // The worker drains the dispositioned rewards it hands to the commit
+    // (R132); the CLI keeps them. Drained the same way, the bytes agree, and
+    // so do the rewards.
+    const cli = takeDispositionedRewards(drainSummary(sim, started, TEN_MINUTES));
     const viaWorker = runSegment(sim, {
       encodedState: sim.encode(started),
       simTarget: TEN_MINUTES,
       collect: 'summary',
-    }).encodedState;
+    });
 
-    expect(viaWorker).toBe(viaCli);
+    expect(viaWorker.encodedState).toBe(sim.encode(cli.state));
+    expect(viaWorker.rewards).toEqual(cli.rewards);
   });
 
   test('a tight work budget changes how many calls it takes, not what comes out', () => {

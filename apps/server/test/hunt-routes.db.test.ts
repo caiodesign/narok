@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { content, validateContent } from '@narok/data';
+import { STARTER_LOOT_PRESET } from '@narok/loot';
 import { defaultPlacement, defaultStrategy } from '@narok/sim';
 import { createApp } from '../src/app';
 import { compose } from '../src/compose';
@@ -80,7 +81,7 @@ async function setup(who: Player, payload: unknown = strategyPayload()) {
     .returning();
   const [loot] = await db
     .insert(schema.lootPresets)
-    .values({ accountId: who.accountId, name: 'Loot', payload: {}, payloadSchemaVersion: 1 })
+    .values({ accountId: who.accountId, name: 'Loot', payload: STARTER_LOOT_PRESET, payloadSchemaVersion: 1 })
     .returning();
   return { characterIds: characters.map((row) => row.id), strategyPresetId: strategy.id, lootPresetId: loot.id };
 }
@@ -244,6 +245,7 @@ describe('GET /api/hunts/current and POST /api/hunts/current/stop', () => {
       ['POST', '/api/hunts'],
       ['GET', '/api/hunts/current'],
       ['POST', '/api/hunts/current/stop'],
+      ['POST', '/api/hunts/current/loot'],
     ] as const) {
       const response = await app.inject({ method, url, headers: { origin }, payload: method === 'POST' ? {} : undefined });
       expect(response.json(), url).toMatchObject({ code: 'UNAUTHENTICATED' });
@@ -316,5 +318,85 @@ describe('POST /api/hunts/current/strategy (apply next encounter)', () => {
 
     const unguarded = await apply(me, { presetId: theirs.id, presetVersion: 1, expectedStateVersion: 0 });
     expect(unguarded.json()).toMatchObject({ code: 'VALIDATION', field: 'expectedGeneration' });
+  });
+});
+
+describe('POST /api/hunts/current/loot (apply loot filter)', () => {
+  const IGNORE_ALL = { exceptions: [], rarity: {}, fallback: { equipment: 'ignore', consumable: 'ignore' } };
+
+  async function running(who: Player) {
+    const refs = await setup(who);
+    await start(who, { ...refs, mapId: 'prototype', expectedStateVersion: await version(who.accountId) });
+    const [other] = await db
+      .insert(schema.lootPresets)
+      .values({ accountId: who.accountId, name: 'Ignore', payload: IGNORE_ALL, payloadSchemaVersion: 1 })
+      .returning();
+    return { refs, other };
+  }
+
+  function apply(who: Player, body: Record<string, unknown>, key: string = crypto.randomUUID()) {
+    return app.inject({
+      method: 'POST',
+      url: '/api/hunts/current/loot',
+      headers: { origin, cookie: who.cookie, 'idempotency-key': key },
+      payload: body,
+    });
+  }
+
+  test('applies the filter as a new generation and names the active loot version', async () => {
+    const me = await player();
+    const { refs, other } = await running(me);
+    const response = await apply(me, {
+      presetId: other.id,
+      presetVersion: 1,
+      expectedGeneration: 1,
+      expectedStateVersion: await version(me.accountId),
+    });
+    expect(response.statusCode).toBe(200);
+    // Nothing had dropped yet, so the filter governs from now on at once.
+    expect(response.json()).toMatchObject({ generation: 2, activeLoot: { presetId: other.id, presetVersion: 1 }, pendingLoot: null });
+    expect(refs.lootPresetId).not.toBe(other.id);
+
+    const current = await app.inject({ method: 'GET', url: '/api/hunts/current', headers: { origin, cookie: me.cookie } });
+    expect(current.json()).toMatchObject({ activeLoot: { presetId: other.id, presetVersion: 1 }, pendingLoot: null });
+  });
+
+  test('a stale generation is a recoverable conflict; another account’s preset is NOT_OWNED', async () => {
+    const me = await player();
+    const them = await player();
+    const { other } = await running(me);
+    const { other: theirs } = await running(them);
+    const current = await version(me.accountId);
+    const stale = await apply(me, { presetId: other.id, presetVersion: 1, expectedGeneration: 5, expectedStateVersion: current });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toMatchObject({ code: 'CONFLICT_STATE_VERSION', field: 'expectedGeneration', generation: 1 });
+    const foreign = await apply(me, { presetId: theirs.id, presetVersion: 1, expectedGeneration: 1, expectedStateVersion: current });
+    expect(foreign.json()).toMatchObject({ code: 'NOT_OWNED', field: 'presetId' });
+  });
+
+  test('a start refuses a loot preset the evaluator cannot run, and writes nothing', async () => {
+    const me = await player();
+    const refs = await setup(me);
+    await db
+      .update(schema.lootPresets)
+      .set({ payload: { exceptions: [{ when: { material: 'ore' }, action: 'keep' }], rarity: {}, fallback: { equipment: 'keep', consumable: 'keep' } } })
+      .where(eq(schema.lootPresets.id, refs.lootPresetId));
+    const response = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(response.json()).toMatchObject({ code: 'VALIDATION', field: 'lootPreset.exceptions.0.when.material' });
+    expect(await db.select().from(schema.hunts)).toHaveLength(0);
+  });
+
+  test('a start carries the account’s bad-luck counters into the hunt (layer-1 §4.5)', async () => {
+    const me = await player();
+    const refs = await setup(me);
+    await db.insert(schema.accountDropProtection).values([
+      { accountId: me.accountId, rewardTier: 'epicPlus', counter: 41 },
+      { accountId: me.accountId, rewardTier: 'legendary', counter: 977 },
+    ]);
+    const response = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(response.statusCode).toBe(200);
+    const [row] = await db.select().from(schema.hunts).where(eq(schema.hunts.accountId, me.accountId));
+    const envelope = JSON.parse(Buffer.from(row.checkpoint).toString('utf8')) as { state: string };
+    expect((JSON.parse(envelope.state) as { dropProtection: unknown }).dropProtection).toEqual({ epicPlus: 41, legendary: 977 });
   });
 });

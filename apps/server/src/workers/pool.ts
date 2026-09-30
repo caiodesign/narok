@@ -13,21 +13,16 @@
  * and it lives here either way.
  */
 import type { Simulation } from '@narok/sim';
-import { NO_REWARDS, type RewardSource } from '../hunt/rewards';
 import { runSegment, type SegmentRequest, type SegmentResult } from './segment';
 
 export type SegmentExecutor = (request: SegmentRequest) => Promise<SegmentResult>;
 
-/**
- * `source` reads rewards off the engine's states; it runs where the segment
- * runs, so a worker executor is handed it at construction, never per request.
- */
-export function inlineExecutor(sim: Simulation, source: RewardSource = NO_REWARDS): SegmentExecutor {
+export function inlineExecutor(sim: Simulation): SegmentExecutor {
   // A microtask boundary, so a caller can never observe the result before its
   // own `await` — the same ordering a real worker gives.
   return async (request) => {
     await Promise.resolve();
-    return runSegment(sim, request, source);
+    return runSegment(sim, request);
   };
 }
 

@@ -9,16 +9,21 @@
  * through {@link readAwayReport}, which selects one row and writes nothing,
  * so no path from a report can credit twice (B-17).
  *
- * Three states ship now, each with its own copy key and actions:
+ * Four states, each with its own copy key and actions:
  *
  * - `running` — the hunt is still going; the action views it.
  * - `capped` — accrual stopped at the offline cap and the hunt did not: a cap
  *   is reported as a cap, never as a combat failure (part 2 §4: reaching the
  *   cap is not a stop).
+ * - `bag-full` — drops were lost to a full bag during the absence (part 3
+ *   §3.4). The hunt kept going, so this is no stop either; managing the bag is
+ *   the primary action, and the lost drops stay lost — reopening the report
+ *   reclaims nothing (UI spec §8).
  * - `stopped` — the engine stopped the hunt inside the window; the report
  *   names the actual reason and offers the restart the hunt now needs.
  *
- * The fourth, a full bag, arrives with the bag (task 6).
+ * Precedence: a stop outranks everything, then a full bag (it asks the player
+ * to act), then the cap.
  *
  * Retention is part 4 §3.5's option (a): only the latest report is kept, with
  * no read state; its age bound is `HuntConfig.reportRetentionMs`.
@@ -33,9 +38,9 @@ import type { Settlement } from '../hunt/settle';
 
 export const AWAY_REPORT_VERSION = 1;
 
-export type AwayStatus = 'running' | 'capped' | 'stopped';
+export type AwayStatus = 'running' | 'capped' | 'bag-full' | 'stopped';
 /** Navigation only: no action a report offers grants anything (part 4 §3.5). */
-export type AwayAction = 'view-hunt' | 'start-hunt';
+export type AwayAction = 'view-hunt' | 'start-hunt' | 'manage-bag';
 
 export interface AwayReportInput {
   readonly huntId: string;
@@ -61,6 +66,14 @@ export interface AwayOutcomes {
   readonly wipes: number;
   readonly rawExp: number;
   readonly rawGold: number;
+  /** Drops during this absence, by what became of them (part 3 §7). Counts only. */
+  readonly drops: {
+    readonly rolled: number;
+    readonly kept: number;
+    readonly autoSold: number;
+    readonly ignored: number;
+    readonly lost: number;
+  };
 }
 
 export interface AwayReport {
@@ -88,17 +101,40 @@ export interface AwayReport {
   readonly rewardsCredited: number;
 }
 
+function lostDuring(input: AwayReportInput): number {
+  return input.after.metrics.drops.lost - input.before.metrics.drops.lost;
+}
+
 function statusOf(input: AwayReportInput): AwayStatus {
   // A stop outranks the cap: when the engine stopped first, the cap never bit.
   if (input.stop !== null || input.after.phase === 'stopped') return 'stopped';
+  if (lostDuring(input) > 0) return 'bag-full';
   return input.window.cappedBy === 'cap' ? 'capped' : 'running';
 }
+
+const COPY: Record<Exclude<AwayStatus, 'stopped'>, string> = {
+  running: 'away.running',
+  capped: 'away.capped',
+  'bag-full': 'away.bagFull',
+};
+
+const ACTIONS: Record<AwayStatus, readonly AwayAction[]> = {
+  running: ['view-hunt'],
+  capped: ['view-hunt'],
+  // Manage bag first: the hunt is still running, and the bag is why drops were lost.
+  'bag-full': ['manage-bag', 'view-hunt'],
+  stopped: ['start-hunt'],
+};
 
 /** Builds a report from committed deltas. Pure: the same inputs give the same report, and nothing else. */
 export function buildAwayReport(input: AwayReportInput): AwayReport {
   const status = statusOf(input);
   const stopReason = status === 'stopped' ? (input.stop?.reason ?? input.after.stopReason) : null;
-  const delta = (key: keyof AwayOutcomes) => input.after.metrics[key] - input.before.metrics[key];
+  const delta = (key: Exclude<keyof AwayOutcomes, 'drops'>) => input.after.metrics[key] - input.before.metrics[key];
+  const drops = (key: 'kept' | 'autoSold' | 'ignored' | 'lost') =>
+    input.after.metrics.drops[key] - input.before.metrics.drops[key];
+  const rolled = (state: SimState) =>
+    Object.values(state.metrics.drops.rolled).reduce((sum, count) => sum + count, 0) + state.metrics.drops.consumables;
 
   return {
     reportVersion: AWAY_REPORT_VERSION,
@@ -106,8 +142,8 @@ export function buildAwayReport(input: AwayReportInput): AwayReport {
     generation: input.generation,
     status,
     stopReason,
-    copyKey: status === 'stopped' ? `away.stopped.${stopReason ?? 'unknown'}` : `away.${status}`,
-    actions: status === 'stopped' ? ['start-hunt'] : ['view-hunt'],
+    copyKey: status === 'stopped' ? `away.stopped.${stopReason ?? 'unknown'}` : COPY[status],
+    actions: ACTIONS[status],
     awayFromWall: input.previousLastSeenAt,
     returnedAtWall: input.returnedAtWall,
     timeAwayMs: input.returnedAtWall - input.previousLastSeenAt,
@@ -121,6 +157,13 @@ export function buildAwayReport(input: AwayReportInput): AwayReport {
       wipes: delta('wipes'),
       rawExp: delta('rawExp'),
       rawGold: delta('rawGold'),
+      drops: {
+        rolled: rolled(input.after) - rolled(input.before),
+        kept: drops('kept'),
+        autoSold: drops('autoSold'),
+        ignored: drops('ignored'),
+        lost: drops('lost'),
+      },
     },
     wipesThisHunt: input.after.metrics.wipes,
     wipeLimit: input.after.input.wipeLimit,
