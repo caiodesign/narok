@@ -1,12 +1,18 @@
+import { CONSUMABLE_STACK_MAX } from '@narok/data';
 import type { ClassId, Content, RecipeId, SkillId } from '@narok/data';
-import { SimError } from './errors';
+import { LootPresetError, validateLootPreset, type LootPreset } from '@narok/loot';
+import { SimError, type SimErrorCode } from './errors';
+import { defaultBag, emptyDropMetrics, starterLoot } from './rewards';
 import { schedule } from './scheduler';
 import { derive } from './math';
 import type { Battlefield } from './battlefield/types';
 import type {
   Actor,
   ActorId,
+  BagState,
   Condition,
+  DropProtection,
+  HuntSetup,
   LabInput,
   Metrics,
   PendingRules,
@@ -300,6 +306,63 @@ export function defaultStrategy(classId: ClassId): Strategy {
   }
 }
 
+/** A generous bound on counters and bag sizes, well inside the safe-integer range. */
+const MAX_COUNT = 1_000_000_000_000;
+/** Consumable ids are content ids: lowercase ASCII, so no key can reach an object prototype. */
+const CONSUMABLE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+function checkInt(value: unknown, field: string, code: SimErrorCode, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min || value > max) {
+    throw new SimError(code, field, `expected an integer between ${min} and ${max}`);
+  }
+  return value;
+}
+
+function checkRecord(value: unknown, field: string, code: SimErrorCode): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new SimError(code, field, 'expected an object');
+  }
+  return value as Record<string, unknown>;
+}
+
+/**
+ * The bag a hunt may assume (part 3 §2.5). Shared by `start` (`INVALID_INPUT`)
+ * and snapshot decoding (`INVALID_STATE`); returns a fresh copy.
+ */
+export function validateBag(value: unknown, field: string, code: SimErrorCode): BagState {
+  const record = checkRecord(value, field, code);
+  const capacity = checkInt(record.capacity, `${field}.capacity`, code, 0, MAX_COUNT);
+  const usedSlots = checkInt(record.usedSlots, `${field}.usedSlots`, code, 0, capacity);
+  const headroomRecord = checkRecord(record.stackHeadroom, `${field}.stackHeadroom`, code);
+  const stackHeadroom: Record<string, number> = {};
+  for (const id of Object.keys(headroomRecord).sort()) {
+    if (!CONSUMABLE_ID.test(id)) throw new SimError(code, `${field}.stackHeadroom`, 'expected consumable ids');
+    stackHeadroom[id] = checkInt(headroomRecord[id], `${field}.stackHeadroom.${id}`, code, 0, CONSUMABLE_STACK_MAX);
+  }
+  return { capacity, usedSlots, stackHeadroom };
+}
+
+/** The bad-luck counters (part 3 §2.4); returns a fresh copy. */
+export function validateProtection(value: unknown, field: string, code: SimErrorCode): DropProtection {
+  const record = checkRecord(value, field, code);
+  return {
+    epicPlus: checkInt(record.epicPlus, `${field}.epicPlus`, code, 0, MAX_COUNT),
+    legendary: checkInt(record.legendary, `${field}.legendary`, code, 0, MAX_COUNT),
+  };
+}
+
+/** A loot filter, through the one validator `packages/loot` exports; returns a deep copy. */
+export function validateLoot(value: unknown, field: string, code: SimErrorCode): LootPreset {
+  try {
+    return validateLootPreset(value);
+  } catch (error) {
+    if (error instanceof LootPresetError) {
+      throw new SimError(code, error.field === '$' ? field : `${field}.${error.field}`, error.message);
+    }
+    throw error;
+  }
+}
+
 /**
  * Builds a fresh experiment `SimState` (ruling R21): validates `input` (also
  * yielding a deep clone independent of the caller's object graph), creates
@@ -307,8 +370,21 @@ export function defaultStrategy(classId: ClassId): Strategy {
  * metrics/sequences, and schedules the first walk completion and the first
  * global regen tick.
  */
-export function startState(content: Content, battlefield: Battlefield, input: LabInput): SimState {
+export function startState(
+  content: Content,
+  battlefield: Battlefield,
+  input: LabInput,
+  setup: HuntSetup = {},
+): SimState {
   const validatedInput = validateLabInput(input, content, battlefield);
+  const setupRecord = checkRecord(setup, 'setup', 'INVALID_INPUT');
+  const lootPresetSnapshot = setupRecord.loot === undefined
+    ? starterLoot()
+    : validateLoot(setupRecord.loot, 'setup.loot', 'INVALID_INPUT');
+  const bagState = setupRecord.bag === undefined ? defaultBag() : validateBag(setupRecord.bag, 'setup.bag', 'INVALID_INPUT');
+  const dropProtection = setupRecord.dropProtection === undefined
+    ? { epicPlus: 0, legendary: 0 }
+    : validateProtection(setupRecord.dropProtection, 'setup.dropProtection', 'INVALID_INPUT');
 
   const actors: Record<ActorId, Actor> = {};
   const metricsActors: Metrics['actors'] = {};
@@ -373,7 +449,15 @@ export function startState(content: Content, battlefield: Battlefield, input: La
       restMs: 0,
       respawnMs: 0,
       actors: metricsActors,
+      drops: emptyDropMetrics(),
     },
+    // A new hunt is a new reward namespace, so its ordinals start again (part 2 §2).
+    nextRewardSeq: 0,
+    pendingRewards: [],
+    dropProtection,
+    lootPresetSnapshot,
+    pendingLoot: null,
+    bagState,
   };
 
   schedule(state, { at: content.walkMs, kind: 'transition', actorId: '', epoch: null, token: null });

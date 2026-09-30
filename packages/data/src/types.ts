@@ -78,7 +78,22 @@ export interface BonusDefinition {
 export interface RolledBonus { bonusId: string; value: number }
 
 /** Per-rarity roll rules (Part 3 §1.1): fixed by layer-1 §7.1 and §7.5. */
-export interface RarityDefinition { bonusCount: number; protected: boolean }
+export interface RarityDefinition { bonusCount: number; protected: boolean; ppm: number }
+
+/**
+ * Bad-luck protection (Part 3 §2.4). B ships the plumbing enabled and the
+ * guarantee disabled: counters accrue whatever this says, and only
+ * `guaranteeEnabled` lets them change a roll. The thresholds are an OPEN
+ * INPUT — `null` until chosen from measured wait distributions, before
+ * expanded beta — and are required exactly when the guarantee is enabled.
+ */
+export interface PityConfig {
+  guaranteeEnabled: boolean;
+  /** Eligible opportunities after which an Epic-or-better is guaranteed. */
+  epicPlusThreshold: number | null;
+  /** Eligible opportunities after which a Legendary is guaranteed. */
+  legendaryThreshold: number | null;
+}
 
 /**
  * An account-owned item (Part 3 §1.2). Not content: it lives here so the
@@ -125,4 +140,5 @@ export interface Content {
   bonuses: Record<string, BonusDefinition>;
   rarities: Record<Rarity, RarityDefinition>;
   onboardingGrant: Record<ClassId, OnboardingGrant>;
+  pity: PityConfig;
 }

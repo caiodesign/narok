@@ -8,7 +8,8 @@ import { encodeSnapshot, decodeSnapshot } from '../src/snapshot';
 import { gridPosition } from '../src/battlefield/grid';
 import { derive } from '../src/math';
 import { defaultStrategy } from '../src/state';
-import { fightFixture, walkCompleteState, context, actor, atFight, lab, labInput, runTo } from './fixtures';
+import { fightFixture, walkCompleteState, context, actor, atFight, lab, labInput, rewardFields, runTo } from './fixtures';
+import { emptyDropMetrics } from '../src/rewards';
 import type { Actor, ActorId, DomainEvent, Metrics, PendingRules, Phase, SimState } from '../src/types';
 
 function summary(events: DomainEvent[]): unknown[][] {
@@ -50,11 +51,13 @@ function multiActorState(
     stopReason: null,
     input: labInput({ rest: { hpStart: 50, mpStart: 50 } }),
     pendingRules: null,
+    ...rewardFields(),
     actors,
     queue: [],
     metrics: {
       kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
       walkMs: 0, fightMs: 0, restMs: 0, respawnMs: 0, actors: metricsActors,
+      drops: emptyDropMetrics(),
     },
   };
 }

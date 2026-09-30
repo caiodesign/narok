@@ -1,4 +1,6 @@
-import { RARITIES, RARITY_RULES, TIER_LEVEL_REQUIREMENTS, bonusCount, valueTier } from './items';
+import {
+  BAND_DRAW_SPACE, BASE_BAND_PPM, RARITIES, RARITY_RULES, TIER_LEVEL_REQUIREMENTS, bonusCount, valueTier,
+} from './items';
 import type {
   Attributes,
   BonusDefinition,
@@ -15,6 +17,7 @@ import type {
   ItemDefinition,
   MonsterDefinition,
   OnboardingGrant,
+  PityConfig,
   Rarity,
   RarityDefinition,
   RecipeDefinition,
@@ -241,11 +244,24 @@ function validateMonster(value: unknown, field: string, id: string): MonsterDefi
     equipment: requireArray(record.equipment, `${field}.equipment`).map((entry, index) =>
       requireString(entry, `${field}.equipment.${index}`)),
     consumables: validateConsumables(record.consumables, `${field}.consumables`),
-    // The scaled-band-sum bound joins with the drop roll (Part 3 §2.3).
-    dropMultiplier: requireSafeInt(record.dropMultiplier, `${field}.dropMultiplier`, 1, 1_000),
+    dropMultiplier: validateDropMultiplier(record.dropMultiplier, `${field}.dropMultiplier`),
     goldMin,
     goldMax,
   };
+}
+
+/**
+ * A monster's drop multiplier scales every rarity band's width (Part 3 §2.3).
+ * It stays an integer (ruling R130): band edges stay integral in ppm, and the
+ * spec's "roughly 2–3" for tougher monsters needs no finer grain. Refused when
+ * the scaled bands would overrun the band draw's 1,000,000 ppm space.
+ */
+function validateDropMultiplier(value: unknown, field: string): number {
+  const multiplier = requireSafeInt(value, field, 1, 1_000);
+  if (BASE_BAND_PPM * multiplier > BAND_DRAW_SPACE) {
+    fail(field, `scaled band sum ${BASE_BAND_PPM * multiplier} ppm exceeds ${BAND_DRAW_SPACE}`);
+  }
+  return multiplier;
 }
 
 /**
@@ -481,7 +497,10 @@ function validateRarity(value: unknown, field: string, id: Rarity): RarityDefini
   if (record.protected !== RARITY_RULES[id].protected) {
     fail(`${field}.protected`, `expected ${RARITY_RULES[id].protected}`);
   }
-  return { bonusCount: bonusCountValue, protected: RARITY_RULES[id].protected };
+  // R130: the base band widths are layer-1 §7.2's, so the ladder has one source.
+  const ppm = requireSafeInt(record.ppm, `${field}.ppm`, 1, BAND_DRAW_SPACE);
+  if (ppm !== RARITY_RULES[id].ppm) fail(`${field}.ppm`, `expected ${RARITY_RULES[id].ppm}`);
+  return { bonusCount: bonusCountValue, protected: RARITY_RULES[id].protected, ppm };
 }
 
 function validateOnboardingGrant(
@@ -568,6 +587,29 @@ export function validateItemContent(
   return { items, bonuses, rarities, onboardingGrant };
 }
 
+/**
+ * Bad-luck protection (Part 3 §2.4). The thresholds are an open input: a
+ * disabled guarantee carries none, and an enabled one requires both, so no
+ * threshold can be substituted for a missing decision.
+ */
+function validatePity(value: unknown, field: string): PityConfig {
+  const record = requireRecord(value, field);
+  if (typeof record.guaranteeEnabled !== 'boolean') fail(`${field}.guaranteeEnabled`, 'expected a boolean');
+  const enabled = record.guaranteeEnabled;
+  const threshold = (key: 'epicPlusThreshold' | 'legendaryThreshold'): number | null => {
+    if (!enabled) {
+      if (record[key] !== null) fail(`${field}.${key}`, 'a disabled guarantee carries no threshold');
+      return null;
+    }
+    return requireSafeInt(record[key], `${field}.${key}`, 1, 1_000_000_000);
+  };
+  return {
+    guaranteeEnabled: enabled,
+    epicPlusThreshold: threshold('epicPlusThreshold'),
+    legendaryThreshold: threshold('legendaryThreshold'),
+  };
+}
+
 export function validateContent(value: unknown): Content {
   const root = requireRecord(value, '$');
   const version = requireString(root.version, 'version');
@@ -600,6 +642,7 @@ export function validateContent(value: unknown): Content {
     ? null
     : requireSafeInt(root.townReturnTravelMs, 'townReturnTravelMs', 1, 100_000_000);
   const equipment = validateItemContent(root, monsters);
+  const pity = validatePity(root.pity, 'pity');
   return {
     version,
     gridHash,
@@ -616,5 +659,6 @@ export function validateContent(value: unknown): Content {
     respawnMs,
     townReturnTravelMs,
     ...equipment,
+    pity,
   };
 }

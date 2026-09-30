@@ -10,6 +10,7 @@ import {
   recoveryMs,
 } from './effects';
 import { damage, effectiveHeal } from './math';
+import { rollKill } from './rewards';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
 import { selectDecision } from './strategy';
@@ -147,7 +148,13 @@ export function decide(state: SimState, actorId: ActorId, ctx: Context): void {
   }
 }
 
-/** Marks a dead actor (R30): announce it, invalidate its queued work, bank the reward. */
+/**
+ * Marks a dead actor (R30): announce it, invalidate its queued work, bank the
+ * reward. An enemy death also rolls its drops here, at the exact point the
+ * kill is banked (part 3 §2.1): the fixed draw sequence of `rollKill`, whose
+ * gold draw is what `rawGold` banks. The drops wait for encounter end to be
+ * dispositioned.
+ */
 function processDeath(state: SimState, ctx: Context, dead: Actor, killer: Actor): void {
   emitEvent(state, ctx, { kind: 'death', actorId: dead.id, targetId: killer.id });
   dead.actionToken += 1;
@@ -158,7 +165,7 @@ function processDeath(state: SimState, ctx: Context, dead: Actor, killer: Actor)
     const monster = ctx.content.monsters[dead.definitionId];
     state.metrics.kills += 1;
     state.metrics.rawExp += monster.rawExp;
-    state.metrics.rawGold += monster.rawGold;
+    rollKill(state, monster, ctx);
   }
 }
 

@@ -1,6 +1,7 @@
 import type { RecipeId } from '@narok/data';
 import { gridPosition } from './battlefield/grid';
 import { compareIds, emitEvent, livingActors } from './effects';
+import { dispositionRewards } from './rewards';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
 import type { Actor, ActorId, Context, Phase, SimState } from './types';
@@ -312,8 +313,8 @@ export function regenerate(state: SimState, ctx: Context): void {
  * Encounter completion (ruling R36). Called by the dispatcher after a whole cast
  * resolution; returns immediately unless the encounter is decided (`fighting` with
  * one side fully dead). Records exactly one win or wipe, invalidates the encounter
- * epoch, prunes the now-stale queue (ruling R45), and chooses the next recovery
- * phase.
+ * epoch, prunes the now-stale queue (ruling R45), dispositions the
+ * encounter's drops (part 3 §2.1), and chooses the next recovery phase.
  */
 export function finishEncounter(state: SimState, ctx: Context): void {
   if (state.phase !== 'fighting') return;
@@ -356,6 +357,8 @@ export function finishEncounter(state: SimState, ctx: Context): void {
   if (wipe) {
     state.metrics.wipes += 1;
     emitEvent(state, ctx, { kind: 'wipe' });
+    // Kills made before the wipe still dropped: their rewards are dispositioned too.
+    dispositionRewards(state, ctx);
     if (state.metrics.wipes >= state.input.wipeLimit) {
       state.phase = 'stopped';
       state.stopReason = 'wipe-limit';
@@ -376,6 +379,8 @@ export function finishEncounter(state: SimState, ctx: Context): void {
 
   state.metrics.wins += 1;
   emitEvent(state, ctx, { kind: 'win' });
+  // Walk → fight → loot filter → rest (layer-1 §6.1): disposition, never at death.
+  dispositionRewards(state, ctx);
   for (const id of partyIds(state)) {
     const member = state.actors[id];
     if (member.hp <= 0) member.hp = Math.max(1, Math.floor(member.stats.maxHp / 10));
@@ -409,10 +414,14 @@ export function finishEncounter(state: SimState, ctx: Context): void {
  * Encounter deadline (ruling R37). Stops the experiment only while still
  * `fighting` — a decided encounter has already left that phase via
  * {@link finishEncounter}, so a stale or already-resolved deadline is a no-op.
- * No win, no wipe, no rewards; state is preserved for inspection.
+ * No win, no wipe and no new reward; the drops the encounter's kills already
+ * rolled are dispositioned like at any encounter end (ruling R127), and state
+ * is preserved for inspection.
  */
 export function deadline(state: SimState, ctx: Context): void {
   if (state.phase !== 'fighting') return;
+  // The encounter ends here: kills already made keep their drops (ruling R127).
+  dispositionRewards(state, ctx);
   state.phase = 'stopped';
   state.stopReason = 'stalemate';
   state.queue = [];

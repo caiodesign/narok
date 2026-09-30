@@ -268,6 +268,7 @@
     },
     "win": "O encontro foi vencido.",
     "wipe": "O grupo foi derrotado por completo.",
+    "dropLost": "Um item foi perdido: a bolsa está cheia.",
     "stop": {
       "wipe-limit": "O experimento parou: o limite de derrotas foi atingido.",
       "stalemate": "O experimento parou: o encontro atingiu seu limite de tempo.",

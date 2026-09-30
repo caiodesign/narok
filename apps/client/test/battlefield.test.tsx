@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { content } from '@narok/data';
 import type { DomainEvent, PublicActor, PublicState } from '@narok/sim';
-import { gridPosition } from '@narok/sim';
+import { emptyDropMetrics, gridPosition } from '@narok/sim';
 
 // PixiJS cannot render in jsdom (R58): the Application is stubbed so the board's
 // React lifecycle can be smoke-tested without chasing WebGL coverage.
@@ -137,6 +137,7 @@ function publicState(actors: PublicActor[]): PublicState {
       restMs: 0,
       respawnMs: 0,
       actors: {},
+      drops: emptyDropMetrics(),
     },
   };
 }

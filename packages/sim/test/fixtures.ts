@@ -19,6 +19,22 @@ import { defaultStrategy, startState } from '../src/state';
 import { drawBelow } from '../src/rng';
 import { schedule } from '../src/scheduler';
 import { createSimulation } from '../src/index';
+import { defaultBag, emptyDropMetrics, starterLoot } from '../src/rewards';
+
+/** The reward fields of a freshly started hunt (rulings R127–R131), for hand-built states. */
+export function rewardFields(): Pick<
+  SimState,
+  'nextRewardSeq' | 'pendingRewards' | 'dropProtection' | 'lootPresetSnapshot' | 'pendingLoot' | 'bagState'
+> {
+  return {
+    nextRewardSeq: 0,
+    pendingRewards: [],
+    dropProtection: { epicPlus: 0, legendary: 0 },
+    lootPresetSnapshot: starterLoot(),
+    pendingLoot: null,
+    bagState: defaultBag(),
+  };
+}
 
 /**
  * Builds a living party Guardian `p0` fixture with preset stats derived from the
@@ -179,6 +195,7 @@ export function fightFixture(): SimState {
     stopReason: null,
     input,
     pendingRules: null,
+    ...rewardFields(),
     actors,
     queue: [],
     metrics: {
@@ -194,6 +211,7 @@ export function fightFixture(): SimState {
       restMs: 0,
       respawnMs: 0,
       actors: metricsActors,
+      drops: emptyDropMetrics(),
     },
   };
 

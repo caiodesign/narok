@@ -1,13 +1,20 @@
-import type { Attributes, Content, DamageKind, Element, Family, SkillId } from '@narok/data';
+import { RARITIES, bonusCount, valueTier } from '@narok/data';
+import type { Attributes, Content, DamageKind, Element, Family, Rarity, RolledBonus, SkillId } from '@narok/data';
+import { LOOT_ACTIONS, type LootMatch } from '@narok/loot';
 import { SimError, type SimErrorCode } from './errors';
 import { compareScheduled, isStale } from './scheduler';
-import { validateLabInput, validatePendingRules } from './state';
+import { validateBag, validateLabInput, validateLoot, validatePendingRules, validateProtection } from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
   Actor,
   ActorId,
   DerivedStats,
+  DropMetrics,
   Metrics,
+  PendingLoot,
+  PendingReward,
+  RewardItem,
+  RewardOutcome,
   Phase,
   PositionId,
   QueueKind,
@@ -38,6 +45,14 @@ const TOKEN_KINDS: readonly QueueKind[] = ['act', 'resolve'];
 const GLOBAL_EPOCH_KINDS: readonly QueueKind[] = ['regen', 'transition'];
 
 const POSITION_PATTERN = /^(\d+),(\d+)$/;
+const CONSUMABLE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const OUTCOMES: readonly RewardOutcome[] = ['kept', 'auto-sold', 'ignored', 'lost'];
+/** The outcomes each filter action can lead to (part 3 §3.4): only a Keep can be lost. */
+const OUTCOMES_BY_ACTION: Record<(typeof LOOT_ACTIONS)[number], readonly RewardOutcome[]> = {
+  keep: ['kept', 'lost'],
+  'auto-sell': ['auto-sold'],
+  ignore: ['ignored'],
+};
 
 function fail(code: SimErrorCode, field: string, message: string): never {
   throw new SimError(code, field, message);
@@ -316,6 +331,7 @@ function validateMetrics(
     };
   }
   return {
+    drops: validateDropMetrics(record.drops, `${field}.drops`),
     kills: nonNegativeInt('kills'),
     wins: nonNegativeInt('wins'),
     wipes: nonNegativeInt('wipes'),
@@ -328,6 +344,135 @@ function validateMetrics(
     restMs: nonNegativeInt('restMs'),
     respawnMs: nonNegativeInt('respawnMs'),
     actors: metricsActors,
+  };
+}
+
+function validateWaits(value: unknown, field: string): number[] {
+  return requireArray(value, field).map((entry, index) => requireIntRange(entry, `${field}.${index}`, 1, MAX_TIME));
+}
+
+function validateDropMetrics(value: unknown, field: string): DropMetrics {
+  const record = requireRecord(value, field);
+  const count = (key: string) => requireIntRange(record[key], `${field}.${key}`, 0, MAX_TIME);
+  const rolledRecord = requireRecord(record.rolled, `${field}.rolled`);
+  const rolled = {} as Record<Rarity, number>;
+  for (const rarity of RARITIES) rolled[rarity] = requireIntRange(rolledRecord[rarity], `${field}.rolled.${rarity}`, 0, MAX_TIME);
+  const firstDropMs = record.firstDropMs === null ? null : requireIntRange(record.firstDropMs, `${field}.firstDropMs`, 0, MAX_TIME);
+  const firstDropRarity = record.firstDropRarity === null
+    ? null
+    : requireOneOf(record.firstDropRarity, `${field}.firstDropRarity`, RARITIES);
+  if ((firstDropMs === null) !== (firstDropRarity === null)) {
+    fail('INVALID_STATE', `${field}.firstDropRarity`, 'the first drop has both a time and a rarity, or neither');
+  }
+  return {
+    rolled,
+    consumables: count('consumables'),
+    kept: count('kept'),
+    autoSold: count('autoSold'),
+    ignored: count('ignored'),
+    lost: count('lost'),
+    firstDropMs,
+    firstDropRarity,
+    epicPlusWaits: validateWaits(record.epicPlusWaits, `${field}.epicPlusWaits`),
+    legendaryWaits: validateWaits(record.legendaryWaits, `${field}.legendaryWaits`),
+  };
+}
+
+function validateRewardItem(value: unknown, field: string, itemLevel: number, content: Content): RewardItem {
+  const record = requireRecord(value, field);
+  const kind = requireOneOf(record.kind, `${field}.kind`, ['equipment', 'consumable'] as const);
+  if (kind === 'consumable') {
+    const consumableId = requireString(record.consumableId, `${field}.consumableId`);
+    if (!CONSUMABLE_ID.test(consumableId)) fail('INVALID_STATE', `${field}.consumableId`, 'expected a consumable id');
+    return { kind, consumableId, quantity: requireIntRange(record.quantity, `${field}.quantity`, 1, 999) };
+  }
+  const definitionId = requireString(record.definitionId, `${field}.definitionId`);
+  if (!Object.hasOwn(content.items, definitionId)) fail('INVALID_STATE', `${field}.definitionId`, 'unknown item id');
+  const definition = content.items[definitionId];
+  const rarity = requireOneOf(record.rarity, `${field}.rarity`, RARITIES);
+  const bonusesRaw = requireArray(record.bonuses, `${field}.bonuses`);
+  if (bonusesRaw.length !== bonusCount(rarity)) {
+    fail('INVALID_STATE', `${field}.bonuses`, `expected ${bonusCount(rarity)} bonuses`);
+  }
+  const seen = new Set<string>();
+  const bonuses: RolledBonus[] = bonusesRaw.map((entry, index) => {
+    const bonusField = `${field}.bonuses.${index}`;
+    const bonusRecord = requireRecord(entry, bonusField);
+    const bonusId = requireString(bonusRecord.bonusId, `${bonusField}.bonusId`);
+    if (!Object.hasOwn(content.bonuses, bonusId) || !content.bonuses[bonusId].slots.includes(definition.slot)) {
+      fail('INVALID_STATE', `${bonusField}.bonusId`, 'bonus is not in the item slot pool');
+    }
+    if (seen.has(bonusId)) fail('INVALID_STATE', `${bonusField}.bonusId`, 'duplicate bonus identity');
+    seen.add(bonusId);
+    const span = content.bonuses[bonusId].spans[valueTier(itemLevel) - 1];
+    if (span === undefined) fail('INVALID_STATE', `${bonusField}.value`, 'no value span for the item level');
+    return { bonusId, value: requireIntRange(bonusRecord.value, `${bonusField}.value`, span.min, span.max) };
+  });
+  return { kind, definitionId, rarity, bonuses };
+}
+
+function validateMatch(value: unknown, field: string): LootMatch {
+  if (value === 'protected' || value === 'default') return value;
+  const record = requireRecord(value, field);
+  return { exception: requireIntRange(record.exception, `${field}.exception`, 0, 1_000) };
+}
+
+function validateReward(value: unknown, field: string, content: Content, nowMs: number): PendingReward {
+  const record = requireRecord(value, field);
+  const monsterId = requireString(record.monsterId, `${field}.monsterId`);
+  if (!Object.hasOwn(content.monsters, monsterId)) fail('INVALID_STATE', `${field}.monsterId`, 'unknown monster id');
+  const itemLevel = requireIntRange(record.itemLevel, `${field}.itemLevel`, 1, 99);
+  const item = validateRewardItem(record.item, `${field}.item`, itemLevel, content);
+  let disposition: PendingReward['disposition'] = null;
+  if (record.disposition !== null) {
+    const dispositionRecord = requireRecord(record.disposition, `${field}.disposition`);
+    const action = requireOneOf(dispositionRecord.action, `${field}.disposition.action`, LOOT_ACTIONS);
+    const matched = validateMatch(dispositionRecord.matched, `${field}.disposition.matched`);
+    const outcome = requireOneOf(dispositionRecord.outcome, `${field}.disposition.outcome`, OUTCOMES);
+    if (!OUTCOMES_BY_ACTION[action].includes(outcome)) {
+      fail('INVALID_STATE', `${field}.disposition.outcome`, `${action} cannot end ${outcome}`);
+    }
+    disposition = { action, matched, outcome };
+  }
+  return {
+    rewardSeq: requireIntRange(record.rewardSeq, `${field}.rewardSeq`, 0, MAX_TIME),
+    atSimMs: requireIntRange(record.atSimMs, `${field}.atSimMs`, 0, nowMs),
+    monsterId,
+    itemLevel,
+    item,
+    disposition,
+  };
+}
+
+/**
+ * The reward ledger (ruling R127): ascending, distinct ordinals below
+ * `nextRewardSeq`, and every dispositioned reward ahead of every one still
+ * waiting — disposition runs in `rewardSeq` order, so a gap would mean one
+ * was skipped.
+ */
+function validateRewards(value: unknown, content: Content, nowMs: number, nextRewardSeq: number): PendingReward[] {
+  const rewards = requireArray(value, 'pendingRewards').map((entry, index) =>
+    validateReward(entry, `pendingRewards.${index}`, content, nowMs));
+  rewards.forEach((reward, index) => {
+    const field = `pendingRewards.${index}`;
+    if (reward.rewardSeq >= nextRewardSeq) fail('INVALID_STATE', `${field}.rewardSeq`, 'must be below nextRewardSeq');
+    const previous = rewards[index - 1];
+    if (previous !== undefined && previous.rewardSeq >= reward.rewardSeq) {
+      fail('INVALID_STATE', `${field}.rewardSeq`, 'rewards are in ascending rewardSeq order');
+    }
+    if (previous !== undefined && previous.disposition === null && reward.disposition !== null) {
+      fail('INVALID_STATE', `${field}.disposition`, 'a reward was dispositioned ahead of an earlier one');
+    }
+  });
+  return rewards;
+}
+
+function validatePendingLoot(value: unknown, nextRewardSeq: number): PendingLoot | null {
+  if (value === null) return null;
+  const record = requireRecord(value, 'pendingLoot');
+  return {
+    preset: validateLoot(record.preset, 'pendingLoot.preset', 'INVALID_STATE'),
+    fromRewardSeq: requireIntRange(record.fromRewardSeq, 'pendingLoot.fromRewardSeq', 0, nextRewardSeq),
   };
 }
 
@@ -442,6 +587,15 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
 
   const metrics = validateMetrics(root.metrics, 'metrics', actors, allowedActorIds);
 
+  // Rulings R127–R131: the reward ledger, the counters, the filter and the bag
+  // a replay needs to roll and disposition the same drops (part 3 §2.5).
+  const nextRewardSeq = requireIntRange(root.nextRewardSeq, 'nextRewardSeq', 0, MAX_TIME);
+  const pendingRewards = validateRewards(root.pendingRewards, content, nowMs, nextRewardSeq);
+  const dropProtection = validateProtection(root.dropProtection, 'dropProtection', 'INVALID_STATE');
+  const lootPresetSnapshot = validateLoot(root.lootPresetSnapshot, 'lootPresetSnapshot', 'INVALID_STATE');
+  const pendingLoot = validatePendingLoot(root.pendingLoot, nextRewardSeq);
+  const bagState = validateBag(root.bagState, 'bagState', 'INVALID_STATE');
+
   return {
     schemaVersion: 1,
     simulationVersion: 'b1',
@@ -461,5 +615,11 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
     actors,
     queue,
     metrics,
+    nextRewardSeq,
+    pendingRewards,
+    dropProtection,
+    lootPresetSnapshot,
+    pendingLoot,
+    bagState,
   };
 }

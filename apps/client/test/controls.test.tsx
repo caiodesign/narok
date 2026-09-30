@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { content, validateContent } from '@narok/data';
-import { createGrid, createSimulation, defaultStrategy, gridPosition, SimError } from '@narok/sim';
+import { createGrid, createSimulation, defaultStrategy, emptyDropMetrics, gridPosition, SimError } from '@narok/sim';
 import type { ActorId, LabInput, Metrics, PublicState, Strategy } from '@narok/sim';
 import { ExperimentControls } from '../src/ExperimentControls';
 // Ruling R60: every control label now comes from `t()`, so the resources must be
@@ -43,6 +43,7 @@ const EMPTY_METRICS: Metrics = {
   restMs: 0,
   respawnMs: 0,
   actors: {},
+  drops: emptyDropMetrics(),
 };
 
 afterEach(() => {

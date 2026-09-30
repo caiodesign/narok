@@ -5,9 +5,12 @@ import type {
   DamageKind,
   Element,
   Family,
+  Rarity,
   RecipeId,
+  RolledBonus,
   SkillId,
 } from '@narok/data';
+import type { Disposition, LootPreset } from '@narok/loot';
 import type { Battlefield } from './battlefield/types';
 
 export type ActorId = string;
@@ -70,11 +73,68 @@ export interface ScheduledEvent {
   at: number; kind: QueueKind; actorId: ActorId; seq: number;
   epoch: number | null; token: number | null;
 }
+/**
+ * Drop accounting (part 3 §7, layer-1 §12). `rolled` counts equipment by
+ * rarity at the roll; the four outcomes count every reward, equipment and
+ * consumable, at disposition. The waits are the eligible opportunities each
+ * Epic-or-better (`epicPlusWaits`) or Legendary award took, one entry per award
+ * — the bad-luck counters' own measure, kept as a distribution, never a mean.
+ */
+export interface DropMetrics {
+  rolled: Record<Rarity, number>;
+  consumables: number;
+  kept: number; autoSold: number; ignored: number; lost: number;
+  firstDropMs: number | null; firstDropRarity: Rarity | null;
+  epicPlusWaits: number[]; legendaryWaits: number[];
+}
 export interface Metrics {
   kills: number; wins: number; wipes: number; rawExp: number; rawGold: number;
   damageDealt: number; effectiveHealing: number;
   walkMs: number; fightMs: number; restMs: number; respawnMs: number;
   actors: Record<ActorId, { damageDealt: number; damageReceived: number; healingDone: number }>;
+  drops: DropMetrics;
+}
+/**
+ * Bad-luck counters (part 3 §2.4): eligible opportunities since the last award
+ * of each tier. They belong to the account and outlive a hunt; the hunt's
+ * checkpoint carries them and the server indexes them (ruling R128).
+ */
+export interface DropProtection { epicPlus: number; legendary: number }
+/**
+ * What the simulation may assume about the shared bag (part 3 §2.5): slots in
+ * use of `capacity`, and the units still free in the open stack of each
+ * consumable. A simulation input, because a Keep that does not fit is lost.
+ */
+export interface BagState { capacity: number; usedSlots: number; stackHeadroom: Record<string, number> }
+/**
+ * A loot filter applied mid-hunt (part 3 §3.3; ruling R131): it governs the
+ * rewards numbered from `fromRewardSeq`, the acknowledged cutoff, and replaces
+ * the snapshot once no earlier reward still waits for its disposition.
+ */
+export interface PendingLoot { preset: LootPreset; fromRewardSeq: number }
+export type RewardItem =
+  | { kind: 'equipment'; definitionId: string; rarity: Rarity; bonuses: RolledBonus[] }
+  | { kind: 'consumable'; consumableId: string; quantity: number };
+/** What became of a reward: the filter's action, and for a Keep whether it fit. */
+export type RewardOutcome = 'kept' | 'auto-sold' | 'ignored' | 'lost';
+/**
+ * One rolled reward (part 3 §2; ruling R127). Rolled at the kill with
+ * `disposition: null`, dispositioned at encounter end, and held until the
+ * server drains it into the commit that credits it. Its id is
+ * `"<huntId>:<rewardSeq>"`; nothing here reveals the seed or the RNG.
+ */
+export interface PendingReward {
+  rewardSeq: number; atSimMs: number; monsterId: string; itemLevel: number;
+  item: RewardItem;
+  disposition: (Disposition & { outcome: RewardOutcome }) | null;
+}
+/**
+ * The account-side inputs a hunt starts from (part 3 §2.5). Each is optional
+ * for a laboratory run: the starter filter, an empty bag of the default size
+ * and zeroed counters.
+ */
+export interface HuntSetup {
+  loot?: LootPreset; bag?: BagState; dropProtection?: DropProtection;
 }
 export interface SimState {
   schemaVersion: 1; simulationVersion: 'b1'; contentVersion: string; gridHash: string;
@@ -84,11 +144,20 @@ export interface SimState {
   /** At most one queued rule set; `null` when nothing is pending (R115). */
   pendingRules: PendingRules | null;
   actors: Record<ActorId, Actor>; queue: ScheduledEvent[]; metrics: Metrics;
+  /** The next reward ordinal; reward ids are `"<huntId>:<rewardSeq>"` (part 2 §2). */
+  nextRewardSeq: number;
+  /** Rolled rewards in `rewardSeq` order: undispositioned ones, then dispositioned ones awaiting a commit. */
+  pendingRewards: PendingReward[];
+  dropProtection: DropProtection;
+  /** The filter that runs at encounter end — not the preset the player is editing. */
+  lootPresetSnapshot: LootPreset;
+  pendingLoot: PendingLoot | null;
+  bagState: BagState;
 }
 export interface DomainEvent {
   seq: number; at: number; encounter: number;
   kind: 'phase' | 'spawn' | 'move' | 'cast' | 'damage' | 'miss' | 'heal'
-    | 'death' | 'status' | 'taunt' | 'regen' | 'win' | 'wipe' | 'stop';
+    | 'death' | 'status' | 'taunt' | 'regen' | 'win' | 'wipe' | 'stop' | 'drop-lost';
   actorId: ActorId | null; targetId: ActorId | null; amount: number | null;
   reason: string | null; position: PositionId | null;
 }
@@ -107,7 +176,7 @@ export interface PublicState {
   actors: PublicActor[]; metrics: Metrics;
 }
 export interface Simulation {
-  start(input: LabInput): SimState;
+  start(input: LabInput, setup?: HuntSetup): SimState;
   advance(state: SimState, untilMs: number, options?: AdvanceOptions): AdvanceResult;
   stop(state: SimState): SimState;
   /**
@@ -117,6 +186,12 @@ export interface Simulation {
    * caller's object never reaches the queued snapshot (R115).
    */
   queueRules(state: SimState, rules: PendingRules | null): SimState;
+  /**
+   * Applies a loot filter to every drop from now on (ruling R131): rewards
+   * already rolled keep the filter they were rolled under, so nothing is
+   * dispositioned retroactively. Validated and deep-copied; no RNG, no time.
+   */
+  queueLoot(state: SimState, preset: LootPreset): SimState;
   encode(state: SimState): string;
   decode(text: string): SimState;
   project(state: SimState): PublicState;

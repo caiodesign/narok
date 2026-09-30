@@ -1154,25 +1154,35 @@ export const content: Content = {
       "rarity": "uncommon"
     }
   },
+  "pity": {
+    "epicPlusThreshold": null,
+    "guaranteeEnabled": false,
+    "legendaryThreshold": null
+  },
   "rarities": {
     "common": {
       "bonusCount": 0,
+      "ppm": 5000,
       "protected": false
     },
     "epic": {
       "bonusCount": 3,
+      "ppm": 100,
       "protected": false
     },
     "legendary": {
       "bonusCount": 4,
+      "ppm": 10,
       "protected": true
     },
     "rare": {
       "bonusCount": 2,
+      "ppm": 500,
       "protected": false
     },
     "uncommon": {
       "bonusCount": 1,
+      "ppm": 2000,
       "protected": false
     }
   },
@@ -1438,6 +1448,6 @@ export const content: Content = {
     }
   },
   "townReturnTravelMs": 10000,
-  "version": "054fc6d8217368bd625d59d8548ca809d86806f1b8380a2584e89c661316ec34",
+  "version": "e8a38194c476e8b7bbb2b4e428f4a578b22ec1101f8caf2bff6fd0f318d0c035",
   "walkMs": 2000
 };

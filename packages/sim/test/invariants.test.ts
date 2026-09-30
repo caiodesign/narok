@@ -8,7 +8,8 @@ import { finishEncounter } from '../src/lifecycle';
 import { schedule } from '../src/scheduler';
 import { defaultStrategy } from '../src/state';
 import type { Actor, LabInput, Metrics, PositionId, SimState } from '../src/types';
-import { actor, context, fightFixture, lab, labInput, runTo } from './fixtures';
+import { actor, context, fightFixture, lab, labInput, rewardFields, runTo } from './fixtures';
+import { emptyDropMetrics } from '../src/rewards';
 
 /** Highest seed `validateLabInput` accepts (a nonzero uint32). */
 const MAX_SEED = 4_294_967_295;
@@ -77,6 +78,7 @@ function duelState(nowMs: number, enemyHp: number): SimState {
     kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
     walkMs: 2_000, fightMs: 0, restMs: 0, respawnMs: 0,
     actors: { p0: { ...zero }, e0: { ...zero } },
+    drops: emptyDropMetrics(),
   };
   return {
     schemaVersion: 1,
@@ -94,6 +96,7 @@ function duelState(nowMs: number, enemyHp: number): SimState {
     stopReason: null,
     input: soloInput(),
     pendingRules: null,
+    ...rewardFields(),
     actors: { p0: caster, e0: boar('e0', enemyHp, gridPosition(1, 1)) },
     queue: [],
     metrics,

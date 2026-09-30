@@ -16,6 +16,7 @@ import {
   createSimulation,
   defaultPlacement,
   defaultStrategy,
+  emptyDropMetrics,
   type LabInput,
 } from '@narok/sim';
 import {
@@ -65,6 +66,7 @@ function state(nowMs: number): PublicStateWire {
       restMs: 0,
       respawnMs: 0,
       actors: {},
+      drops: emptyDropMetrics(),
     },
   });
 }

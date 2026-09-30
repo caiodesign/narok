@@ -1,5 +1,5 @@
 {
-  "contentVersion": "054fc6d8217368bd625d59d8548ca809d86806f1b8380a2584e89c661316ec34",
+  "contentVersion": "e8a38194c476e8b7bbb2b4e428f4a578b22ec1101f8caf2bff6fd0f318d0c035",
   "gridHash": "c2c839371c6faddb0756adef80f3fcb3d17c841fef809acc419dea7ddb43e4b9",
   "simulationVersion": "b1",
   "untilMs": 3600000,
@@ -36,26 +36,43 @@
   },
   "observed": {
     "nowMs": 3600000,
-    "phase": "resting",
+    "phase": "fighting",
     "stopReason": null,
-    "rng": 3151307086,
-    "domainEventCount": 13648,
+    "rng": 3749320513,
+    "domainEventCount": 13382,
+    "nextRewardSeq": 2,
+    "dropProtection": { "epicPlus": 499, "legendary": 499 },
     "metrics": {
-      "kills": 519,
-      "wins": 145,
+      "kills": 499,
+      "wins": 140,
       "wipes": 0,
-      "rawExp": 13050,
-      "rawGold": 1347,
-      "damageDealt": 63250,
-      "effectiveHealing": 11890,
-      "walkMs": 290000,
-      "fightMs": 1167164,
-      "restMs": 2142836,
+      "rawExp": 12630,
+      "rawGold": 1302,
+      "damageDealt": 63525,
+      "effectiveHealing": 12051,
+      "walkMs": 282000,
+      "fightMs": 1160926,
+      "restMs": 2157074,
       "respawnMs": 0,
       "actors": {
-        "p0": { "damageDealt": 21953, "damageReceived": 15272, "healingDone": 0 },
-        "p1": { "damageDealt": 10925, "damageReceived": 1212, "healingDone": 11890 },
-        "p2": { "damageDealt": 30372, "damageReceived": 1518, "healingDone": 0 }
+        "p0": { "damageDealt": 21587, "damageReceived": 15055, "healingDone": 0 },
+        "p1": { "damageDealt": 10895, "damageReceived": 1415, "healingDone": 12051 },
+        "p2": { "damageDealt": 31043, "damageReceived": 1147, "healingDone": 0 },
+        "e0": { "damageDealt": 0, "damageReceived": 0, "healingDone": 0 },
+        "e1": { "damageDealt": 0, "damageReceived": 0, "healingDone": 0 },
+        "e2": { "damageDealt": 0, "damageReceived": 0, "healingDone": 0 }
+      },
+      "drops": {
+        "rolled": { "common": 2, "uncommon": 0, "rare": 0, "epic": 0, "legendary": 0 },
+        "consumables": 0,
+        "kept": 0,
+        "autoSold": 2,
+        "ignored": 0,
+        "lost": 0,
+        "firstDropMs": 1244871,
+        "firstDropRarity": "common",
+        "epicPlusWaits": [],
+        "legendaryWaits": []
       }
     }
   }

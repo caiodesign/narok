@@ -6,6 +6,7 @@ import { deadline, finishEncounter, regenerate, transition } from './lifecycle';
 import { compareScheduled, isStale, takeNext } from './scheduler';
 import { compareIds } from './effects';
 import type { Battlefield } from './battlefield/types';
+import type { LootPreset } from '@narok/loot';
 import type {
   Actor,
   ActorId,
@@ -15,6 +16,7 @@ import type {
   DomainEvent,
   LabInput,
   Metrics,
+  PendingReward,
   PendingRules,
   ScheduledEvent,
   SimState,
@@ -97,6 +99,34 @@ function cloneMetrics(metrics: Metrics): Metrics {
     restMs: metrics.restMs,
     respawnMs: metrics.respawnMs,
     actors,
+    drops: {
+      ...metrics.drops,
+      rolled: { ...metrics.drops.rolled },
+      epicPlusWaits: [...metrics.drops.epicPlusWaits],
+      legendaryWaits: [...metrics.drops.legendaryWaits],
+    },
+  };
+}
+
+function cloneReward(reward: PendingReward): PendingReward {
+  const item: PendingReward['item'] = reward.item.kind === 'equipment'
+    ? { ...reward.item, bonuses: reward.item.bonuses.map((bonus) => ({ ...bonus })) }
+    : { ...reward.item };
+  const disposition = reward.disposition === null
+    ? null
+    : {
+      ...reward.disposition,
+      matched: typeof reward.disposition.matched === 'object' ? { ...reward.disposition.matched } : reward.disposition.matched,
+    };
+  return { ...reward, item, disposition };
+}
+
+/** Deep-copies a loot filter; shared by the active snapshot and a pending one. */
+export function cloneLoot(preset: LootPreset): LootPreset {
+  return {
+    exceptions: preset.exceptions.map((exception) => ({ when: { ...exception.when }, action: exception.action })),
+    rarity: { ...preset.rarity },
+    fallback: { ...preset.fallback },
   };
 }
 
@@ -129,6 +159,14 @@ export function cloneState(state: SimState): SimState {
     actors,
     queue: state.queue.map((event): ScheduledEvent => ({ ...event })),
     metrics: cloneMetrics(state.metrics),
+    nextRewardSeq: state.nextRewardSeq,
+    pendingRewards: state.pendingRewards.map(cloneReward),
+    dropProtection: { ...state.dropProtection },
+    lootPresetSnapshot: cloneLoot(state.lootPresetSnapshot),
+    pendingLoot: state.pendingLoot === null
+      ? null
+      : { preset: cloneLoot(state.pendingLoot.preset), fromRewardSeq: state.pendingLoot.fromRewardSeq },
+    bagState: { ...state.bagState, stackHeadroom: { ...state.bagState.stackHeadroom } },
   };
 }
 

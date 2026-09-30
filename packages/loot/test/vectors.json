@@ -1,0 +1,126 @@
+{
+  "description": "Shared loot-filter vectors (milestone B part 3 §3.3, part 4 B-14). The server, the simulation and the client preview must all satisfy every case with the one packages/loot evaluate; a drift in any of them is a failing test.",
+  "drops": {
+    "common-sword": { "category": "equipment", "definitionId": "guardian-sword", "slot": "weapon", "rarity": "common", "bonusIds": [], "itemLevel": 10 },
+    "uncommon-sword": { "category": "equipment", "definitionId": "guardian-sword", "slot": "weapon", "rarity": "uncommon", "bonusIds": ["str"], "itemLevel": 10 },
+    "rare-sword": { "category": "equipment", "definitionId": "guardian-sword", "slot": "weapon", "rarity": "rare", "bonusIds": ["atk-pct", "str"], "itemLevel": 10 },
+    "legendary-sword": { "category": "equipment", "definitionId": "guardian-sword", "slot": "weapon", "rarity": "legendary", "bonusIds": ["atk-pct", "crit", "dex", "str"], "itemLevel": 10 },
+    "uncommon-crit-ring": { "category": "equipment", "definitionId": "copper-ring", "slot": "accessory1", "rarity": "uncommon", "bonusIds": ["crit"], "itemLevel": 10 },
+    "rare-ring": { "category": "equipment", "definitionId": "copper-ring", "slot": "accessory1", "rarity": "rare", "bonusIds": ["crit", "luk"], "itemLevel": 10 },
+    "uncommon-luk-ring": { "category": "equipment", "definitionId": "copper-ring", "slot": "accessory1", "rarity": "uncommon", "bonusIds": ["luk"], "itemLevel": 10 },
+    "common-vest": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "common", "bonusIds": [], "itemLevel": 10 },
+    "uncommon-vest": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "uncommon", "bonusIds": ["vit"], "itemLevel": 10 },
+    "rare-vest": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "rare", "bonusIds": ["agi", "vit"], "itemLevel": 10 },
+    "rare-vest-19": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "rare", "bonusIds": ["max-hp", "vit"], "itemLevel": 19 },
+    "rare-vest-20": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "rare", "bonusIds": ["max-hp", "vit"], "itemLevel": 20 },
+    "epic-vest": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "epic", "bonusIds": ["agi", "max-hp", "vit"], "itemLevel": 10 },
+    "legendary-vest": { "category": "equipment", "definitionId": "padded-vest", "slot": "body", "rarity": "legendary", "bonusIds": ["agi", "max-hp", "str", "vit"], "itemLevel": 10 },
+    "potion": { "category": "consumable", "definitionId": "small-hp-potion", "slot": null, "rarity": null, "bonusIds": [], "itemLevel": 10 }
+  },
+  "presets": {
+    "starter": {
+      "exceptions": [],
+      "rarity": { "common": "auto-sell" },
+      "fallback": { "equipment": "keep", "consumable": "keep" }
+    },
+    "ordered": {
+      "exceptions": [
+        { "when": { "slot": "weapon", "minBonusCount": 2 }, "action": "keep" },
+        { "when": { "slot": "weapon" }, "action": "ignore" },
+        { "when": { "bonusId": "crit" }, "action": "keep" },
+        { "when": { "minItemLevel": 20 }, "action": "auto-sell" },
+        { "when": { "category": "consumable" }, "action": "ignore" },
+        { "when": { "minRarity": "epic" }, "action": "auto-sell" }
+      ],
+      "rarity": { "common": "auto-sell", "uncommon": "ignore" },
+      "fallback": { "equipment": "keep", "consumable": "keep" }
+    },
+    "override": {
+      "exceptions": [
+        { "when": { "minRarity": "legendary" }, "action": "ignore" },
+        { "when": { "category": "equipment" }, "action": "auto-sell" }
+      ],
+      "rarity": { "legendary": "ignore", "epic": "ignore" },
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-category": {
+      "exceptions": [{ "when": { "category": "consumable" }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-slot": {
+      "exceptions": [{ "when": { "slot": "accessory1" }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-min-rarity": {
+      "exceptions": [{ "when": { "minRarity": "rare" }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-min-bonus-count": {
+      "exceptions": [{ "when": { "minBonusCount": 2 }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-bonus-id": {
+      "exceptions": [{ "when": { "bonusId": "crit" }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-min-item-level": {
+      "exceptions": [{ "when": { "minItemLevel": 20 }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    },
+    "cond-all-of": {
+      "exceptions": [{ "when": { "slot": "weapon", "minRarity": "rare" }, "action": "keep" }],
+      "rarity": {},
+      "fallback": { "equipment": "ignore", "consumable": "ignore" }
+    }
+  },
+  "cases": [
+    { "rule": "protection", "preset": "starter", "drop": "legendary-sword", "expected": { "action": "keep", "matched": "protected" } },
+    { "rule": "protection", "preset": "ordered", "drop": "legendary-sword", "expected": { "action": "keep", "matched": "protected" } },
+    { "rule": "protection", "preset": "ordered", "drop": "legendary-vest", "expected": { "action": "keep", "matched": "protected" } },
+    { "rule": "protection", "preset": "override", "drop": "legendary-sword", "expected": { "action": "keep", "matched": "protected" } },
+    { "rule": "protection", "preset": "override", "drop": "legendary-vest", "expected": { "action": "keep", "matched": "protected" } },
+
+    { "rule": "first-match", "preset": "ordered", "drop": "rare-sword", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "first-match", "preset": "ordered", "drop": "uncommon-sword", "expected": { "action": "ignore", "matched": { "exception": 1 } } },
+    { "rule": "first-match", "preset": "ordered", "drop": "common-sword", "expected": { "action": "ignore", "matched": { "exception": 1 } } },
+    { "rule": "first-match", "preset": "ordered", "drop": "uncommon-crit-ring", "expected": { "action": "keep", "matched": { "exception": 2 } } },
+    { "rule": "first-match", "preset": "ordered", "drop": "rare-vest-20", "expected": { "action": "auto-sell", "matched": { "exception": 3 } } },
+    { "rule": "first-match", "preset": "ordered", "drop": "potion", "expected": { "action": "ignore", "matched": { "exception": 4 } } },
+    { "rule": "first-match", "preset": "ordered", "drop": "epic-vest", "expected": { "action": "auto-sell", "matched": { "exception": 5 } } },
+    { "rule": "first-match", "preset": "override", "drop": "epic-vest", "expected": { "action": "auto-sell", "matched": { "exception": 1 } } },
+
+    { "rule": "default", "preset": "ordered", "drop": "common-vest", "expected": { "action": "auto-sell", "matched": "default" } },
+    { "rule": "default", "preset": "ordered", "drop": "uncommon-vest", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "fallback", "preset": "ordered", "drop": "rare-vest", "expected": { "action": "keep", "matched": "default" } },
+    { "rule": "fallback", "preset": "override", "drop": "potion", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "default", "preset": "starter", "drop": "common-sword", "expected": { "action": "auto-sell", "matched": "default" } },
+    { "rule": "fallback", "preset": "starter", "drop": "uncommon-sword", "expected": { "action": "keep", "matched": "default" } },
+    { "rule": "fallback", "preset": "starter", "drop": "epic-vest", "expected": { "action": "keep", "matched": "default" } },
+    { "rule": "fallback", "preset": "starter", "drop": "potion", "expected": { "action": "keep", "matched": "default" } },
+
+    { "rule": "condition:category", "preset": "cond-category", "drop": "potion", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:category", "preset": "cond-category", "drop": "rare-vest", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:slot", "preset": "cond-slot", "drop": "uncommon-luk-ring", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:slot", "preset": "cond-slot", "drop": "uncommon-vest", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:slot", "preset": "cond-slot", "drop": "potion", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:min-rarity", "preset": "cond-min-rarity", "drop": "rare-vest", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:min-rarity", "preset": "cond-min-rarity", "drop": "epic-vest", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:min-rarity", "preset": "cond-min-rarity", "drop": "uncommon-vest", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:min-rarity", "preset": "cond-min-rarity", "drop": "potion", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:min-bonus-count", "preset": "cond-min-bonus-count", "drop": "rare-ring", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:min-bonus-count", "preset": "cond-min-bonus-count", "drop": "uncommon-luk-ring", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:bonus-id", "preset": "cond-bonus-id", "drop": "rare-ring", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:bonus-id", "preset": "cond-bonus-id", "drop": "uncommon-luk-ring", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:min-item-level", "preset": "cond-min-item-level", "drop": "rare-vest-20", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:min-item-level", "preset": "cond-min-item-level", "drop": "rare-vest-19", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:all-of", "preset": "cond-all-of", "drop": "rare-sword", "expected": { "action": "keep", "matched": { "exception": 0 } } },
+    { "rule": "condition:all-of", "preset": "cond-all-of", "drop": "rare-vest", "expected": { "action": "ignore", "matched": "default" } },
+    { "rule": "condition:all-of", "preset": "cond-all-of", "drop": "uncommon-sword", "expected": { "action": "ignore", "matched": "default" } }
+  ]
+}

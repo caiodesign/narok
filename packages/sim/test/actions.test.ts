@@ -5,6 +5,7 @@ import { decide, resolveCast } from '../src/actions';
 import { expire } from '../src/effects';
 import { derive } from '../src/math';
 import { createGrid, gridPosition } from '../src/battlefield/grid';
+import { drawBelow } from '../src/rng';
 import { isStale } from '../src/scheduler';
 import { defaultStrategy } from '../src/state';
 import { encodeSnapshot, decodeSnapshot } from '../src/snapshot';
@@ -439,7 +440,15 @@ test('double shot skips its second arrow when the first kills the target', () =>
 
   castAndResolve(state, 'p2', ctx);
 
-  expect(state.rng).toBe(2_647_435_461); // three draws only, no second attempt
+  // Three combat draws only, no second attempt — then the kill's own fixed
+  // sequence (part 3 §2.2): a band draw that misses every band, the consumable
+  // draw and the gold draw over the boar's one-value range.
+  let rng = 2_647_435_461;
+  const band = drawBelow(rng, 1_000_000);
+  expect(band.value).toBeGreaterThanOrEqual(7_610);
+  rng = drawBelow(band.state, 1_000_000).state;
+  rng = drawBelow(rng, 1).state;
+  expect(state.rng).toBe(rng);
   expect(summary(events)).toEqual([
     ['cast', 'p2', 'e2', null, 'double-shot'],
     ['damage', 'p2', 'e2', 1, 'double-shot'], // effective damage capped at remaining HP

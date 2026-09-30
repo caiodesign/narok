@@ -268,6 +268,7 @@
     },
     "win": "The encounter is won.",
     "wipe": "The party is wiped out.",
+    "dropLost": "A drop was lost: the bag is full.",
     "stop": {
       "wipe-limit": "The experiment stopped: the wipe limit was reached.",
       "stalemate": "The experiment stopped: the encounter reached its time limit.",

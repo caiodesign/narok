@@ -3,7 +3,8 @@ import type { RunResult } from './types';
 /**
  * Exact CSV column order (spec §12): simulation/content versions, seed, roster,
  * recipe, placement, requested/elapsed ms, stop reason, kills/wins/wipes, the three
- * phase-time totals, raw exp/gold, damage dealt, effective healing, kills per hour.
+ * phase-time totals, raw exp/gold, damage dealt, effective healing, kills per hour
+ * — then the drop columns task 6 appends.
  */
 const CSV_COLUMNS: readonly (keyof RunResult)[] = [
   'simulation_version',
@@ -26,6 +27,19 @@ const CSV_COLUMNS: readonly (keyof RunResult)[] = [
   'damage_dealt',
   'effective_healing',
   'kills_per_hour',
+  // Task 6: drops, appended in this order. Gold columns come with prices.
+  'items_rolled_common',
+  'items_rolled_uncommon',
+  'items_rolled_rare',
+  'items_rolled_epic',
+  'items_rolled_legendary',
+  'items_kept',
+  'items_autosold',
+  'drops_lost',
+  'first_drop_ms',
+  'first_drop_rarity',
+  'epic_wait_kills',
+  'legendary_wait_kills',
 ];
 
 /**

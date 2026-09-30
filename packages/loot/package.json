@@ -1,5 +1,5 @@
 {
-  "name": "@narok/sim",
+  "name": "@narok/loot",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@narok/data": "workspace:*",
-    "@narok/loot": "workspace:*"
+    "@narok/data": "workspace:*"
   }
 }

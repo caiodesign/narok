@@ -298,8 +298,8 @@ const monsterBases: Record<string, MonsterBase> = {
  * and composition, never these particular numbers. Replace them with measured
  * values; do not cite them as balance.
  *
- * Not open, and therefore not listed: rarity bonus counts and protection
- * (layer-1 §7.1, §7.5), the 1/10/20/30/40 tier ladder (layer-1 §7.1), gold
+ * Not open, and therefore not listed: rarity bonus counts, protection and
+ * base band widths in ppm (layer-1 §7.1, §7.2, §7.5), the 1/10/20/30/40 tier ladder (layer-1 §7.1), gold
  * ranges (`goldMin = goldMax = rawGold`, so B's gold draw banks A's gold
  * exactly), `basePrice` (`null`: prices are deferred, spec §4.0), and the class
  * weapons' ATK/MATK/interval/range/kind, which copy each class's milestone A
@@ -362,6 +362,13 @@ export const OPEN_CONTENT_INPUTS = {
    * its first fitting bonus fixed at that bonus's tier-1 span maximum.
    */
   onboardingBonusValue: 'tier-1 span max',
+  /**
+   * Bad-luck protection (Part 3 §2.4, §8; layer-1 §7.3): the counters accrue,
+   * the guarantee stays off, and no threshold is chosen. Thresholds and the
+   * eligibility weighting are resolved from `tools/balance` wait
+   * distributions before expanded beta, not before B ships.
+   */
+  pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
 } as const;
 
 const ATTRIBUTE_KEYS = ['str', 'agi', 'vit', 'int', 'dex', 'luk'] as const;
@@ -571,4 +578,5 @@ export const prototypeDefinition: Omit<Content, 'version' | 'gridHash'> = {
   bonuses,
   rarities: structuredClone(RARITY_RULES),
   onboardingGrant,
+  pity: { ...OPEN_CONTENT_INPUTS.pity },
 };

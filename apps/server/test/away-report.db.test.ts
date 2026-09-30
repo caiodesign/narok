@@ -64,7 +64,7 @@ describe('a reconnect after an absence produces one report from the committed de
   test('a hunt the engine stopped while away reports the stop and the restart action', async () => {
     const account = await insertAccount(db);
     const r = rig(db);
-    // Seed 4,242 with no resting and one allowed wipe falls at 142,387 ms.
+    // Seed 4,242 with no resting and one allowed wipe falls at 128,179 ms (re-probed in task 6: the kill handler now draws drops).
     await startHunt(r.lifecycle, {
       accountId: account.id,
       expectedStateVersion: 0,
@@ -79,9 +79,9 @@ describe('a reconnect after an absence produces one report from the committed de
     expect(report.copyKey).toBe('away.stopped.wipe-limit');
     expect(report.actions).toEqual(['start-hunt']);
     expect(report.timeAwayMs).toBe(3_600_000);
-    expect(report.simulatedMs).toBe(142_387);
-    expect(report.accrualEndedAtWall).toBe(T0 + 142_387);
-    expect(report.uncovered).toEqual({ afterStopMs: 3_600_000 - 142_387, afterCapMs: 0 });
+    expect(report.simulatedMs).toBe(128_179);
+    expect(report.accrualEndedAtWall).toBe(T0 + 128_179);
+    expect(report.uncovered).toEqual({ afterStopMs: 3_600_000 - 128_179, afterCapMs: 0 });
     expect(report.outcomes.wipes).toBe(1);
     expect((await huntRow(db, account.id)).status).toBe('stopped');
   });

@@ -36,6 +36,12 @@ function copyMetrics(metrics: Metrics): Metrics {
     restMs: metrics.restMs,
     respawnMs: metrics.respawnMs,
     actors,
+    drops: {
+      ...metrics.drops,
+      rolled: { ...metrics.drops.rolled },
+      epicPlusWaits: [...metrics.drops.epicPlusWaits],
+      legendaryWaits: [...metrics.drops.legendaryWaits],
+    },
   };
 }
 

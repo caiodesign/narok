@@ -51,6 +51,9 @@ export const EVENT_TAB_BY_KIND: Record<DomainEvent['kind'], EventTab> = {
   win: 'system',
   wipe: 'system',
   stop: 'system',
+  // The Loot tab returns by binding in the client task (part 4 §3); until then a
+  // lost drop is a run-lifecycle fact.
+  'drop-lost': 'system',
 };
 
 export function eventsForTab(tab: EventTab, events: readonly DomainEvent[]): DomainEvent[] {
@@ -109,6 +112,8 @@ function eventKey(event: DomainEvent): string {
       return 'event.win';
     case 'wipe':
       return 'event.wipe';
+    case 'drop-lost':
+      return 'event.dropLost';
     case 'stop': {
       const reason = STOP_REASONS.find((candidate) => candidate === event.reason);
       return reason === undefined ? 'event.stop.other' : `event.stop.${reason}`;

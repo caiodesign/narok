@@ -15,6 +15,7 @@ import { RARITY_RULES } from '@narok/data';
 import { createGrid, gridPosition } from '../src/battlefield/grid';
 import type { Battlefield } from '../src/battlefield/types';
 import { schedule } from '../src/scheduler';
+import { defaultBag, emptyDropMetrics, starterLoot } from '../src/rewards';
 import type { Actor, ActorId, LabInput, Metrics, SimState, Strategy } from '../src/types';
 
 /**
@@ -155,6 +156,7 @@ function buildFillerContent(): Content {
     bonuses: {},
     rarities: structuredClone(RARITY_RULES),
     onboardingGrant: {} as Content['onboardingGrant'],
+    pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
   };
 }
 
@@ -268,6 +270,12 @@ export function buildStressFixture(seed = 1): StressFixture {
     stopReason: null,
     input,
     pendingRules: null,
+    nextRewardSeq: 0,
+    pendingRewards: [],
+    dropProtection: { epicPlus: 0, legendary: 0 },
+    lootPresetSnapshot: starterLoot(),
+    pendingLoot: null,
+    bagState: defaultBag(),
     actors,
     queue: [],
     metrics: {
@@ -283,6 +291,7 @@ export function buildStressFixture(seed = 1): StressFixture {
       restMs: 0,
       respawnMs: 0,
       actors: metricsActors,
+      drops: emptyDropMetrics(),
     },
   };
 

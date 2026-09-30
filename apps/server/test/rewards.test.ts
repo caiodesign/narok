@@ -124,7 +124,10 @@ describe('the bounded carrier (part 2 §9 #8)', () => {
     expect(rounds.flatMap((round) => idsAndPayloads(round))).toEqual(idsAndPayloads(uncapped));
     expect(current.state).toBe(uncapped.envelope.state);
     expect(current.rewardSeq).toBe(uncapped.envelope.rewardSeq);
-  });
+    // Ten simulated minutes settled once uncapped and again three rewards at a
+    // time, halving on every overfull step: seconds of engine work, so it gets
+    // the same allowance as the other long engine suites.
+  }, 20_000);
 });
 
 describe('pity lives in the checkpoint (part 2 §9 #3)', () => {

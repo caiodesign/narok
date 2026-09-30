@@ -51,6 +51,11 @@ test('startState builds a full-resource party at default placement with zero coo
       p1: { damageDealt: 0, damageReceived: 0, healingDone: 0 },
       p2: { damageDealt: 0, damageReceived: 0, healingDone: 0 },
     },
+    drops: {
+      rolled: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+      consumables: 0, kept: 0, autoSold: 0, ignored: 0, lost: 0,
+      firstDropMs: null, firstDropRarity: null, epicPlusWaits: [], legendaryWaits: [],
+    },
   });
 });
 

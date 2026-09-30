@@ -56,6 +56,11 @@ const STATE = {
     restMs: 13605,
     respawnMs: 0,
     actors: { p0: { damageDealt: 411, damageReceived: 232, healingDone: 0 } },
+    drops: {
+      rolled: { common: 1, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+      consumables: 0, kept: 0, autoSold: 1, ignored: 0, lost: 0,
+      firstDropMs: 20_500, firstDropRarity: 'common', epicPlusWaits: [], legendaryWaits: [],
+    },
   },
 };
 

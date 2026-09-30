@@ -1,4 +1,4 @@
-import type { Metrics } from '@narok/sim';
+import type { DropProtection, Metrics } from '@narok/sim';
 
 /**
  * One measured run's exact CSV fields (spec §12, rulings R48) plus the full per-actor
@@ -26,6 +26,28 @@ export interface RunResult {
   damage_dealt: number;
   effective_healing: number;
   kills_per_hour: number | null;
+  /** Equipment rolled per rarity, at the roll (part 3 §7). */
+  items_rolled_common: number;
+  items_rolled_uncommon: number;
+  items_rolled_rare: number;
+  items_rolled_epic: number;
+  items_rolled_legendary: number;
+  items_kept: number;
+  /** Counted, not priced: gold columns arrive with prices (spec §4.0). */
+  items_autosold: number;
+  drops_lost: number;
+  /** Simulated ms of the first equipment drop; `null` when none dropped. */
+  first_drop_ms: number | null;
+  first_drop_rarity: string | null;
+  /**
+   * This seed's wait distribution in eligible kills (layer-1 §12: never a
+   * mean): every completed wait for an Epic-or-better, then the still-open one
+   * as `>n`, joined by `;`.
+   */
+  epic_wait_kills: string;
+  legendary_wait_kills: string;
+  /** The bad-luck counters at the end of the run; JSON only, never a CSV column. */
+  drop_protection: DropProtection;
   metrics: Metrics;
 }
 

@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { expect, test } from 'vitest';
 
-import { bonusCount, stackBonuses, valueTier } from '../src/items';
+import { BASE_BAND_PPM, bonusCount, stackBonuses, valueTier } from '../src/items';
 import { prototypeDefinition } from '../src/prototype';
 import type { BonusDefinition, Content, RolledBonus } from '../src/types';
 import { ContentError, validateContent } from '../src/validate';
@@ -33,17 +33,53 @@ test('accepts the prototype item and bonus tables', () => {
   expect(Object.keys(content.bonuses).length).toBeGreaterThan(0);
 });
 
-test('rarities carry the layer-1 bonus counts and Legendary protection', () => {
+test('rarities carry the layer-1 bonus counts, Legendary protection and base band widths', () => {
   const { rarities } = validateContent(baseContent());
   expect(rarities).toEqual({
-    common: { bonusCount: 0, protected: false },
-    uncommon: { bonusCount: 1, protected: false },
-    rare: { bonusCount: 2, protected: false },
-    epic: { bonusCount: 3, protected: false },
-    legendary: { bonusCount: 4, protected: true },
+    common: { bonusCount: 0, protected: false, ppm: 5_000 },
+    uncommon: { bonusCount: 1, protected: false, ppm: 2_000 },
+    rare: { bonusCount: 2, protected: false, ppm: 500 },
+    epic: { bonusCount: 3, protected: false, ppm: 100 },
+    legendary: { bonusCount: 4, protected: true, ppm: 10 },
   });
   expect(['common', 'uncommon', 'rare', 'epic', 'legendary'].map((r) => bonusCount(r as never)))
     .toEqual([0, 1, 2, 3, 4]);
+  expect(BASE_BAND_PPM).toBe(7_610);
+  const altered = baseContent();
+  altered.rarities.epic.ppm = 101;
+  expectInvalidContent(altered, 'rarities.epic.ppm');
+});
+
+test('a drop multiplier whose scaled band sum exceeds 1,000,000 ppm is refused (Part 3 §2.3)', () => {
+  const id = Object.keys(baseContent().monsters).sort()[0];
+  // 7,610 * 131 = 996,910 fits; 7,610 * 132 = 1,004,520 does not.
+  const fits = baseContent();
+  fits.monsters[id].dropMultiplier = 131;
+  expect(validateContent(fits).monsters[id].dropMultiplier).toBe(131);
+  const overruns = baseContent();
+  overruns.monsters[id].dropMultiplier = 132;
+  expectInvalidContent(overruns, `monsters.${id}.dropMultiplier`);
+  const fractional = baseContent();
+  fractional.monsters[id].dropMultiplier = 2.5;
+  expectInvalidContent(fractional, `monsters.${id}.dropMultiplier`);
+});
+
+test('pity ships with the guarantee disabled and no threshold chosen (Part 3 §2.4)', () => {
+  expect(validateContent(baseContent()).pity).toEqual({
+    guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null,
+  });
+  const disabledWithThreshold = baseContent();
+  disabledWithThreshold.pity = { guaranteeEnabled: false, epicPlusThreshold: 10, legendaryThreshold: null };
+  expectInvalidContent(disabledWithThreshold, 'pity.epicPlusThreshold');
+  const enabledWithout = baseContent();
+  enabledWithout.pity = { guaranteeEnabled: true, epicPlusThreshold: 10, legendaryThreshold: null };
+  expectInvalidContent(enabledWithout, 'pity.legendaryThreshold');
+  const enabled = baseContent();
+  enabled.pity = { guaranteeEnabled: true, epicPlusThreshold: 10, legendaryThreshold: 20 };
+  expect(validateContent(enabled).pity.legendaryThreshold).toBe(20);
+  const missing = baseContent() as Partial<Content>;
+  delete missing.pity;
+  expectInvalidContent(missing, 'pity');
 });
 
 test('every monster draws gold over exactly its A-era raw gold', () => {

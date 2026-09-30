@@ -62,6 +62,29 @@ export const publicActorSchema = z
   })
   .strict();
 
+const raritySchema = z.enum(['common', 'uncommon', 'rare', 'epic', 'legendary']);
+
+/**
+ * Drop accounting (part 3 §7; ruling R127). Counts and past waits only: no
+ * reward payload, no bad-luck counter in flight, nothing about the RNG.
+ */
+export const dropMetricsSchema = z
+  .object({
+    rolled: z
+      .object({ common: count, uncommon: count, rare: count, epic: count, legendary: count })
+      .strict(),
+    consumables: count,
+    kept: count,
+    autoSold: count,
+    ignored: count,
+    lost: count,
+    firstDropMs: timestamp.nullable(),
+    firstDropRarity: raritySchema.nullable(),
+    epicPlusWaits: z.array(count),
+    legendaryWaits: z.array(count),
+  })
+  .strict();
+
 export const metricsSchema = z
   .object({
     kills: count,
@@ -79,6 +102,7 @@ export const metricsSchema = z
       z.string(),
       z.object({ damageDealt: count, damageReceived: count, healingDone: count }).strict(),
     ),
+    drops: dropMetricsSchema,
   })
   .strict();
 

@@ -1,15 +1,20 @@
 import { ContentError, validateContent } from '@narok/data';
 import type { Content } from '@narok/data';
+import type { LootPreset } from '@narok/loot';
 import { advance as runAdvance, cloneState } from './advance';
 import { SimError } from './errors';
 import { project as projectState } from './project';
+import { applyLoot, dispositionRewards } from './rewards';
 import { decodeSnapshot, encodeSnapshot } from './snapshot';
-import { startState, validatePendingRules } from './state';
+import { startState, validateLoot, validatePendingRules } from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
   AdvanceOptions,
   AdvanceResult,
+  Context,
+  HuntSetup,
   LabInput,
+  PendingReward,
   PendingRules,
   PublicState,
   Simulation,
@@ -26,7 +31,10 @@ export { derive, damage, effectiveHeal } from './math';
 export type { DamageInput } from './math';
 export { resolveLoadout, deriveCharacter, offenseBonusFor, resistFor } from './loadout';
 export type { ResolvedLoadout } from './loadout';
-export { startState, defaultStrategy, validatePendingRules } from './state';
+export { startState, defaultStrategy, validatePendingRules, validateBag, validateLoot, validateProtection } from './state';
+export {
+  bandFor, rollReward, rollKill, dispositionRewards, raiseToGuarantee, emptyDropMetrics, defaultBag, starterLoot,
+} from './rewards';
 export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
 export { decide, resolveCast } from './actions';
@@ -64,12 +72,26 @@ function guard<T>(field: string, operation: () => T): T {
  * state nor the bound content is ever written to, and none of them reads wall time
  * or `Math.random()`.
  */
+/**
+ * Splits off the rewards that have been dispositioned (ruling R127), for the
+ * commit that credits them: the returned state keeps only the rewards still
+ * waiting for their encounter to end. Pure — the caller's state is cloned —
+ * and harmless to the simulation, which never reads a dispositioned reward
+ * again, so draining between two segments cannot change what follows.
+ */
+export function takeDispositionedRewards(state: SimState): { state: SimState; rewards: PendingReward[] } {
+  const next = cloneState(state);
+  const rewards = next.pendingRewards.filter((reward) => reward.disposition !== null);
+  next.pendingRewards = next.pendingRewards.filter((reward) => reward.disposition === null);
+  return { state: next, rewards };
+}
+
 export function createSimulation(content: Content, battlefield: Battlefield): Simulation {
   const bound = guard('content', () => validateContent(content));
 
   return {
-    start(input: LabInput): SimState {
-      return guard('input', () => startState(bound, battlefield, input));
+    start(input: LabInput, setup?: HuntSetup): SimState {
+      return guard('input', () => startState(bound, battlefield, input, setup));
     },
 
     advance(state: SimState, untilMs: number, options?: AdvanceOptions): AdvanceResult {
@@ -79,11 +101,15 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
     /**
      * Operator stop (ruling R43): the experiment keeps its exact time, metrics,
      * RNG and actor conditions, drops all scheduled work, and emits nothing — no
-     * win, no wipe, no rewards.
+     * win, no wipe, no new reward. Drops the abandoned encounter's kills already
+     * rolled are dispositioned silently, so none is left waiting for an
+     * encounter end that will never come (ruling R127).
      */
     stop(state: SimState): SimState {
       return guard('state', () => {
         const stopped = cloneState(state);
+        const silent: Context = { content: bound, battlefield, emit: () => undefined };
+        dispositionRewards(stopped, silent);
         stopped.phase = 'stopped';
         stopped.stopReason = 'operator';
         stopped.queue = [];
@@ -101,6 +127,14 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
         const queued = cloneState(state);
         queued.pendingRules = rules === null ? null : validatePendingRules(rules, queued.input, bound, battlefield);
         return queued;
+      });
+    },
+
+    queueLoot(state: SimState, preset: LootPreset): SimState {
+      return guard('state', () => {
+        const applied = cloneState(state);
+        applyLoot(applied, validateLoot(preset, 'loot', 'INVALID_INPUT'));
+        return applied;
       });
     },
 

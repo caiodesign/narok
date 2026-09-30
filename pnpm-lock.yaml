@@ -121,6 +121,12 @@ importers:
 
   packages/data: {}
 
+  packages/loot:
+    dependencies:
+      '@narok/data':
+        specifier: workspace:*
+        version: link:../data
+
   packages/protocol:
     dependencies:
       zod:
@@ -136,6 +142,9 @@ importers:
       '@narok/data':
         specifier: workspace:*
         version: link:../data
+      '@narok/loot':
+        specifier: workspace:*
+        version: link:../loot
 
   tools/balance:
     dependencies:
