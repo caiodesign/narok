@@ -27,22 +27,29 @@ import { eq, sql } from 'drizzle-orm';
 import type { DropProtection, PendingReward } from '@narok/sim';
 import * as schema from '../db/schema';
 import type { Database, Tx } from '../db/tx';
-import { rewardIdFor } from './envelope';
+import { rewardIdFor, type CheckpointEnvelope, type PresetRef } from './envelope';
+import { lootVersionFor } from './pending';
 
 /** A dispositioned reward with its reproducible id: what a commit credits. */
 export interface HuntReward extends PendingReward {
   readonly rewardId: string;
   readonly disposition: NonNullable<PendingReward['disposition']>;
+  /** The loot preset version whose window the reward was rolled in (R131). */
+  readonly lootPreset: PresetRef;
 }
 
-/** Names drained rewards within their hunt's namespace. */
-export function identifyRewards(huntId: string, rewards: readonly PendingReward[]): HuntReward[] {
+/**
+ * Names drained rewards within their hunt's namespace, and records which loot
+ * preset version governed each, from the checkpoint the settlement started from.
+ */
+export function identifyRewards(from: CheckpointEnvelope, rewards: readonly PendingReward[]): HuntReward[] {
   return rewards.map((reward) => {
     if (reward.disposition === null) throw new RangeError(`reward ${reward.rewardSeq} has no disposition yet`);
     return {
       ...structuredClone(reward),
       disposition: structuredClone(reward.disposition),
-      rewardId: rewardIdFor(huntId, reward.rewardSeq),
+      rewardId: rewardIdFor(from.huntId, reward.rewardSeq),
+      lootPreset: lootVersionFor(from, reward.rewardSeq),
     };
   });
 }
@@ -107,7 +114,9 @@ export const commitRewards: RewardSink = async (tx, rewards, commit) => {
       accountId: commit.accountId,
       reason: AUDIT_REASON[disposition.outcome],
       sourceRef: reward.rewardId,
-      delta: { item: itemDelta, action: disposition.action, matched: disposition.matched, gold: 0 },
+      delta: {
+        item: itemDelta, action: disposition.action, matched: disposition.matched, lootPreset: reward.lootPreset, gold: 0,
+      },
       stateVersionAfter: commit.stateVersionAfter,
     });
   }

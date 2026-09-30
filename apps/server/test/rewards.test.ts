@@ -55,7 +55,7 @@ describe('reward ids are "<huntId>:<rewardSeq>", allocated inside the transition
 
   test('only a dispositioned reward can be named for a commit', () => {
     const state = richSim.decode(sturdy().state);
-    expect(() => identifyRewards('h', [{
+    expect(() => identifyRewards(sturdy(), [{
       rewardSeq: 0, atSimMs: 0, monsterId: 'mossling', itemLevel: 10,
       item: { kind: 'equipment', definitionId: 'leather-cap', rarity: 'common', bonuses: [] }, disposition: null,
     }])).toThrow(RangeError);

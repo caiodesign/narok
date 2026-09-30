@@ -77,7 +77,9 @@ describe('apply affects only drops after the acknowledged cutoff (UI spec §6)',
     const cutoff = atApply.nextRewardSeq;
     const waiting = atApply.pendingRewards.filter((reward) => reward.disposition === null).map((reward) => reward.rewardSeq);
     expect(waiting.length).toBeGreaterThan(0);
-    expect(applied.pendingLoot).toMatchObject({ presetId: other.id, presetVersion: 1, acknowledgedAtSimMs: cutoffAt });
+    expect(applied.pendingLoot).toEqual([
+      expect.objectContaining({ presetId: other.id, presetVersion: 1, acknowledgedAtSimMs: cutoffAt, fromRewardSeq: atApply.nextRewardSeq }),
+    ]);
     expect(outcome.view?.pendingLoot).toEqual({ presetId: other.id, presetVersion: 1 });
 
     r.clock.now = T0 + cutoffAt + 300_000;
@@ -94,7 +96,7 @@ describe('apply affects only drops after the acknowledged cutoff (UI spec §6)',
     }
     // Once the earlier drops were dispositioned, the applied version is the active one.
     const promoted = await checkpointOf(db, account.id);
-    expect(promoted.pendingLoot).toBeNull();
+    expect(promoted.pendingLoot).toEqual([]);
     expect(promoted.activeLoot).toEqual({ presetId: other.id, presetVersion: 1 });
   });
 
@@ -120,7 +122,7 @@ describe('apply affects only drops after the acknowledged cutoff (UI spec §6)',
       expectedGeneration: current.generation,
     });
     const applied = await checkpointOf(db, account.id);
-    expect(applied.pendingLoot).toBeNull();
+    expect(applied.pendingLoot).toEqual([]);
     expect(applied.activeLoot).toEqual({ presetId: other.id, presetVersion: 1 });
     expect(outcome.view?.activeLoot).toEqual({ presetId: other.id, presetVersion: 1 });
     expect(richSim.decode(applied.state).lootPresetSnapshot).toEqual(IGNORE_ALL);
@@ -150,6 +152,80 @@ describe('apply affects only drops after the acknowledged cutoff (UI spec §6)',
   });
 });
 
+/**
+ * Two instants inside one encounter, each with a rolled drop still waiting,
+ * and at least one more drop rolled between them (fix round 1).
+ */
+function twoCutoffsInOneEncounter(): [number, number] {
+  let current = richSim.start({ ...plan({ wipeLimit: 5 }).input, seed: 4_242 }, { loot: KEEP_ALL });
+  let first: { at: number; encounter: number; seq: number } | null = null;
+  for (let at = 1_000; at < 600_000; at += 1_000) {
+    current = richSim.advance(current, at).state;
+    const waiting = current.pendingRewards.some((reward) => reward.disposition === null);
+    if (!waiting || current.phase !== 'fighting') {
+      first = null;
+      continue;
+    }
+    if (first === null || first.encounter !== current.encounterCount) {
+      first = { at, encounter: current.encounterCount, seq: current.nextRewardSeq };
+    } else if (current.nextRewardSeq > first.seq) {
+      return [first.at, at];
+    }
+  }
+  throw new Error('no encounter with two separated waiting drops within ten minutes');
+}
+
+describe('two applies inside one encounter (fix round 1)', () => {
+  test('each apply governs its own window: the second never takes the first one back, and both versions are recorded', async () => {
+    const { account, r, other } = await running();
+    const SELL_ALL: LootPreset = { exceptions: [], rarity: {}, fallback: { equipment: 'auto-sell', consumable: 'auto-sell' } };
+    const third = await insertLootPreset(db, account.id, SELL_ALL);
+    const [firstAt, secondAt] = twoCutoffsInOneEncounter();
+
+    r.clock.now = T0 + firstAt;
+    await applyCommand(r.commands, account, { command: { kind: 'apply-loot', presetId: other.id, presetVersion: 1 } });
+    const cutA = richSim.decode((await checkpointOf(db, account.id)).state).nextRewardSeq;
+    r.clock.now = T0 + secondAt;
+    const outcome = await applyCommand(r.commands, account, { command: { kind: 'apply-loot', presetId: third.id, presetVersion: 1 } });
+    const applied = await checkpointOf(db, account.id);
+    const cutB = richSim.decode(applied.state).nextRewardSeq;
+    expect(cutB).toBeGreaterThan(cutA);
+    // Both windows are recorded, beside the engine's own.
+    expect(applied.pendingLoot.map((pending) => [pending.presetId, pending.fromRewardSeq])).toEqual([[other.id, cutA], [third.id, cutB]]);
+    expect(richSim.decode(applied.state).pendingLoot.map((pending) => pending.fromRewardSeq)).toEqual([cutA, cutB]);
+    // The view: the filter in force for the waiting drops, and the one every new drop runs under.
+    expect(outcome.view?.activeLoot.presetId).not.toBe(other.id);
+    expect(outcome.view?.pendingLoot).toEqual({ presetId: third.id, presetVersion: 1 });
+
+    r.clock.now = T0 + secondAt + 300_000;
+    const settled = await persistHunt(r.lifecycle, account.id, { live: true });
+    const protectedDrop = (reward: (typeof settled.rewards)[number]) =>
+      reward.item.kind === 'equipment' && reward.item.rarity === 'legendary';
+    const windowA = settled.rewards.filter((reward) => reward.rewardSeq >= cutA && reward.rewardSeq < cutB);
+    const windowB = settled.rewards.filter((reward) => reward.rewardSeq >= cutB);
+    expect(windowA.length).toBeGreaterThan(0);
+    for (const reward of settled.rewards.filter((entry) => entry.rewardSeq < cutA)) {
+      expect(reward.disposition.action).toBe('keep');
+    }
+    for (const reward of windowA) {
+      expect(reward.disposition.action).toBe(protectedDrop(reward) ? 'keep' : 'ignore');
+      expect(reward.lootPreset).toEqual({ presetId: other.id, presetVersion: 1 });
+    }
+    for (const reward of windowB) {
+      expect(reward.disposition.action).toBe(protectedDrop(reward) ? 'keep' : 'auto-sell');
+      expect(reward.lootPreset).toEqual({ presetId: third.id, presetVersion: 1 });
+    }
+    // The audit names the version that governed each window.
+    const rows = await db.select().from(schema.resourceAudit).where(eq(schema.resourceAudit.accountId, account.id));
+    const windowARef = rows.find((row) => row.sourceRef === windowA[0].rewardId);
+    expect((windowARef?.delta as { lootPreset: unknown }).lootPreset).toEqual({ presetId: other.id, presetVersion: 1 });
+
+    const promoted = await checkpointOf(db, account.id);
+    expect(promoted.pendingLoot).toEqual([]);
+    expect(promoted.activeLoot).toEqual({ presetId: third.id, presetVersion: 1 });
+  });
+});
+
 describe('the apply is an intervention like the strategy apply (part 2 §4)', () => {
   test('a stale generation is refused recoverably with the current values, and nothing settles', async () => {
     const { account, r, other } = await running();
@@ -176,7 +252,7 @@ describe('the apply is an intervention like the strategy apply (part 2 §4)', ()
     const envelope = await checkpointOf(db, account.id);
     expect(richSim.decode(envelope.state).nowMs).toBe(7_000);
     expect(envelope.generation).toBe(1);
-    expect(envelope.pendingLoot).toBeNull();
+    expect(envelope.pendingLoot).toEqual([]);
   });
 
   test('a preset version the player did not see, or another account’s preset, is refused', async () => {

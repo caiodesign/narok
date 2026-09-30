@@ -456,7 +456,7 @@ export function startState(
     pendingRewards: [],
     dropProtection,
     lootPresetSnapshot,
-    pendingLoot: null,
+    pendingLoot: [],
     bagState,
   };
 

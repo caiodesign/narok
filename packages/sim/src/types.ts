@@ -151,7 +151,8 @@ export interface SimState {
   dropProtection: DropProtection;
   /** The filter that runs at encounter end — not the preset the player is editing. */
   lootPresetSnapshot: LootPreset;
-  pendingLoot: PendingLoot | null;
+  /** Applied filters still waiting for earlier drops, ascending by cutoff; empty when none (R131). */
+  pendingLoot: PendingLoot[];
   bagState: BagState;
 }
 export interface DomainEvent {

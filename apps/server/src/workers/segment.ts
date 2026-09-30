@@ -143,7 +143,7 @@ export function runSegment(sim: Simulation, request: SegmentRequest): SegmentRes
     continuations,
     rewards,
     pendingRulesQueued: current.pendingRules !== null,
-    pendingLootQueued: current.pendingLoot !== null,
+    pendingLootQueued: current.pendingLoot.length > 0,
   });
 
   let budget = fullBudget;

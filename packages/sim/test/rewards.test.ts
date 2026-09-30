@@ -416,13 +416,13 @@ describe('applying a loot filter', () => {
     const state = killState({ rng: 3, loot: KEEP_ALL });
     kill(state, rich);
     const applied = sim.queueLoot(state, IGNORE_ALL);
-    expect(applied.pendingLoot?.fromRewardSeq).toBe(state.nextRewardSeq);
+    expect(applied.pendingLoot.map((pending) => pending.fromRewardSeq)).toEqual([state.nextRewardSeq]);
     expect(applied.lootPresetSnapshot).toEqual(KEEP_ALL);
     kill(applied, rich);
     settle(applied, rich);
     expect(applied.pendingRewards.map((reward) => reward.disposition?.action)).toEqual(['keep', 'ignore']);
     // Once nothing earlier waits, the applied filter is the snapshot.
-    expect(applied.pendingLoot).toBeNull();
+    expect(applied.pendingLoot).toEqual([]);
     expect(applied.lootPresetSnapshot).toEqual(IGNORE_ALL);
   });
 
@@ -433,10 +433,55 @@ describe('applying a loot filter', () => {
     const preset = structuredClone(IGNORE_ALL);
     const applied = sim.queueLoot(state, preset);
     preset.fallback.equipment = 'keep';
-    expect(applied.pendingLoot).toBeNull();
+    expect(applied.pendingLoot).toEqual([]);
     expect(applied.lootPresetSnapshot).toEqual(IGNORE_ALL);
     expect(applied.pendingRewards[0].disposition?.action).toBe('keep');
     expect(applied.rng).toBe(state.rng);
+  });
+
+  test('two applies inside one encounter each keep their own window; a later apply never takes an earlier window back', () => {
+    const SELL_ALL: LootPreset = { exceptions: [], rarity: {}, fallback: { equipment: 'auto-sell', consumable: 'auto-sell' } };
+    const IGNORE_GEAR: LootPreset = { exceptions: [], rarity: {}, fallback: { equipment: 'ignore', consumable: 'keep' } };
+    let state = killState({ rng: 3, loot: KEEP_ALL });
+    kill(state, rich);                                // r0 under the snapshot
+    state = sim.queueLoot(state, SELL_ALL);           // A from r1
+    kill(state, rich);                                // r1 under A
+    state = sim.queueLoot(state, IGNORE_ALL);         // B from r2
+    // No reward rolled since B: its window is empty, so this apply replaces it.
+    state = sim.queueLoot(state, IGNORE_GEAR);
+    expect(state.pendingLoot.map((pending) => pending.fromRewardSeq)).toEqual([1, 2]);
+    expect(state.pendingLoot.map((pending) => pending.preset)).toEqual([SELL_ALL, IGNORE_GEAR]);
+
+    // The windows survive a checkpoint round trip.
+    const grid = createGrid(rich.grid, rich.shapes);
+    state = decodeSnapshot(encodeSnapshot(state), rich, grid);
+    kill(state, rich);                                // r2 under the replacement
+    settle(state, rich);
+    expect(state.pendingRewards.map((reward) => [reward.rewardSeq, reward.disposition?.action])).toEqual([
+      [0, 'keep'], [1, 'auto-sell'], [2, 'ignore'],
+    ]);
+    expect(state.pendingLoot).toEqual([]);
+    expect(state.lootPresetSnapshot).toEqual(IGNORE_GEAR);
+  });
+
+  test('pending filter windows are bounded and strictly ascending in a decoded checkpoint', () => {
+    const grid = createGrid(rich.grid, rich.shapes);
+    const state = killState({ rng: 3, loot: KEEP_ALL });
+    kill(state, rich);
+    kill(state, rich);
+    const refuse = (pendingLoot: SimState['pendingLoot']) => {
+      try {
+        decodeSnapshot(encodeSnapshot({ ...structuredClone(state), contentVersion: rich.version, pendingLoot }), rich, grid);
+      } catch (error) {
+        return (error as SimError).field;
+      }
+      return null;
+    };
+    expect(refuse([{ preset: IGNORE_ALL, fromRewardSeq: 1 }, { preset: KEEP_ALL, fromRewardSeq: 2 }])).toBeNull();
+    expect(refuse([{ preset: IGNORE_ALL, fromRewardSeq: 1 }, { preset: KEEP_ALL, fromRewardSeq: 1 }])).toBe('pendingLoot.1.fromRewardSeq');
+    expect(refuse([{ preset: IGNORE_ALL, fromRewardSeq: 3 }])).toBe('pendingLoot.0.fromRewardSeq');
+    const tooMany = Array.from({ length: 2 * rich.grid.maxEnemies + 2 }, (_, index) => ({ preset: IGNORE_ALL, fromRewardSeq: index }));
+    expect(refuse(tooMany)).toBe('pendingLoot');
   });
 
   test('refuses an invalid filter with a bounded field', () => {

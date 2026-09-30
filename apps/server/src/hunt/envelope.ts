@@ -53,6 +53,21 @@ export const pendingStrategySchema = presetRefSchema
   })
   .strict();
 
+/**
+ * One applied loot filter waiting for earlier drops (R131, fix round 1): the
+ * version, its acknowledgement, and the engine window it names — the rewards
+ * from `fromRewardSeq` until the next window.
+ */
+export const pendingLootSchema = pendingStrategySchema
+  .extend({ fromRewardSeq: z.number().int().nonnegative() })
+  .strict();
+
+/**
+ * Comfortably above the engine's own bound of 2 x maxEnemies + 1 windows per
+ * encounter; the engine's validator is the exact check, this one bounds bytes.
+ */
+export const MAX_PENDING_LOOT = 32;
+
 export const checkpointEnvelopeSchema = z
   .object({
     envelopeVersion: z.number().int().positive(),
@@ -84,7 +99,7 @@ export const checkpointEnvelopeSchema = z
     activeStrategy: presetRefSchema,
     activeLoot: presetRefSchema,
     pendingStrategy: pendingStrategySchema.nullable(),
-    pendingLoot: pendingStrategySchema.nullable(),
+    pendingLoot: z.array(pendingLootSchema).max(MAX_PENDING_LOOT),
 
     /**
      * Why the hunt ended, when it has. Never invented for a running hunt.
@@ -111,6 +126,7 @@ export const checkpointEnvelopeSchema = z
 export type CheckpointEnvelope = z.infer<typeof checkpointEnvelopeSchema>;
 export type PresetRef = z.infer<typeof presetRefSchema>;
 export type PendingStrategy = z.infer<typeof pendingStrategySchema>;
+export type PendingLoot = z.infer<typeof pendingLootSchema>;
 
 export class EnvelopeError extends Error {
   readonly code = 'INVALID_ENVELOPE' as const;

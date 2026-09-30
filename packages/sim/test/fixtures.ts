@@ -31,7 +31,7 @@ export function rewardFields(): Pick<
     pendingRewards: [],
     dropProtection: { epicPlus: 0, legendary: 0 },
     lootPresetSnapshot: starterLoot(),
-    pendingLoot: null,
+    pendingLoot: [],
     bagState: defaultBag(),
   };
 }

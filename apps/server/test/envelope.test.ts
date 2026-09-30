@@ -52,7 +52,7 @@ function envelope(overrides: Partial<CheckpointEnvelope> = {}): CheckpointEnvelo
     activeStrategy: { presetId: '33333333-3333-4333-8333-333333333333', presetVersion: 1 },
     activeLoot: { presetId: '44444444-4444-4444-8444-444444444444', presetVersion: 1 },
     pendingStrategy: null,
-    pendingLoot: null,
+    pendingLoot: [],
     stopContext: null,
     state: engineState(),
     ...overrides,
@@ -182,14 +182,14 @@ describe('reward identity (P-29)', () => {
 });
 
 describe('the pending loot filter is acknowledged like the pending strategy (R131)', () => {
-  test('it names the version, the command and the acknowledged cutoff', () => {
-    const pending = {
-      presetId: '44444444-4444-4444-8444-444444444444',
-      presetVersion: 2,
-      commandId: 'hunt.loot:k1',
-      acknowledgedAtSimMs: 9_000,
-    };
+  test('each window names the version, the command, the acknowledged instant and its first reward', () => {
+    const pending = [
+      { presetId: '44444444-4444-4444-8444-444444444444', presetVersion: 2, commandId: 'hunt.loot:k1', acknowledgedAtSimMs: 9_000, fromRewardSeq: 3 },
+      { presetId: '55555555-5555-4555-8555-555555555555', presetVersion: 1, commandId: 'hunt.loot:k2', acknowledgedAtSimMs: 9_500, fromRewardSeq: 5 },
+    ];
     expect(decodeCheckpoint(encodeCheckpoint(envelope({ pendingLoot: pending }))).pendingLoot).toEqual(pending);
+    const unbounded = Array.from({ length: 33 }, (_, index) => ({ ...pending[0], fromRewardSeq: index }));
+    expect(() => encodeCheckpoint(envelope({ pendingLoot: unbounded }))).toThrowError(EnvelopeError);
   });
 });
 

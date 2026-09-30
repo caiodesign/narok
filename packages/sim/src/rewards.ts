@@ -268,9 +268,7 @@ export function dispositionRewards(state: SimState, ctx: Context): void {
   const drops = state.metrics.drops;
 
   for (const reward of waiting) {
-    const pending = state.pendingLoot;
-    const preset = pending !== null && reward.rewardSeq >= pending.fromRewardSeq ? pending.preset : state.lootPresetSnapshot;
-    const decided = evaluate(describe(reward, ctx), preset);
+    const decided = evaluate(describe(reward, ctx), filterFor(state, reward.rewardSeq));
     let outcome: RewardOutcome;
     if (decided.action === 'keep') {
       outcome = place(state.bagState, reward.item) ? 'kept' : 'lost';
@@ -289,25 +287,54 @@ export function dispositionRewards(state: SimState, ctx: Context): void {
     }
   }
 
-  if (state.pendingLoot !== null) {
-    state.lootPresetSnapshot = state.pendingLoot.preset;
-    state.pendingLoot = null;
+  const latest = state.pendingLoot.at(-1);
+  if (latest !== undefined) {
+    state.lootPresetSnapshot = latest.preset;
+    state.pendingLoot = [];
   }
 }
 
 /**
+ * The filter a reward was acknowledged under (ruling R131): the latest applied
+ * cutoff at or below its `rewardSeq`, or the snapshot when it was rolled
+ * before every pending apply.
+ */
+function filterFor(state: SimState, rewardSeq: number): LootPreset {
+  let preset = state.lootPresetSnapshot;
+  for (const pending of state.pendingLoot) {
+    if (pending.fromRewardSeq <= rewardSeq) preset = pending.preset;
+  }
+  return preset;
+}
+
+/**
+ * The most applied filters one encounter can hold waiting (ruling R131, fix
+ * round 1): an apply opens a new window only after a reward was rolled since
+ * the previous one, and one encounter rolls at most two rewards per enemy
+ * (equipment and consumable) before its end dispositions them all.
+ */
+export function maxPendingLoot(maxEnemies: number): number {
+  return 2 * maxEnemies + 1;
+}
+
+/**
  * Applies `preset` to every drop from the next reward on (ruling R131). With
- * nothing awaiting disposition it takes effect at once; otherwise the rewards
- * already rolled keep their filter and the new one waits for them.
+ * nothing awaiting disposition it takes effect at once. Otherwise each apply
+ * opens its own window from the cutoff it was acknowledged at, so a second
+ * apply before the encounter ends never takes the first one's window back; an
+ * apply with no reward rolled since the previous one replaces it, since that
+ * window is empty.
  */
 export function applyLoot(state: SimState, preset: LootPreset): void {
   const copy = validateLootPreset(preset);
-  if (state.pendingRewards.some((reward) => reward.disposition === null)) {
-    state.pendingLoot = { preset: copy, fromRewardSeq: state.nextRewardSeq };
-  } else {
+  if (!state.pendingRewards.some((reward) => reward.disposition === null)) {
     state.lootPresetSnapshot = copy;
-    state.pendingLoot = null;
+    state.pendingLoot = [];
+    return;
   }
+  const window = { preset: copy, fromRewardSeq: state.nextRewardSeq };
+  if (state.pendingLoot.at(-1)?.fromRewardSeq === state.nextRewardSeq) state.pendingLoot[state.pendingLoot.length - 1] = window;
+  else state.pendingLoot.push(window);
 }
 
 /** Zeroed drop accounting for a new hunt. */

@@ -205,7 +205,7 @@ export function applySegment(
 
   const activated = envelope.pendingStrategy !== null && !segment.pendingRulesQueued;
   const reconciled = reconcileLoot(reconcileActivation(settled, segment.pendingRulesQueued), segment.pendingLootQueued);
-  const rewards = identifyRewards(envelope.huntId, segment.rewards);
+  const rewards = identifyRewards(envelope, segment.rewards);
 
   return {
     creditedSimMs: segment.creditedSimMs,

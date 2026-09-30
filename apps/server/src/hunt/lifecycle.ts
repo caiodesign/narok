@@ -346,7 +346,7 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
     activeStrategy: command.plan.activeStrategy,
     activeLoot: command.plan.activeLoot,
     pendingStrategy: null,
-    pendingLoot: null,
+    pendingLoot: [],
     stopContext: null,
     state: deps.sim.encode(state),
   };
@@ -488,7 +488,7 @@ export async function stopHunt(deps: LifecycleDeps, command: StopCommand): Promi
         generation: updated.generation,
         maxBytes: deps.config.maxCheckpointBytes,
       });
-      await commitHuntRewards(deps, tx, command.accountId, state, identifyRewards(envelope.huntId, dropped), settled.stateVersion + 1);
+      await commitHuntRewards(deps, tx, command.accountId, state, identifyRewards(envelope, dropped), settled.stateVersion + 1);
       await deps.hooks?.beforeCommit?.();
 
       return view(deps.sim, updated, state, settled.stateVersion + 1);

@@ -163,9 +163,7 @@ export function cloneState(state: SimState): SimState {
     pendingRewards: state.pendingRewards.map(cloneReward),
     dropProtection: { ...state.dropProtection },
     lootPresetSnapshot: cloneLoot(state.lootPresetSnapshot),
-    pendingLoot: state.pendingLoot === null
-      ? null
-      : { preset: cloneLoot(state.pendingLoot.preset), fromRewardSeq: state.pendingLoot.fromRewardSeq },
+    pendingLoot: state.pendingLoot.map((pending) => ({ preset: cloneLoot(pending.preset), fromRewardSeq: pending.fromRewardSeq })),
     bagState: { ...state.bagState, stackHeadroom: { ...state.bagState.stackHeadroom } },
   };
 }

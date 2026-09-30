@@ -3,6 +3,7 @@ import type { Attributes, Content, DamageKind, Element, Family, Rarity, RolledBo
 import { LOOT_ACTIONS, type LootMatch } from '@narok/loot';
 import { SimError, type SimErrorCode } from './errors';
 import { compareScheduled, isStale } from './scheduler';
+import { maxPendingLoot } from './rewards';
 import { validateBag, validateLabInput, validateLoot, validatePendingRules, validateProtection } from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
@@ -467,13 +468,21 @@ function validateRewards(value: unknown, content: Content, nowMs: number, nextRe
   return rewards;
 }
 
-function validatePendingLoot(value: unknown, nextRewardSeq: number): PendingLoot | null {
-  if (value === null) return null;
-  const record = requireRecord(value, 'pendingLoot');
-  return {
-    preset: validateLoot(record.preset, 'pendingLoot.preset', 'INVALID_STATE'),
-    fromRewardSeq: requireIntRange(record.fromRewardSeq, 'pendingLoot.fromRewardSeq', 0, nextRewardSeq),
-  };
+/** Applied filter windows (R131): bounded, strictly ascending cutoffs, none past `nextRewardSeq`. */
+function validatePendingLoot(value: unknown, nextRewardSeq: number, content: Content): PendingLoot[] {
+  const list = requireArray(value, 'pendingLoot');
+  if (list.length > maxPendingLoot(content.grid.maxEnemies)) {
+    fail('INVALID_STATE', 'pendingLoot', `expected at most ${maxPendingLoot(content.grid.maxEnemies)} applied filters`);
+  }
+  return list.map((entry, index) => {
+    const field = `pendingLoot.${index}`;
+    const record = requireRecord(entry, field);
+    const floor = index === 0 ? 0 : (requireRecord(list[index - 1], field).fromRewardSeq as number) + 1;
+    return {
+      preset: validateLoot(record.preset, `${field}.preset`, 'INVALID_STATE'),
+      fromRewardSeq: requireIntRange(record.fromRewardSeq, `${field}.fromRewardSeq`, floor, nextRewardSeq),
+    };
+  });
 }
 
 /**
@@ -593,7 +602,7 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   const pendingRewards = validateRewards(root.pendingRewards, content, nowMs, nextRewardSeq);
   const dropProtection = validateProtection(root.dropProtection, 'dropProtection', 'INVALID_STATE');
   const lootPresetSnapshot = validateLoot(root.lootPresetSnapshot, 'lootPresetSnapshot', 'INVALID_STATE');
-  const pendingLoot = validatePendingLoot(root.pendingLoot, nextRewardSeq);
+  const pendingLoot = validatePendingLoot(root.pendingLoot, nextRewardSeq, content);
   const bagState = validateBag(root.bagState, 'bagState', 'INVALID_STATE');
 
   return {

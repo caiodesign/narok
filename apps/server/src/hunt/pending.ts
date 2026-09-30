@@ -132,8 +132,11 @@ export function presetLoot(payload: unknown, payloadSchemaVersion: number = LOOT
  * §3.3, UI spec §6; ruling R131). The engine takes it at once when nothing
  * rolled is still waiting for its encounter to end; otherwise the rewards
  * already rolled keep the filter they were rolled under, and the envelope
- * names the new version as pending until the engine promotes it. Never
- * retroactive: settled rewards and existing inventory are not touched.
+ * records the new version beside the engine's window for it, one entry per
+ * window, until the engine promotes the last. A second apply inside one
+ * encounter adds a window and never takes the first one back; an apply with
+ * no reward rolled since the previous one replaces it, as the engine does.
+ * Never retroactive: settled rewards and existing inventory are not touched.
  */
 export function queueLoot(
   sim: Simulation,
@@ -146,29 +149,49 @@ export function queueLoot(
   const applied = sim.queueLoot(state, loot);
   const ref = { presetId: preset.presetId, presetVersion: preset.presetVersion };
 
-  if (applied.pendingLoot === null) {
-    return { ...envelope, activeLoot: ref, pendingLoot: null, state: sim.encode(applied) };
+  if (applied.pendingLoot.length === 0) {
+    return { ...envelope, activeLoot: ref, pendingLoot: [], state: sim.encode(applied) };
   }
+  const fromRewardSeq = applied.pendingLoot[applied.pendingLoot.length - 1].fromRewardSeq;
   return {
     ...envelope,
-    pendingLoot: { ...ref, commandId: ack.commandId, acknowledgedAtSimMs: state.nowMs },
+    pendingLoot: [
+      ...envelope.pendingLoot.filter((pending) => pending.fromRewardSeq !== fromRewardSeq),
+      { ...ref, commandId: ack.commandId, acknowledgedAtSimMs: state.nowMs, fromRewardSeq },
+    ],
     state: sim.encode(applied),
   };
 }
 
-/** After a settlement: the engine promoted the applied filter, so its version is now the active one. */
+/** After a settlement: the engine promoted the applied filters, so the last one's version is now the active one. */
 export function reconcileLoot(envelope: CheckpointEnvelope, pendingLootQueued: boolean): CheckpointEnvelope {
-  if (envelope.pendingLoot === null || pendingLootQueued) return envelope;
-  const { presetId, presetVersion } = envelope.pendingLoot;
-  return { ...envelope, activeLoot: { presetId, presetVersion }, pendingLoot: null };
+  const latest = envelope.pendingLoot.at(-1);
+  if (latest === undefined || pendingLootQueued) return envelope;
+  return { ...envelope, activeLoot: { presetId: latest.presetId, presetVersion: latest.presetVersion }, pendingLoot: [] };
 }
 
-/** The loot filter versions the UI shows: active and pending, separately. */
+/**
+ * The loot preset version that governed the reward numbered `rewardSeq`,
+ * read from the checkpoint the settlement started from (R131): the latest
+ * applied window at or below it, else the active version.
+ */
+export function lootVersionFor(envelope: CheckpointEnvelope, rewardSeq: number): PresetRef {
+  let version: PresetRef = envelope.activeLoot;
+  for (const pending of envelope.pendingLoot) {
+    if (pending.fromRewardSeq <= rewardSeq) version = { presetId: pending.presetId, presetVersion: pending.presetVersion };
+  }
+  return version;
+}
+
+/**
+ * The loot filter versions the UI shows: the one in force for drops already
+ * waiting, and the latest applied — the one every new drop runs under.
+ */
 export function lootVersions(envelope: CheckpointEnvelope): StrategyVersions {
-  const pending = envelope.pendingLoot;
+  const latest = envelope.pendingLoot.at(-1);
   return {
     activeVersion: envelope.activeLoot,
-    pendingVersion: pending === null ? null : { presetId: pending.presetId, presetVersion: pending.presetVersion },
+    pendingVersion: latest === undefined ? null : { presetId: latest.presetId, presetVersion: latest.presetVersion },
   };
 }
 
