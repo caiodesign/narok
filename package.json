@@ -8,10 +8,12 @@
   },
   "scripts": {
     "build:data": "tsx packages/data/scripts/build-content.ts",
+    "build:lab": "pnpm --filter @narok/lab build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint --no-error-on-unmatched-pattern packages tools apps e2e",
     "dev": "pnpm --filter @narok/client dev",
+    "dev:lab": "pnpm --filter @narok/lab dev",
     "dev:server": "pnpm --filter @narok/server dev",
     "db:up": "docker compose -f compose.dev.yml up -d --wait",
     "db:down": "docker compose -f compose.dev.yml down",

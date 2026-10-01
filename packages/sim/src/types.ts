@@ -15,8 +15,11 @@ import type { Disposition, LootPreset } from '@narok/loot';
 import type { Progress } from '@narok/progression';
 import type { Battlefield } from './battlefield/types';
 
-export type ActorId = string;
-export type PositionId = string & { readonly __position: unique symbol };
+// The position codec's types and the strategy shape live in `@narok/data` with
+// the content-derived defaults built from them (ruling R163); re-exported here
+// so every sim consumer keeps importing them from `@narok/sim` unchanged.
+import type { ActorId, PositionId, Strategy } from '@narok/data';
+export type { ActorId, Condition, PositionId, Rule, Strategy, TargetMode } from '@narok/data';
 /**
  * There is no respawn phase (owner decision 2026-09-30; ruling R154): a full
  * wipe ends the hunt.
@@ -33,14 +36,6 @@ export type Phase = 'walking' | 'fighting' | 'resting' | 'stopped';
  * it bounds accrual and leaves the hunt running.
  */
 export type StopReason = 'wipe' | 'stalemate' | 'operator' | 'retreat' | 'potion-floor';
-export type TargetMode =
-  | { kind: 'lowest-hp' | 'highest-hp' | 'highest-level' | 'nearest' }
-  | { kind: 'attacking'; partyId: ActorId };
-export type Condition =
-  | { kind: 'always' | 'ally-targeted' | 'ally-dead' }
-  | { kind: 'ally-hp-below' | 'targets-at-least'; value: number };
-export interface Rule { skillId: SkillId; enabled: boolean; condition: Condition }
-export interface Strategy { rules: Rule[]; target: TargetMode }
 export interface LabInput {
   seed: number; classes: ClassId[]; recipe: RecipeId | 'mixed';
   placement: Record<ActorId, PositionId>;

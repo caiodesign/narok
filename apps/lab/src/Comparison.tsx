@@ -16,7 +16,7 @@
  */
 import { useTranslation } from 'react-i18next';
 import type { LabInput, PublicState } from '@narok/sim';
-import { formatMeasuredDuration, formatNumber, formatPerHour, type Translate } from './i18n';
+import { formatMeasuredDuration, formatNumber, formatPerHour, type Translate } from '@narok/client/src/i18n';
 
 export interface ComparisonRun {
   input: LabInput;

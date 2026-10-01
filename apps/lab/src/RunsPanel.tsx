@@ -21,8 +21,8 @@
  * those ids stay unambiguous while no run has completed.
  */
 import { useTranslation } from 'react-i18next';
-import type { ComparisonRun } from '../Comparison';
-import { formatMeasuredDuration, formatNumber, formatPerHour, type Translate } from '../i18n';
+import type { ComparisonRun } from './Comparison';
+import { formatMeasuredDuration, formatNumber, formatPerHour, type Translate } from '@narok/client/src/i18n';
 
 export interface RunsPanelProps {
   runs: readonly ComparisonRun[];

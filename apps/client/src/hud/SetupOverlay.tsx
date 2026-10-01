@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import type { Content } from '@narok/data';
 import type { LabInput } from '@narok/sim';
 import { ExperimentControls } from '../ExperimentControls';
-import type { ExperimentStatus } from '../useExperiment';
+import type { ExperimentStatus } from '../status';
 
 export interface SetupOverlayProps {
   open: boolean;

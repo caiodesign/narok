@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { content } from '@narok/data';
-import type { LabInput, Phase, PublicActor, StopReason } from '@narok/sim';
+import type { LabInput, Phase, PublicActor, SimErrorCode, StopReason } from '@narok/sim';
 import { gridPosition } from '@narok/sim';
 import { resources, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../src/i18n';
 import { validateLabInput } from '../src/validation';
-import type { WorkerErrorCode } from '../src/worker-contract';
 
 type Tree = { [key: string]: string | Tree };
 
@@ -72,10 +71,12 @@ describe('locale resources', () => {
     }
   });
 
-  test('every worker/sim error code, phase, stop reason and target reason has a key', () => {
+  test('every sim error code, phase, stop reason and target reason has a key', () => {
     // Typed as an exhaustive Record so a code added to the union fails to compile
-    // here rather than silently reaching the UI untranslated.
-    const errorCodes: Record<WorkerErrorCode, true> = {
+    // here rather than silently reaching the UI untranslated. The laboratory's own
+    // worker codes are checked against these same resources in apps/lab
+    // (worker-error-keys.test.ts), since the client may not import the lab (R164).
+    const errorCodes: Record<SimErrorCode, true> = {
       INVALID_CONTENT: true,
       INVALID_INPUT: true,
       INVALID_STATE: true,
@@ -83,9 +84,6 @@ describe('locale resources', () => {
       TIME_REWIND: true,
       UNSAFE_INTEGER: true,
       LOOP_DETECTED: true,
-      STALE_GENERATION: true,
-      PROTOCOL: true,
-      INTERNAL: true,
     };
     const phases: Record<Phase, true> = {
       walking: true,

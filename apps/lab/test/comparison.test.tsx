@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, expect, test } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { Comparison } from '../src/Comparison';
-import '../src/i18n';
+import '@narok/client/src/i18n';
 import { lab, labInput } from '../../../packages/sim/test/fixtures';
 
 afterEach(() => {

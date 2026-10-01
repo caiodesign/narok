@@ -31,7 +31,7 @@ import type { GridConfig } from '@narok/data';
 import type { DomainEvent, PublicActor, PublicState } from '@narok/sim';
 import { gridCoordinates } from '@narok/sim';
 import { artManifest, mix, palette, type ArtEntry } from './art-manifest';
-import { formatNumber, type Translate } from './i18n';
+import { formatNumber, type Translate } from '@narok/client/src/i18n';
 
 export const TILE_WIDTH = 96;
 export const TILE_HEIGHT = 48;

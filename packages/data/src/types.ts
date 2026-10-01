@@ -13,6 +13,22 @@ export interface GridConfig {
   width: number; height: number; playerRows: number[]; enemyRows: number[];
   moveMs: number; maxEnemies: number;
 }
+/**
+ * The position codec's types and the strategy shape (ruling R163). They live
+ * beside {@link GridConfig} because the codec and the two content-derived
+ * defaults (`defaultPlacement`, `defaultStrategy`) are content, not engine;
+ * `@narok/sim` re-exports every one of them unchanged.
+ */
+export type ActorId = string;
+export type PositionId = string & { readonly __position: unique symbol };
+export type TargetMode =
+  | { kind: 'lowest-hp' | 'highest-hp' | 'highest-level' | 'nearest' }
+  | { kind: 'attacking'; partyId: ActorId };
+export type Condition =
+  | { kind: 'always' | 'ally-targeted' | 'ally-dead' }
+  | { kind: 'ally-hp-below' | 'targets-at-least'; value: number };
+export interface Rule { skillId: SkillId; enabled: boolean; condition: Condition }
+export interface Strategy { rules: Rule[]; target: TargetMode }
 export interface ClassDefinition {
   id: ClassId; attributes: Attributes; level: number;
   baseHp: number; hpPerLevel: number; baseMp: number; mpPerLevel: number;

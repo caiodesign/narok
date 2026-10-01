@@ -1,8 +1,10 @@
 /**
  * Milestone A browser smoke (plan task 11, ruling R69).
  *
- * Chromium only, against the built-and-previewed client (see
- * `playwright.config.ts`). Locators use accessible names and the `data-testid`
+ * Chromium only, against the built-and-previewed laboratory (`apps/lab`, the
+ * `lab` project in `playwright.config.ts`). The laboratory left `apps/client`
+ * in milestone B Task 8; these cases pass unchanged against it, which is the
+ * proof the split lost no behaviour. Locators use accessible names and the `data-testid`
  * hooks Task 10 shipped. Every wait is condition-based — `toHaveText`,
  * `not.toHaveText`, `toBeVisible`, `toHaveCount` — and there is no
  * `waitForTimeout` or other fixed sleep anywhere in this file.
@@ -71,7 +73,7 @@ test('a player can run, pause, resume and inspect an experiment', async ({ page 
   await page.goto('/');
 
   // Before any run completes there is exactly one `elapsed-time` in the document
-  // (asserted at unit level in apps/client/test/app.test.tsx), so the plan's
+  // (asserted at unit level in apps/lab/test/app.test.tsx), so the plan's
   // unscoped locator is legal here and reads the live playback clock.
   await expect(page.getByTestId('elapsed-time')).toHaveText('0 s');
 

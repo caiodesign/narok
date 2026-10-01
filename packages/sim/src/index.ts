@@ -1,4 +1,4 @@
-import { ContentError, validateContent } from '@narok/data';
+import { ContentError, PositionError, validateContent } from '@narok/data';
 import type { Content } from '@narok/data';
 import type { LootPreset } from '@narok/loot';
 import { advance as runAdvance, cloneState } from './advance';
@@ -54,7 +54,7 @@ export { project } from './project';
  * Runs `operation`, translating the errors raised beneath the public boundary into
  * `SimError` with the documented codes (ruling R43): a `ContentError` becomes
  * `INVALID_CONTENT` and a `RangeError` (the arithmetic guards in `math.ts`/`rng.ts`)
- * becomes `UNSAFE_INTEGER`, each keeping a bounded diagnostic field path. `SimError`
+ * becomes `UNSAFE_INTEGER` and a `PositionError` keeps its `INVALID_INPUT` (R165), each keeping a bounded diagnostic field path. `SimError`
  * passes through unchanged; nothing ever embeds a serialized state in its message.
  */
 function guard<T>(field: string, operation: () => T): T {
@@ -67,6 +67,11 @@ function guard<T>(field: string, operation: () => T): T {
     }
     if (error instanceof RangeError) {
       throw new SimError('UNSAFE_INTEGER', field, error.message);
+    }
+    // The position codec moved to `@narok/data` (rulings R163, R165); a
+    // malformed id it rejects is the same `INVALID_INPUT` it always was here.
+    if (error instanceof PositionError) {
+      throw new SimError(error.code, error.field, error.message);
     }
     throw error;
   }

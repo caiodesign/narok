@@ -31,6 +31,16 @@ of the resolver, the strategy layer and the log — is unchanged and still holds
 widened: `hud/Battlefield.tsx` and `hud/Compass.tsx` may both call it, being the two components
 that draw a spatial view. Nothing else may, and `PositionId` remains opaque everywhere else.
 
+> **Amended by R163 (milestone B Task 8).** The codec (`gridPosition`, `gridCoordinates`) and the
+> two content-derived defaults (`defaultPlacement`, `defaultStrategy`) moved to `@narok/data`
+> (`packages/data/src/grid.ts`, `strategy.ts`), being content rather than engine, so the
+> engine-free client imports them from there; `@narok/sim` re-exports the same functions. The
+> intent above is unchanged; the letter now reads **any component that draws a spatial view** —
+> the battlefield adapter, the HUD's `Battlefield` and `Compass`, the setup board and the
+> laboratory's `BattlefieldView` (now `apps/lab`). R164: `apps/lab` may import `@narok/client`;
+> `apps/client` may never import `apps/lab`; the frozen stylesheets and `apps/client/src/hud/**`
+> never move.
+
 ### R107 — the ported stylesheet is not editable
 No rule inside `styles.css` lines 1–754 may be changed, reordered or deleted. Anything the
 product needs beyond the design goes in the labelled additions block at the end of the file, or

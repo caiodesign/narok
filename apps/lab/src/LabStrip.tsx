@@ -18,8 +18,8 @@ import {
   setLanguage,
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
-} from '../i18n';
-import type { ExperimentStatus } from '../useExperiment';
+} from '@narok/client/src/i18n';
+import type { ExperimentStatus } from './useExperiment';
 
 export interface LabStripProps {
   state: PublicState | null;

@@ -17,13 +17,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, ClassId } from '@narok/data';
+import { defaultPlacement, defaultStrategy, gridPosition } from '@narok/data';
 import type { ActorId, LabInput, PositionId, Strategy, TargetMode } from '@narok/sim';
-import { defaultPlacement, defaultStrategy, gridPosition } from '@narok/sim';
 import { formatNumber, type Translate } from './i18n';
 import { CharacterPane } from './hud/strategy/CharacterPane';
 import { FormationPane } from './hud/strategy/FormationPane';
 import { PartyRulesPane } from './hud/strategy/PartyRulesPane';
-import type { ExperimentStatus } from './useExperiment';
+import type { ExperimentStatus } from './status';
 import { validateLabInput, type ValidationIssue } from './validation';
 
 const SPEEDS = [1, 4, 16] as const;

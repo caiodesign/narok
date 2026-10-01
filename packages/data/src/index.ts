@@ -6,3 +6,5 @@ export {
 } from './items';
 export { OPEN_CONTENT_INPUTS, mapId, shapeOffsets } from './prototype';
 export { content } from './generated/content';
+export { PositionError, defaultPlacement, gridCoordinates, gridPosition } from './grid';
+export { defaultStrategy } from './strategy';

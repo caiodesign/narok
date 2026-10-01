@@ -1,9 +1,14 @@
 /**
  * Playwright configuration for the milestone-A browser smoke (ruling R69).
  *
- * Chromium only — the spec asks for a smoke, not a browser matrix. The
- * `webServer` **builds and previews** the client, so the smoke exercises the
+ * Chromium only — the spec asks for a smoke, not a browser matrix. Each
+ * `webServer` **builds and previews** its app, so the smoke exercises the
  * shipped bundle rather than a dev server with its own transform pipeline.
+ *
+ * Two projects since milestone B Task 8 split the laboratory out of the
+ * client: `chromium` drives the engine-free client (`e2e/client.spec.ts`) and
+ * `lab` drives the laboratory (`e2e/laboratory.spec.ts`, milestone A's smoke,
+ * unchanged) on its own port.
  *
  * `testDir` stays `e2e`, which is already excluded from vitest
  * (`vitest.config.ts`) and from `tsconfig.json`'s `include`, so the two runners
@@ -19,6 +24,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4173;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const LAB_PORT = 4174;
+const LAB_URL = `http://127.0.0.1:${LAB_PORT}`;
 const isCI = process.env.CI !== undefined && process.env.CI !== '';
 
 export default defineConfig({
@@ -36,13 +43,32 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    // `--host 127.0.0.1` is load-bearing: vite preview's default binds only to
-    // the IPv6 loopback, so a plain 127.0.0.1 readiness probe never connects.
-    command: `pnpm --filter @narok/client build && pnpm --filter @narok/client preview --port ${PORT} --strictPort --host 127.0.0.1`,
-    url: `${BASE_URL}/`,
-    reuseExistingServer: !isCI,
-    timeout: 180_000,
-  },
+  projects: [
+    {
+      name: 'chromium',
+      testMatch: 'client.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: BASE_URL },
+    },
+    {
+      name: 'lab',
+      testMatch: 'laboratory.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: LAB_URL },
+    },
+  ],
+  webServer: [
+    {
+      // `--host 127.0.0.1` is load-bearing: vite preview's default binds only to
+      // the IPv6 loopback, so a plain 127.0.0.1 readiness probe never connects.
+      command: `pnpm --filter @narok/client build && pnpm --filter @narok/client preview --port ${PORT} --strictPort --host 127.0.0.1`,
+      url: `${BASE_URL}/`,
+      reuseExistingServer: !isCI,
+      timeout: 180_000,
+    },
+    {
+      command: `pnpm --filter @narok/lab build && pnpm --filter @narok/lab preview --port ${LAB_PORT} --strictPort --host 127.0.0.1`,
+      url: `${LAB_URL}/`,
+      reuseExistingServer: !isCI,
+      timeout: 180_000,
+    },
+  ],
 });

@@ -17,7 +17,7 @@
  */
 import { useTranslation } from 'react-i18next';
 import { formatNumber, type Translate } from '../i18n';
-import type { ExperimentStatus } from '../useExperiment';
+import type { ExperimentStatus } from '../status';
 
 /** The only speeds `useExperiment.setSpeed` accepts; anything else is ignored there. */
 const SPEEDS = [1, 4, 16] as const;

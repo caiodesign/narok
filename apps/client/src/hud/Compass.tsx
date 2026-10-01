@@ -22,12 +22,12 @@
  * Nothing here invents a number. An unmeasurable figure renders `value.none`.
  */
 import { useTranslation } from 'react-i18next';
+import { gridCoordinates } from '@narok/data';
 import type { GridConfig } from '@narok/data';
 import type { PositionId, PublicState } from '@narok/sim';
-import { gridCoordinates } from '@narok/sim';
 import { classNames, splitSides } from './model';
 import { formatMeasuredDuration, formatNumber, type Translate } from '../i18n';
-import type { ExperimentStatus } from '../useExperiment';
+import type { ExperimentStatus } from '../status';
 
 export interface CompassProps {
   state: PublicState | null;

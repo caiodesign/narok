@@ -4,10 +4,12 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DomainEvent, LabInput, Metrics, PublicState, StopReason } from '@narok/sim';
-import { horizon, reanchor, type PlaybackClock } from './clock';
+import { horizon, reanchor, type PlaybackClock } from '@narok/client/src/clock';
+import type { ExperimentStatus } from '@narok/client/src/status';
 import type { WorkerRequest, WorkerResponse } from './worker-contract';
 
-export type ExperimentStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'error';
+// Declared with the HUD that renders it (ruling R164); re-exported for the lab's own modules.
+export type { ExperimentStatus };
 
 /** Produced when a run completes or is stopped, for the retained comparison slots. */
 export interface Summary {

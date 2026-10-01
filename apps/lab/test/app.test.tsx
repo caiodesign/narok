@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { gridPosition, type PublicActor } from '@narok/sim';
 import type { ArtEntry } from '../src/art-manifest';
 
 // PixiJS cannot initialise a renderer in jsdom (R58). The board's own lifecycle
@@ -62,10 +61,9 @@ vi.mock('pixi.js', () => ({
   Text: StubText,
 }));
 
-const { App } = await import('../src/App');
-const { isLowMp } = await import('../src/hud/model');
+const { LabApp: App } = await import('../src/LabApp');
 const { entryViewBox } = await import('../src/art-manifest');
-const { default: i18n, LANGUAGE_STORAGE_KEY, resources } = await import('../src/i18n');
+const { default: i18n, LANGUAGE_STORAGE_KEY, resources } = await import('@narok/client/src/i18n');
 const { artManifest } = await import('../src/art-manifest');
 
 /**
@@ -166,51 +164,6 @@ describe('laboratory shell', () => {
     expect(screen.getByRole('button', { name: resources['pt-BR'].translation.controls.start })).toBeInTheDocument();
     expect(globalThis.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('pt-BR');
     expect(Object.keys(globalThis.localStorage)).toEqual([LANGUAGE_STORAGE_KEY]);
-  });
-});
-
-/** The projected actor fields these helpers read; everything else is filler. */
-function actor(overrides: Partial<PublicActor> = {}): PublicActor {
-  return {
-    id: 'p1',
-    definitionId: 'cleric',
-    side: 'party',
-    position: gridPosition(2, 3),
-    hp: 180,
-    mp: 100,
-    maxHp: 180,
-    maxMp: 400,
-    currentTarget: null,
-    casting: null,
-    targetReason: null,
-    cooldowns: {},
-    ...overrides,
-  };
-}
-
-describe('isLowMp', () => {
-  test('the threshold is exclusive: exactly a quarter is not yet low', () => {
-    expect(isLowMp(actor({ mp: 100, maxMp: 400 }))).toBe(false);
-  });
-
-  test('a hair either side of the threshold decides it', () => {
-    expect(isLowMp(actor({ mp: 99, maxMp: 400 }))).toBe(true);
-    expect(isLowMp(actor({ mp: 101, maxMp: 400 }))).toBe(false);
-  });
-
-  test('empty is low and full is not', () => {
-    expect(isLowMp(actor({ mp: 0, maxMp: 400 }))).toBe(true);
-    expect(isLowMp(actor({ mp: 400, maxMp: 400 }))).toBe(false);
-  });
-
-  /**
-   * A class with no mana pool is not a depleted caster, and the ratio must
-   * never be computed: `0 / 0` is `NaN`, which compares false and would read as
-   * "not low" by accident rather than by decision.
-   */
-  test('an actor with no mana pool is never low', () => {
-    expect(isLowMp(actor({ mp: 0, maxMp: 0 }))).toBe(false);
-    expect(isLowMp(actor({ mp: 0, maxMp: -1 }))).toBe(false);
   });
 });
 

@@ -98,7 +98,7 @@ const {
   targetedIds,
 } = await import('../src/BattlefieldView');
 const { artManifest } = await import('../src/art-manifest');
-await import('../src/i18n');
+await import('@narok/client/src/i18n');
 
 function actor(overrides: Partial<PublicActor> = {}): PublicActor {
   return {
