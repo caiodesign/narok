@@ -45,7 +45,7 @@
     "placementHelp": "Selecione um personagem e escolha uma célula nas fileiras do grupo com o clique ou com as setas e Enter.",
     "invalidCell": "Fora da zona do grupo",
     "invalidCellMark": "×",
-    "restAndWipe": "Descanso",
+    "rest": "Descanso",
     "restHp": "HP de descanso %",
     "restMp": "MP de descanso %",
     "strategy": "Regras de estratégia",

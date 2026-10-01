@@ -54,6 +54,9 @@ export async function loadBag(db: Database | Tx, accountId: string): Promise<Bag
     .from(schema.stackItems)
     .where(eq(schema.stackItems.accountId, accountId));
   const consumables: Record<string, number> = {};
+  // A stack spent or sold to 0 keeps its row (`persistBag` and `commitConsumption`
+  // write the 0 total); skipping it here keeps the bag, the engine's bag state
+  // and the town inventory view free of empty stacks.
   for (const stack of stacks) if (stack.quantity > 0) consumables[stack.definitionId] = stack.quantity;
   return { accountId, capacity: account?.bagCapacity ?? 0, items: rows.map(toInstance), consumables };
 }

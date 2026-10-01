@@ -45,7 +45,7 @@
     "placementHelp": "Select a character, then choose a cell in the party rows by click or by arrow keys and Enter.",
     "invalidCell": "Outside the party zone",
     "invalidCellMark": "×",
-    "restAndWipe": "Rest",
+    "rest": "Rest",
     "restHp": "Rest HP %",
     "restMp": "Rest MP %",
     "strategy": "Strategy rules",

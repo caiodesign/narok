@@ -25,7 +25,7 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 import type { Content } from '@narok/data';
-import type { DropProtection, PendingReward } from '@narok/sim';
+import type { DropProtection, PendingReward, SimState } from '@narok/sim';
 import * as schema from '../db/schema';
 import type { Database, Tx } from '../db/tx';
 import { rewardIdFor, type CheckpointEnvelope, type PresetRef } from './envelope';
@@ -128,6 +128,16 @@ export const commitRewards: RewardSink = async (tx, rewards, commit) => {
   }
 };
 
+/** Units of each consumable spent between two committed states (ruling R152). */
+export function consumedDuring(before: SimState, after: SimState): Record<string, number> {
+  const spent: Record<string, number> = {};
+  for (const id of Object.keys(after.metrics.consumed).sort()) {
+    const units = after.metrics.consumed[id]! - (before.metrics.consumed[id] ?? 0);
+    if (units > 0) spent[id] = units;
+  }
+  return spent;
+}
+
 /**
  * Takes what the engine spent from the bag off the account's stacks, in the
  * commit that settles it (ruling R152): `consumed` is the increase of the
@@ -146,11 +156,20 @@ export async function commitConsumption(
   if (ids.length === 0) return;
   for (const definitionId of ids) {
     // The stack held at least this much when the hunt started; the check
-    // constraint refuses a negative total rather than clamping it.
-    await tx
+    // constraint refuses a negative total rather than clamping it. A stack
+    // that reaches 0 keeps its row, as `persistBag` writes a 0 total:
+    // `loadBag` skips non-positive totals, so the bag, the engine's bag state
+    // and the town inventory view never list an empty stack.
+    const updated = await tx
       .update(schema.stackItems)
       .set({ quantity: sql`${schema.stackItems.quantity} - ${consumed[definitionId]!}` })
-      .where(and(eq(schema.stackItems.accountId, accountId), eq(schema.stackItems.definitionId, definitionId)));
+      .where(and(eq(schema.stackItems.accountId, accountId), eq(schema.stackItems.definitionId, definitionId)))
+      .returning({ quantity: schema.stackItems.quantity });
+    // The engine only spends what the account's stack gave it, so a missing
+    // row is a broken invariant: fail the commit rather than debit nothing.
+    if (updated.length !== 1) {
+      throw new Error(`commitConsumption: account ${accountId} has no ${definitionId} stack to take ${consumed[definitionId]!} from`);
+    }
   }
   await tx.insert(schema.resourceAudit).values({
     accountId, reason: 'consumed', sourceRef, delta: { consumed: { ...consumed } }, stateVersionAfter,

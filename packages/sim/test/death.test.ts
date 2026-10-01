@@ -12,6 +12,7 @@ import { describe, expect, test } from 'vitest';
 import { decide, resolveCast } from '../src/actions';
 import { defaultPlacement } from '../src/battlefield/grid';
 import { finishEncounter, reviveWithApples } from '../src/lifecycle';
+import { schedule } from '../src/scheduler';
 import { defaultStrategy } from '../src/state';
 import type { BagState, DomainEvent, HuntPartyMember, LabInput, SimState } from '../src/types';
 import { context, lab, labInput, runTo } from './fixtures';
@@ -90,6 +91,20 @@ function kill(state: SimState, id: string): void {
 }
 
 const half = (maxHp: number) => Math.max(1, Math.floor((maxHp * 50) / 100));
+
+/**
+ * Arms `attackerId` with a basic strike on `targetId` resolving at `at`, under a
+ * fresh action token, and makes it land: a certain critical always hits, and a
+ * reach of 99 cells keeps the target in range wherever it stands.
+ */
+function strikeAt(state: SimState, attackerId: string, targetId: string, at: number): void {
+  const attacker = state.actors[attackerId]!;
+  attacker.stats = { ...attacker.stats, critBp: 10_000 };
+  attacker.basicRange = 99;
+  attacker.actionToken += 1;
+  attacker.pendingCast = { skillId: 'basic', targets: [targetId], startedAt: state.nowMs, completesAt: at, token: attacker.actionToken };
+  schedule(state, { at, kind: 'resolve', actorId: attackerId, epoch: state.epoch, token: attacker.actionToken });
+}
 
 describe('a dead member stays dead (R151)', () => {
   test('with no apple and no Cleric it stays dead through later won encounters', () => {
@@ -174,6 +189,54 @@ describe("Idun's Apple (R152)", () => {
     expect(state.metrics.consumed).toEqual({ [IDUN_APPLE_ID]: 1 });
   });
 
+  test('R157: deaths from two resolutions at one millisecond share the instant; the lower character id gets the apple', () => {
+    // p0 holds the higher character id and dies first in queue order (e0 resolves before e1).
+    const state = fighting({ apples: 1, characterIds: ['char-b', 'char-a', 'char-c'] });
+    const at = state.nowMs + 1;
+    state.actors.p0!.hp = 1;
+    state.actors.p1!.hp = 1;
+    strikeAt(state, 'e0', 'p0', at);
+    strikeAt(state, 'e1', 'p1', at);
+    const result = lab().advance(state, at);
+    const deaths = result.events.filter((event) => event.kind === 'death').map((event) => event.actorId);
+    expect(deaths, 'e0 kills p0 before e1 kills p1').toEqual(['p0', 'p1']);
+    expect(result.state.actors.p1!.hp).toBe(half(result.state.actors.p1!.stats.maxHp));
+    expect(result.state.actors.p0!.hp).toBe(0);
+    expect(result.state.metrics.consumed).toEqual({ [IDUN_APPLE_ID]: 1 });
+    expect(result.events.filter((event) => event.kind === 'revive').map((event) => [event.at, event.actorId]))
+      .toEqual([[at, 'p1']]);
+  });
+
+  test('an apple that saves the last living member prevents the wipe', () => {
+    const state = fighting({ apples: 1 });
+    kill(state, 'p1');
+    kill(state, 'p2');
+    const at = state.nowMs + 1;
+    state.actors.p0!.hp = 1;
+    strikeAt(state, 'e0', 'p0', at);
+    const result = lab().advance(state, at);
+    expect(result.events.map((event) => event.kind)).toContain('death');
+    expect(result.events.map((event) => event.kind)).not.toContain('wipe');
+    expect(result.state.phase).toBe('fighting');
+    expect(result.state.metrics.wipes).toBe(0);
+    expect(result.state.actors.p0!.hp).toBe(half(result.state.actors.p0!.stats.maxHp));
+  });
+
+  test('R157: when the last two standing fall at one millisecond from two resolutions, one apple still averts the wipe', () => {
+    const state = fighting({ apples: 1, characterIds: ['char-b', 'char-a', 'char-c'] });
+    kill(state, 'p2');
+    const at = state.nowMs + 1;
+    state.actors.p0!.hp = 1;
+    state.actors.p1!.hp = 1;
+    strikeAt(state, 'e0', 'p0', at);
+    strikeAt(state, 'e1', 'p1', at);
+    const result = lab().advance(state, at);
+    expect(result.events.map((event) => event.kind)).not.toContain('wipe');
+    expect(result.state.phase).toBe('fighting');
+    expect(result.state.actors.p1!.hp).toBe(half(result.state.actors.p1!.stats.maxHp));
+    expect(result.state.actors.p0!.hp).toBe(0);
+  });
+
   test('without an apple nothing is revived and nothing is consumed', () => {
     const state = fighting();
     kill(state, 'p2');
@@ -220,6 +283,39 @@ describe("the Cleric's Revive (R153)", () => {
     const later = runTo(sim, state, 10_000);
     expect(later.events.filter((event) => event.reason === 'revive')).toEqual([]);
     expect(later.state.actors.p0!.hp).toBe(0);
+  });
+
+  test('a Cleric that dies with a Revive cast in progress never lands it', () => {
+    const state = fighting({ ranks: { p1: { revive: 1 } } });
+    kill(state, 'p0');
+    decide(state, 'p1', context(state, []));
+    const cast = state.actors.p1!.pendingCast!;
+    expect(cast).toMatchObject({ skillId: 'revive', targets: ['p0'] });
+    state.actors.p1!.hp = 1;
+    strikeAt(state, 'e0', 'p1', state.nowMs + 1);
+    const later = lab().advance(state, cast.completesAt);
+    expect(later.events.filter((event) => event.kind === 'death').map((event) => event.actorId)).toContain('p1');
+    expect(later.events.filter((event) => event.kind === 'revive' || event.reason === 'revive:fizzle')).toEqual([]);
+    expect(later.state.actors.p0!.hp).toBe(0);
+  });
+
+  test('a Revive whose target an apple already revived fizzles: nothing restored, its MP not refunded', () => {
+    const state = fighting({ apples: 1, ranks: { p1: { revive: 1 } } });
+    const events: DomainEvent[] = [];
+    kill(state, 'p0');
+    decide(state, 'p1', context(state, events));
+    const cast = state.actors.p1!.pendingCast!;
+    expect(cast).toMatchObject({ skillId: 'revive', targets: ['p0'] });
+    const mpAfterCast = state.actors.p1!.mp;
+    expect(mpAfterCast, 'the MP is spent when the cast starts').toBe(state.actors.p1!.stats.maxMp - content.skills.revive.mp);
+    reviveWithApples(state, context(state, events), ['p0']);
+    const hpAfterApple = state.actors.p0!.hp;
+    const later = lab().advance(state, cast.completesAt);
+    expect(later.events.filter((event) => event.actorId === 'p1' && event.reason === 'revive:fizzle')).toHaveLength(1);
+    expect(later.events.filter((event) => event.kind === 'revive')).toEqual([]);
+    expect(later.state.actors.p0!.hp).toBeLessThanOrEqual(hpAfterApple);
+    expect(later.state.actors.p1!.mp, 'a fizzle refunds nothing').toBeLessThanOrEqual(mpAfterCast);
+    expect(later.state.metrics.consumed).toEqual({ [IDUN_APPLE_ID]: 1 });
   });
 
   test('the revive rule takes the ally-dead condition only', () => {

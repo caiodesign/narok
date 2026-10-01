@@ -50,9 +50,8 @@ import {
 } from './envelope';
 import { lootVersions, strategyVersions } from './pending';
 import { commitProgression } from './progression';
-import { consumedDuring } from '../reports/away';
 import {
-  commitConsumption, commitRewards, identifyRewards, indexDropProtection, type HuntReward, type RewardSink,
+  commitConsumption, commitRewards, consumedDuring, identifyRewards, indexDropProtection, type HuntReward, type RewardSink,
 } from './rewards';
 import { settle, type Settlement } from './settle';
 

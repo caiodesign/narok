@@ -17,7 +17,7 @@ import * as schema from '../src/db/schema';
 import { withAccountTx, type Tx } from '../src/db/tx';
 import { persistHunt, stopHunt } from '../src/hunt/lifecycle';
 import { FIRST_WIN_MARKER } from '../src/hunt/progression';
-import { commitRewards, type HuntReward } from '../src/hunt/rewards';
+import { commitConsumption, commitRewards, type HuntReward } from '../src/hunt/rewards';
 import { memoryStores } from '../src/store/memory';
 import { grantOnboardingOnce, grantStarterKitOnce } from '../src/town/grants';
 import { connect, databaseReachable, disconnect, insertAccount, insertCharacter, insertItem, truncateAll, type Db } from './db-helpers';
@@ -316,6 +316,31 @@ describe('death and the return to town (owner decision 2026-09-30; rulings R152,
     const audit = await db.select().from(schema.resourceAudit)
       .where(and(eq(schema.resourceAudit.accountId, me.accountId), eq(schema.resourceAudit.reason, 'consumed')));
     expect(audit.map((row) => row.delta)).toEqual([{ consumed: { [IDUN_APPLE_ID]: eaten } }]);
+  });
+
+  test('the last apple eaten leaves a zero stack the inventory does not list', async () => {
+    const me = await player();
+    const rows = await roster(me);
+    await db.insert(schema.stackItems).values({ accountId: me.accountId, definitionId: IDUN_APPLE_ID, quantity: 1 });
+    await start(me, rows.map((row) => row.id));
+
+    await settleAfter(me.accountId, 300_000);
+    expect((await engineState(me.accountId)).metrics.consumed[IDUN_APPLE_ID]).toBe(1);
+    const [stack] = await db.select().from(schema.stackItems)
+      .where(and(eq(schema.stackItems.accountId, me.accountId), eq(schema.stackItems.definitionId, IDUN_APPLE_ID)));
+    expect(stack.quantity, 'the row stays, at zero').toBe(0);
+    expect((await loadBag(db, me.accountId)).consumables).toEqual({});
+    const inventory = await h.app.inject({ method: 'GET', url: '/api/inventory', headers: { origin: ORIGIN, cookie: me.cookie } });
+    expect(inventory.json().consumables).toEqual([]);
+  });
+
+  test('consumption with no stack row to take it from fails the commit instead of passing silently', async () => {
+    const me = await player();
+    const attempt = withAccountTx(db, { accountId: me.accountId, expectedStateVersion: await version(me.accountId), operation: 'test' }, (tx) =>
+      commitConsumption(tx, me.accountId, { [IDUN_APPLE_ID]: 1 }, 'h:span', 1));
+    await expect(attempt).rejects.toThrow(/no idun-apple stack/);
+    const audit = await db.select().from(schema.resourceAudit).where(eq(schema.resourceAudit.accountId, me.accountId));
+    expect(audit.filter((row) => row.reason === 'consumed')).toEqual([]);
   });
 
   test('a player stop heals every character row, the dead and the living, to full HP and MP (R155)', async () => {

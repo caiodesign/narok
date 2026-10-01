@@ -287,38 +287,67 @@ function partyStanding(state: SimState): ActorId[] {
   return Object.keys(state.actors).filter((id) => state.actors[id].side === 'party' && state.actors[id].hp > 0);
 }
 
-/** Routes one due, non-stale entry to its handler (ruling R41's dispatch table). */
-function dispatch(state: SimState, ctx: Context, entry: ScheduledEvent): void {
+/** Resolves one actor's cast and returns the party members it killed. */
+function resolveTracking(state: SimState, ctx: Context, actorId: ActorId): ActorId[] {
+  const standing = partyStanding(state);
+  resolveCast(state, actorId, ctx);
+  return standing.filter((id) => state.actors[id].hp <= 0);
+}
+
+/**
+ * Routes one due, non-stale entry to its handler (ruling R41's dispatch table).
+ * Returns how many further queued entries it consumed beyond `entry` itself (a
+ * same-instant group of resolves, ruling R157), so the caller's work budget
+ * counts every entry popped.
+ */
+function dispatch(state: SimState, ctx: Context, entry: ScheduledEvent): number {
   switch (entry.kind) {
     case 'expire':
       expire(state, entry.actorId);
-      return;
+      return 0;
     case 'regen':
       regenerate(state, ctx);
-      return;
+      return 0;
     case 'resolve': {
-      // Ruling R152: one resolution is one instant of death. The party members
-      // it killed eat Idun's Apples, in character-id order, before the
-      // encounter is judged, so an apple can still avert a wipe.
-      const standing = partyStanding(state);
-      resolveCast(state, entry.actorId, ctx);
-      const fallen = standing.filter((id) => state.actors[id].hp <= 0);
-      if (fallen.length > 0) reviveWithApples(state, ctx, fallen);
+      // Ruling R157 (controller ruling, Task 7c fix round 1, 2026-10-01; refines
+      // R152): an instant of death is one simulated millisecond, across every
+      // resolution at it. Once a resolution kills a party member, every other
+      // resolve due at this same millisecond runs before anything is judged —
+      // they sit next to each other in the queue, since `resolve` has its own
+      // priority and only a resolution deals damage — and the members who fell
+      // in any of them eat Idun's Apples together, in ascending character id,
+      // before the encounter is judged, so an apple can still avert a wipe.
+      // Until a party member falls nothing changes, so a run without deaths
+      // dispatches exactly as before. Draws nothing beyond what the resolutions
+      // themselves draw.
+      const fallen = resolveTracking(state, ctx, entry.actorId);
+      let consumed = 0;
+      if (fallen.length > 0) {
+        for (;;) {
+          const next = state.queue[0];
+          if (next === undefined || next.at !== state.nowMs || next.kind !== 'resolve') break;
+          takeNext(state);
+          consumed += 1;
+          if (isStale(state, next)) continue;
+          fallen.push(...resolveTracking(state, ctx, next.actorId));
+        }
+        reviveWithApples(state, ctx, fallen);
+      }
       // Encounter completion is the dispatcher's job: the resolver stays free of
       // lifecycle, and a kill resolving at the deadline instant therefore wins
       // before the same-time `deadline` entry (priority 20 before 40) can run.
       finishEncounter(state, ctx);
-      return;
+      return consumed;
     }
     case 'act':
       decide(state, entry.actorId, ctx);
-      return;
+      return 0;
     case 'deadline':
       deadline(state, ctx);
-      return;
+      return 0;
     case 'transition':
       transition(state, ctx);
-      return;
+      return 0;
   }
 }
 
@@ -397,7 +426,7 @@ export function advance(
     working.nowMs = entry.at;
 
     if (isStale(working, entry)) continue;
-    dispatch(working, ctx, entry);
+    processed += dispatch(working, ctx, entry);
     assertInvariants(working, previousNowMs);
 
     if (working.phase === 'stopped') return finish(true);

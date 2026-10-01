@@ -34,6 +34,7 @@ import * as schema from '../db/schema';
 import type { Database } from '../db/tx';
 import { notOwned } from '../errors';
 import type { SettlementWindow } from '../hunt/clock';
+import { consumedDuring } from '../hunt/rewards';
 import type { Settlement } from '../hunt/settle';
 
 /** 2: no wipe limit, and the consumables spent (owner decision 2026-09-30; R152, R154). */
@@ -130,16 +131,6 @@ const ACTIONS: Record<AwayStatus, readonly AwayAction[]> = {
   'bag-full': ['manage-bag', 'view-hunt'],
   stopped: ['start-hunt'],
 };
-
-/** Units of each consumable spent between two committed states (ruling R152). */
-export function consumedDuring(before: SimState, after: SimState): Record<string, number> {
-  const spent: Record<string, number> = {};
-  for (const id of Object.keys(after.metrics.consumed).sort()) {
-    const units = after.metrics.consumed[id]! - (before.metrics.consumed[id] ?? 0);
-    if (units > 0) spent[id] = units;
-  }
-  return spent;
-}
 
 /** Builds a report from committed deltas. Pure: the same inputs give the same report, and nothing else. */
 export function buildAwayReport(input: AwayReportInput): AwayReport {

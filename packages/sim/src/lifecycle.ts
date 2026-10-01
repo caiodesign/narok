@@ -133,13 +133,14 @@ function characterIdOf(state: SimState, id: ActorId): string {
 }
 
 /**
- * Ruling R152 (owner decision 2026-09-30): Idun's Apple. Called with the party
- * members one cast resolution killed — the instant the simulation resolves
- * deaths in — each of them is revived at once by one apple from the shared
+ * Ruling R152 (owner decision 2026-09-30), as R157 refines it: Idun's Apple.
+ * Called with the party members who died at one instant — one simulated
+ * millisecond, across every cast resolution at it (ruling R157, controller
+ * ruling 2026-10-01; `advance.ts` gathers them before the encounter is
+ * judged) — each of them is revived at once by one apple from the shared
  * bag while the bag holds one, in ascending character id (ASCII), the order
  * simultaneous potion use resolves in, so two members never eat the same
- * apple. Deaths in separate resolutions at the same millisecond resolve in
- * the queue's canonical order instead. Each apple eaten leaves the bag (its
+ * apple and queue order never decides who does. Each apple eaten leaves the bag (its
  * stack and, when emptied, its slot) and is counted in `metrics.consumed`,
  * which the settlement's commit takes off the account's stack. Draws nothing.
  */
