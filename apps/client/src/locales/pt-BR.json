@@ -58,8 +58,6 @@
     "ruleOrderHelp": "As regras são verificadas em ordem; a primeira cuja condição for verdadeira é usada.",
     "run": "Execução",
     "start": "Iniciar experimento",
-    "pause": "Pausar",
-    "resume": "Retomar",
     "stop": "Parar experimento",
     "startHelp": "Iniciar entrega a configuração atual a um novo experimento. A execução anterior fica retida como comparação A.",
     "orders": "Ordens da execução",
@@ -206,7 +204,8 @@
     "active": "Ativa",
     "cooldown": "Recarga",
     "casting": "Conjurando",
-    "unavailable": "MP insuficiente"
+    "unavailable": "MP insuficiente",
+    "passive": "Passiva"
   },
   "castbar": {
     "text": "{{actor}}: {{skill}}",
@@ -226,7 +225,8 @@
     "unavailable": "Precisa de {{cost}} MP; {{actor}} tem {{mp}} MP.",
     "cost": "Custo de MP: {{cost}}",
     "editRule": "Editar a regra de {{skill}}",
-    "noSelection": "Nenhuma habilidade selecionada."
+    "noSelection": "Nenhuma habilidade selecionada.",
+    "passive": "Uma passiva está sempre em efeito e nunca é conjurada."
   },
   "event": {
     "move": "{{actor}} move-se para a célula {{position}}.",
@@ -283,7 +283,8 @@
     "rows": "Linhas de evento",
     "empty": "Nenhum evento ainda.",
     "returnToLatest": "Voltar ao mais recente",
-    "cap": "Mostrando os {{limit}} eventos mais recentes."
+    "cap": "Mostrando os {{limit}} eventos mais recentes.",
+    "loot": "Saque"
   },
   "actor": {
     "label": "{{name}} {{id}}",
@@ -306,7 +307,10 @@
     "minimap": "Minimapa do campo de batalha",
     "gridRange": "{{width}} × {{height}} células",
     "noRun": "Nenhuma execução",
-    "noRunRange": "Nenhuma receita vinculada ainda"
+    "noRunRange": "Nenhuma receita vinculada ainda",
+    "wallet": "Carteira",
+    "bag": "Bolsa",
+    "bagValue": "{{used}} / {{capacity}}"
   },
   "metrics": {
     "elapsed": "Tempo simulado",
@@ -353,5 +357,82 @@
     "tokenCasting": "{{label}}, conjurando {{skill}}",
     "critical": "Crítico",
     "laneNeutral": "Faixa neutra, sem surgimentos"
+  },
+  "hunt": {
+    "orders": "Ordens da caçada",
+    "start": "Iniciar caçada",
+    "stop": "Parar",
+    "newHunt": "Iniciar nova caçada",
+    "startPending": "Iniciando a caçada…",
+    "stopPending": "Voltando à cidade…",
+    "openStrategy": "Editar estratégia",
+    "strategy": "Estratégia",
+    "idleHelp": "Inicie uma caçada com o seu grupo e o preset de estratégia selecionado.",
+    "runningHelp": "Parar leva o grupo de volta à cidade e abandona o encontro atual.",
+    "stoppedHelp": "O encontro anterior foi abandonado. A volta à cidade levou o tempo da viagem, e o grupo inteiro chegou com a vida restaurada.",
+    "unavailable": "Uma caçada precisa de um personagem, um preset de estratégia e um preset de saque nesta conta.",
+    "report": "Um relatório de ausência está pronto."
+  },
+  "playbackState": {
+    "label": "Reprodução",
+    "connecting": "Conectando",
+    "idle": "Sem caçada",
+    "live": "Ao vivo",
+    "buffering": "Carregando",
+    "resyncing": "Ressincronizando",
+    "disconnected": "Reconectando",
+    "faulted": "Caçada com falha",
+    "error": "Erro de conexão"
+  },
+  "serverError": {
+    "title": "O servidor recusou isso",
+    "VALIDATION": "O servidor rejeitou a solicitação por estar malformada.",
+    "UNAUTHENTICATED": "Você não está conectado.",
+    "INVALID_CREDENTIALS": "O e-mail e a senha não conferem.",
+    "FORBIDDEN_ORIGIN": "A solicitação veio de uma origem que o servidor não aceita.",
+    "NOT_OWNED": "Isso não pertence à sua conta.",
+    "NOT_FOUND": "Isso não foi encontrado.",
+    "EMAIL_TAKEN": "Esse e-mail já está cadastrado.",
+    "CONFLICT_STATE_VERSION": "Sua conta mudou depois desta leitura, então nada foi aplicado.",
+    "IDEMPOTENCY_KEY_REUSED": "Essa solicitação já foi enviada com outro conteúdo.",
+    "CONTENT_VERSION_MISMATCH": "O conteúdo do jogo foi atualizado. Recarregue para continuar.",
+    "HUNT_FAULTED": "A caçada falhou e precisa de uma recuperação explícita.",
+    "RULE_VIOLATION": "Isso não é permitido agora.",
+    "RATE_LIMITED": "Solicitações demais. Aguarde um momento e tente de novo.",
+    "INTERNAL": "O servidor falhou inesperadamente.",
+    "MAINTENANCE": "O jogo está em manutenção.",
+    "STALE_GENERATION": "Essa mensagem pertencia a um estado da caçada que não é mais o atual.",
+    "PROTOCOL": "A conexão quebrou o contrato de mensagens.",
+    "BACKPRESSURE": "A conexão ficou para trás e foi reiniciada."
+  },
+  "strategy": {
+    "title": "Estratégia",
+    "subtitle": "seus presets salvos",
+    "presets": "Presets de estratégia salvos",
+    "unsaved": "Alterações não salvas",
+    "unsavedDraft": "Rascunho não salvo",
+    "saved": "Salvo v{{version}}",
+    "revert": "Reverter",
+    "save": "Salvar preset",
+    "saving": "Salvando…",
+    "apply": "Aplicar no próximo encontro",
+    "applying": "Aplicando…",
+    "active": "Ativo: {{name}} v{{version}}",
+    "pending": "Pendente: {{name}} v{{version}}, vale a partir do próximo encontro",
+    "applyNote": "Editando um rascunho. Salvar guarda este preset; Aplicar salva e o coloca na fila para o próximo encontro. Esta luta mantém as regras atuais.",
+    "huntRunning": "Caçada ainda em andamento",
+    "close": "Fechar o editor de estratégia",
+    "closePrompt": "Este preset tem alterações não salvas.",
+    "keepEditing": "Continuar editando",
+    "discard": "Descartar",
+    "conflictHelp": "Seu rascunho continua aqui. Salve ou aplique de novo sobre a versão atual.",
+    "noPresets": "Nenhum preset de estratégia está salvo nesta conta.",
+    "savedNote": "{{name}} salvo como v{{version}}. As regras da caçada não mudaram. Aplique quando quiser.",
+    "queuedNote": "{{name}} v{{version}} salvo e na fila. Vale a partir do próximo encontro; a luta atual mantém as regras.",
+    "revertedNote": "O último preset salvo foi restaurado. As regras da caçada atual não mudaram.",
+    "noHunt": "Nenhuma caçada está em andamento, então não há encontro onde aplicá-lo."
+  },
+  "map": {
+    "prototype": "Mapa protótipo"
   }
 }

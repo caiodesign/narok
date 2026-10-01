@@ -8,17 +8,24 @@
  * The client names no seed, no time and no state; the plan is built here from
  * the account's own records and handed to the lifecycle (P-02).
  */
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { bagState } from '@narok/progression';
-import { applyLootCommandSchema, applyStrategyCommandSchema, startHuntCommandSchema } from '@narok/protocol';
+import { z } from 'zod';
+import {
+  applyLootCommandSchema,
+  applyStrategyCommandSchema,
+  savePresetCommandSchema,
+  startHuntCommandSchema,
+  STRATEGY_PAYLOAD_SCHEMA_VERSION,
+} from '@narok/protocol';
 import { loadBag } from '../db/repositories/inventory';
 import * as schema from '../db/schema';
 import { ConflictError } from '../db/tx';
 import { AppError, notOwned } from '../errors';
 import { applyCommand, CommandSequencer, type CommandDeps } from '../hunt/commands';
 import type { LifecycleFeed } from '../hunt/feed';
-import { readHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../hunt/lifecycle';
+import { readAccountVersion, readHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../hunt/lifecycle';
 import { lootVersions, presetLoot, presetRules, strategyVersions } from '../hunt/pending';
 import { readDropProtection } from '../hunt/rewards';
 import { requireSession } from '../plugins/session';
@@ -145,6 +152,11 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
     return {
       huntId: loaded.envelope.huntId,
       status: loaded.status,
+      // Ruling R172: the hunt read carries its `mapId`, and `GET /api/inventory`
+      // carries the wallet's gold — because part 4 §3.1 binds zone, wallet and
+      // bag occupancy to account state once the server publishes them, and
+      // R108 forbids the HUD from filling them any other way.
+      mapId: loaded.mapId,
       generation: loaded.envelope.generation,
       eventCursor: state.nextDomainSeq,
       stateVersion: loaded.stateVersion,
@@ -238,6 +250,73 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       });
       announce(account.id);
       return outcome.view;
+    } catch (error) {
+      throw asAppError(error);
+    }
+  });
+
+  /**
+   * The account's presets (part 1 §3; ruling R171): what the Strategy screen's
+   * tabs and the start command name. Strategy presets carry their payload,
+   * because the editor shows and edits it; loot presets carry their identity
+   * only until the Bag screen edits them. Ordered by name, then id, so the tab
+   * order is stable across reads.
+   */
+  app.get('/api/presets', async (request) => {
+    const { account } = await caller(request);
+    const strategy = await db
+      .select({
+        id: schema.strategyPresets.id,
+        name: schema.strategyPresets.name,
+        presetVersion: schema.strategyPresets.presetVersion,
+        payloadSchemaVersion: schema.strategyPresets.payloadSchemaVersion,
+        payload: schema.strategyPresets.payload,
+      })
+      .from(schema.strategyPresets)
+      .where(eq(schema.strategyPresets.accountId, account.id))
+      .orderBy(asc(schema.strategyPresets.name), asc(schema.strategyPresets.id));
+    const loot = await db
+      .select({ id: schema.lootPresets.id, name: schema.lootPresets.name, presetVersion: schema.lootPresets.presetVersion })
+      .from(schema.lootPresets)
+      .where(eq(schema.lootPresets.accountId, account.id))
+      .orderBy(asc(schema.lootPresets.name), asc(schema.lootPresets.id));
+    return { strategy, loot, stateVersion: await readAccountVersion(db, account.id) };
+  });
+
+  /**
+   * Save preset (UI spec §5; ruling R171): a new version of an existing
+   * strategy preset's payload. It settles nothing and bumps no generation, so
+   * a running hunt keeps its active and pending versions exactly; applying the
+   * saved version is a separate command (`/api/hunts/current/strategy`).
+   * Creating presets is not this route's: an absent id answers `NOT_OWNED`,
+   * exactly as a foreign one does (P-12).
+   */
+  app.put('/api/presets/:id', async (request) => {
+    const { account } = await caller(request);
+    const key = requireIdempotencyKey(request);
+    const body = parse(savePresetCommandSchema, request.body);
+
+    // Ownership before any rule (P-12); a malformed id is as absent as a missing one.
+    const id = z.uuid().safeParse((request.params as { id?: unknown }).id);
+    if (!id.success) throw notOwned('presetId');
+    const [preset] = await db
+      .select({ id: schema.strategyPresets.id })
+      .from(schema.strategyPresets)
+      .where(and(eq(schema.strategyPresets.id, id.data), eq(schema.strategyPresets.accountId, account.id)));
+    if (preset === undefined) throw notOwned('presetId');
+
+    if (body.payloadSchemaVersion !== STRATEGY_PAYLOAD_SCHEMA_VERSION) {
+      throw new AppError('VALIDATION', 'payloadSchemaVersion');
+    }
+
+    try {
+      const outcome = await applyCommand(commands, account, {
+        command: { kind: 'save-strategy-preset', presetId: id.data, payload: body.payload },
+        expectedStateVersion: body.expectedStateVersion,
+        idempotency: { key: `preset.save:${key}`, requestHash: await hashRequest({ id: id.data, body }) },
+      });
+      const saved = outcome.preset!;
+      return { presetId: saved.presetId, presetVersion: saved.presetVersion, stateVersion: body.expectedStateVersion + 1 };
     } catch (error) {
       throw asAppError(error);
     }

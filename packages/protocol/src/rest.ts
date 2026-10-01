@@ -158,6 +158,23 @@ export const strategyPresetPayloadSchema = z
   .strict();
 export type StrategyPresetPayload = z.infer<typeof strategyPresetPayloadSchema>;
 
+/**
+ * Save preset (part 1 §3, `PUT /api/presets/:id`; UI spec §5): the payload the
+ * player saved and its schema version, guarded by the account version. It
+ * names no preset version — the server allocates the next one — and, unlike
+ * `presetPayloadSchema`, no name: a save changes the rules, not the preset's
+ * identity, so a smuggled rename is refused rather than ignored (ruling R171).
+ *
+ * Ruling R171: the client reads its presets from `GET /api/presets` and saves a
+ * new version with `PUT /api/presets/:id`, sending payload and schema version
+ * only, never a name or a version number — because part 1 §3 lists both
+ * routes, the Strategy screen (part 4 §3.2) cannot exist without them, and the
+ * server alone allocates versions.
+ */
+export const savePresetCommandSchema = z
+  .object({ payload: z.unknown(), payloadSchemaVersion: positiveInt, expectedStateVersion: version })
+  .strict();
+
 export const lootPreviewSchema = z.object({ payload: z.unknown(), payloadSchemaVersion: positiveInt }).strict();
 
 /**

@@ -283,7 +283,13 @@ export function registerTownRoutes(app: FastifyInstance, ctx: RouteContext, serv
   app.get('/api/inventory', async (request) => {
     const { account } = await caller(request);
     const stateVersion = await readAccountVersion(db, account.id);
-    return { ...inventoryView(await loadBag(db, account.id)), stateVersion };
+    // The wallet beside the bag (ruling R172): the HUD binds it rather than
+    // leaving the ledger's gold out (part 4 §3.1, R108).
+    const [wallet] = await db
+      .select({ gold: schema.accounts.gold })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, account.id));
+    return { ...inventoryView(await loadBag(db, account.id)), gold: wallet!.gold, stateVersion };
   });
 
   /** Equip and unequip: the character and the bag change together (part 3 §4; gate B-13). */

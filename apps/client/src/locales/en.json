@@ -58,8 +58,6 @@
     "ruleOrderHelp": "Rules are scanned in order; the first one whose condition holds is cast.",
     "run": "Run",
     "start": "Start experiment",
-    "pause": "Pause",
-    "resume": "Resume",
     "stop": "Stop experiment",
     "startHelp": "Starting hands the current setup to a new experiment. The previous run is retained as comparison A.",
     "orders": "Run orders",
@@ -206,7 +204,8 @@
     "active": "Active",
     "cooldown": "Cooldown",
     "casting": "Casting",
-    "unavailable": "Not enough MP"
+    "unavailable": "Not enough MP",
+    "passive": "Passive"
   },
   "castbar": {
     "text": "{{actor}}: {{skill}}",
@@ -226,7 +225,8 @@
     "unavailable": "Needs {{cost}} MP; {{actor}} has {{mp}} MP.",
     "cost": "MP cost: {{cost}}",
     "editRule": "Edit the rule for {{skill}}",
-    "noSelection": "No skill selected."
+    "noSelection": "No skill selected.",
+    "passive": "A passive is always in effect and is never cast."
   },
   "event": {
     "move": "{{actor}} moves to cell {{position}}.",
@@ -283,7 +283,8 @@
     "rows": "Event rows",
     "empty": "No events yet.",
     "returnToLatest": "Return to latest",
-    "cap": "Showing the most recent {{limit}} events."
+    "cap": "Showing the most recent {{limit}} events.",
+    "loot": "Loot"
   },
   "actor": {
     "label": "{{name}} {{id}}",
@@ -306,7 +307,10 @@
     "minimap": "Battlefield minimap",
     "gridRange": "{{width}} × {{height}} cells",
     "noRun": "No run",
-    "noRunRange": "No recipe bound yet"
+    "noRunRange": "No recipe bound yet",
+    "wallet": "Wallet",
+    "bag": "Bag",
+    "bagValue": "{{used}} / {{capacity}}"
   },
   "metrics": {
     "elapsed": "Simulated elapsed",
@@ -353,5 +357,82 @@
     "tokenCasting": "{{label}}, casting {{skill}}",
     "critical": "Critical",
     "laneNeutral": "Neutral lane, no spawns"
+  },
+  "hunt": {
+    "orders": "Hunt orders",
+    "start": "Start hunt",
+    "stop": "Stop",
+    "newHunt": "Start a new hunt",
+    "startPending": "Starting the hunt…",
+    "stopPending": "Returning to town…",
+    "openStrategy": "Edit strategy",
+    "strategy": "Strategy",
+    "idleHelp": "Start a hunt with your party and the selected strategy preset.",
+    "runningHelp": "Stop returns the party to town and abandons the current encounter.",
+    "stoppedHelp": "The previous encounter was abandoned. The return to town took travel time, and the whole party arrived fully healed.",
+    "unavailable": "A hunt needs a character, a strategy preset and a loot preset on this account.",
+    "report": "An away report is ready."
+  },
+  "playbackState": {
+    "label": "Playback",
+    "connecting": "Connecting",
+    "idle": "No hunt",
+    "live": "Live",
+    "buffering": "Buffering",
+    "resyncing": "Resynchronising",
+    "disconnected": "Reconnecting",
+    "faulted": "Hunt faulted",
+    "error": "Connection error"
+  },
+  "serverError": {
+    "title": "The server refused that",
+    "VALIDATION": "The server rejected that request as malformed.",
+    "UNAUTHENTICATED": "You are not signed in.",
+    "INVALID_CREDENTIALS": "That email and password do not match.",
+    "FORBIDDEN_ORIGIN": "That request came from an origin the server does not accept.",
+    "NOT_OWNED": "That does not belong to your account.",
+    "NOT_FOUND": "That was not found.",
+    "EMAIL_TAKEN": "That email is already registered.",
+    "CONFLICT_STATE_VERSION": "Your account changed after this was read, so nothing was applied.",
+    "IDEMPOTENCY_KEY_REUSED": "That request was already sent with different contents.",
+    "CONTENT_VERSION_MISMATCH": "The game content was updated. Reload to continue.",
+    "HUNT_FAULTED": "The hunt is faulted and needs an explicit recovery.",
+    "RULE_VIOLATION": "That is not allowed right now.",
+    "RATE_LIMITED": "Too many requests. Wait a moment and try again.",
+    "INTERNAL": "The server failed unexpectedly.",
+    "MAINTENANCE": "The game is in maintenance.",
+    "STALE_GENERATION": "That message belonged to a hunt state that is no longer current.",
+    "PROTOCOL": "The connection broke its message contract.",
+    "BACKPRESSURE": "The connection fell behind and was reset."
+  },
+  "strategy": {
+    "title": "Strategy",
+    "subtitle": "your saved presets",
+    "presets": "Saved strategy presets",
+    "unsaved": "Unsaved changes",
+    "unsavedDraft": "Unsaved draft",
+    "saved": "Saved v{{version}}",
+    "revert": "Revert",
+    "save": "Save preset",
+    "saving": "Saving…",
+    "apply": "Apply next encounter",
+    "applying": "Applying…",
+    "active": "Active: {{name}} v{{version}}",
+    "pending": "Pending: {{name}} v{{version}}, takes effect at the next encounter",
+    "applyNote": "Editing a draft. Save stores this preset; Apply saves and queues it for the next encounter. This fight keeps its current rules.",
+    "huntRunning": "Hunt still running",
+    "close": "Close strategy editor",
+    "closePrompt": "This preset has unsaved changes.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard",
+    "conflictHelp": "Your draft is still here. Save or apply again against the current version.",
+    "noPresets": "No strategy preset is saved on this account.",
+    "savedNote": "{{name}} saved as v{{version}}. Hunt rules unchanged. Apply when ready.",
+    "queuedNote": "{{name}} v{{version}} saved and queued. It takes effect at the next encounter; the current fight keeps its rules.",
+    "revertedNote": "Restored the last saved preset. Current hunt rules unchanged.",
+    "noHunt": "No hunt is running, so there is no encounter to apply it to."
+  },
+  "map": {
+    "prototype": "Prototype map"
   }
 }

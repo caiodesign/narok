@@ -9,7 +9,9 @@
  * - Roster size, recipe and seed have no counterpart on a game screen, which
  *   starts from a party that already exists. They are the laboratory's own and
  *   use the design's `.section` / `.subhead` / `.chips` / `.rule` vocabulary
- *   rather than a new one.
+ *   rather than a new one; they render only when the laboratory passes their
+ *   handlers. A saved strategy preset (milestone B) holds placement, rules and
+ *   rest, and its seed is the server's (part 1 §2), so it shows neither.
  *
  * Dropped whole: potions and the bag-full policy (no items in A), "return to
  * town" (no town, and travel costs are an open milestone B decision), and the
@@ -20,14 +22,15 @@ import { useTranslation } from 'react-i18next';
 import type { Content, RecipeId } from '@narok/data';
 import type { LabInput } from '@narok/sim';
 import { formatNumber, type Translate } from '../../i18n';
-import type { ValidationIssue } from '../../validation';
+import type { PresetDraft, ValidationIssue } from '../../validation';
 
 export interface PartyRulesPaneProps {
   content: Content;
-  draft: LabInput;
-  onRosterSize: (size: number) => void;
-  onRecipe: (recipe: RecipeId | 'mixed') => void;
-  onSeed: (seed: number) => void;
+  draft: PresetDraft & Partial<Pick<LabInput, 'seed' | 'recipe'>>;
+  /** The laboratory's roster, recipe and seed controls; omitted on a saved preset. */
+  onRosterSize?: (size: number) => void;
+  onRecipe?: (recipe: RecipeId | 'mixed') => void;
+  onSeed?: (seed: number) => void;
   onRest: (part: 'hpStart' | 'mpStart', value: number) => void;
   issuesFor: (field: string) => ValidationIssue[];
 }
@@ -58,6 +61,7 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
         {t('controls.partyRules')}
       </h2>
       <div className="pane-body">
+        {props.onRosterSize !== undefined && (
         <div className="section">
           <fieldset className="chips chips--grid">
             <legend className="subhead">{t('controls.rosterSize')}</legend>
@@ -69,7 +73,7 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
                   value={size}
                   aria-label={t('controls.rosterSizeOption', { count: size })}
                   checked={draft.classes.length === size}
-                  onChange={() => props.onRosterSize(size)}
+                  onChange={() => props.onRosterSize?.(size)}
                 />
                 <span className="num">{formatNumber(size, language)}</span>
               </label>
@@ -77,7 +81,9 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
           </fieldset>
           <Alerts issues={props.issuesFor('classes')} />
         </div>
+        )}
 
+        {props.onRecipe !== undefined && props.onSeed !== undefined && (
         <div className="section">
           <h3 className="subhead">
             {t('controls.recipeAndSeed')}
@@ -87,7 +93,7 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
             <label className="rule-label" htmlFor="recipe">
               {t('controls.recipe')}
             </label>
-            <select id="recipe" value={draft.recipe} onChange={(event) => props.onRecipe(event.target.value as RecipeId | 'mixed')}>
+            <select id="recipe" value={draft.recipe} onChange={(event) => props.onRecipe?.(event.target.value as RecipeId | 'mixed')}>
               {[...Object.keys(content.recipes), 'mixed'].map((recipeId) => (
                 <option key={recipeId} value={recipeId}>
                   {t(`recipe.${recipeId}`)}
@@ -105,11 +111,12 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
               type="number"
               className="val num"
               value={draft.seed}
-              onChange={(event) => props.onSeed(Number(event.target.value))}
+              onChange={(event) => props.onSeed?.(Number(event.target.value))}
             />
           </div>
           <Alerts issues={props.issuesFor('seed')} />
         </div>
+        )}
 
         <div className="section">
           <h3 className="subhead">{t('controls.restBetween')}</h3>

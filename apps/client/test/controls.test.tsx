@@ -202,8 +202,6 @@ describe('ExperimentControls', () => {
         content={content}
         status="idle"
         onStart={onStart}
-        onPause={vi.fn()}
-        onResume={vi.fn()}
         onStop={vi.fn()}
         onSpeedChange={vi.fn()}
       />,

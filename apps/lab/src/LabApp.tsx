@@ -28,7 +28,6 @@ import { Battlefield } from '@narok/client/src/hud/Battlefield';
 import { ChatPanel } from '@narok/client/src/hud/ChatPanel';
 import { CommandBar } from '@narok/client/src/hud/CommandBar';
 import { Compass } from '@narok/client/src/hud/Compass';
-import { OrdersPanel } from '@narok/client/src/hud/OrdersPanel';
 import { PartyPanel } from '@narok/client/src/hud/PartyPanel';
 import { SessionPanel } from '@narok/client/src/hud/SessionPanel';
 import { SetupOverlay } from '@narok/client/src/hud/SetupOverlay';
@@ -36,6 +35,7 @@ import { SpriteSheet } from '@narok/client/src/hud/SpriteSheet';
 import { TargetFrame } from '@narok/client/src/hud/TargetFrame';
 import { WorldBackdrop } from '@narok/client/src/hud/WorldBackdrop';
 import type { ComparisonRun } from './Comparison';
+import { LabOrdersPanel } from './LabOrdersPanel';
 import { LabStrip } from './LabStrip';
 import { RunsPanel } from './RunsPanel';
 import { buildSessionExport, downloadJson, sessionExportFilename } from './exportSession';
@@ -207,7 +207,7 @@ export function LabApp(): React.JSX.Element {
           recipeId={shownInput?.recipe ?? null}
         />
         <RunsPanel runs={runs} />
-        <OrdersPanel
+        <LabOrdersPanel
           status={status}
           speed={speed}
           canStart={draft.canStart}
@@ -229,8 +229,6 @@ export function LabApp(): React.JSX.Element {
         content={content}
         status={status}
         onStart={onStart}
-        onPause={pause}
-        onResume={resume}
         onStop={onStop}
         onSpeedChange={onSpeedChange}
         onDraftChange={onDraftChange}

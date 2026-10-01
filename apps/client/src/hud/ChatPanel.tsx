@@ -8,8 +8,10 @@
  * `.scroll` chrome. This component is only the window around it, so the panel and
  * the log cannot drift apart.
  *
- * The reference shows three tabs; milestone A has no loot event of any kind, so the
- * Loot tab is not rendered — an empty tab would be a promise the build cannot keep.
+ * The reference shows three tabs, and so does this window again: milestone A had
+ * no loot event and left the Loot tab out (R108); milestone B's server publishes
+ * one, so the tab returns *bound* to it (part 4 §3.1) — it lists the loot events
+ * the socket released and nothing invented.
  */
 import { useTranslation } from 'react-i18next';
 import type { DomainEvent, PublicActor } from '@narok/sim';

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@narok/data": "workspace:*",
+    "@narok/protocol": "workspace:*",
     "i18next": "26.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

@@ -1,133 +1,161 @@
 /**
- * The rail's orders window — `codex-examples/realm-refined/hunt.html:1370-1384`,
- * repurposed.
+ * The rail's orders window — `codex-examples/realm-refined/hunt.html:1370-1384`.
  *
- * "Orders" in the reference is what the hunt has been told to do, and in this
- * build that is the run itself: how fast the playback clock runs, where the
- * setup is edited, and whether the experiment is running at all. The reference's
- * two orders — Strategy and Loot filter — do not survive: strategy already has
- * its own panel in the setup form, and there is no loot to filter.
+ * "Orders" in the reference is what the hunt has been told to do: its strategy
+ * preset, and the one sealed action that is next. In the game client that
+ * action is a command to the server, never a local clock operation, so this
+ * window carries exactly two run controls (owner's Stop decision, ruling R166):
  *
- * The four run actions keep the exact accessible names ruling R81 fixed
- * (`controls.start` / `controls.pause` / `controls.resume` / `controls.stop`),
- * because the unit suite and the Playwright smoke locate them by name. All four
- * are always in the document and each is enabled exactly while its action is
- * legal — a button that vanished when illegal would take its name out of reach
- * of `getByRole`, which `apps/client/test/app.test.tsx` asserts at idle.
+ *  - **Start hunt** — `POST /api/hunts`;
+ *  - **Stop** — `POST /api/hunts/current/stop`: the party returns to town and
+ *    the current encounter is abandoned. There is no resume. Once the hunt is
+ *    stopped this second control **starts a new hunt**, and the helper copy
+ *    says what the stop cost: the encounter was abandoned and the return took
+ *    travel time. A wipe ends a hunt the same way, so the copy names no
+ *    respawn and no wipe limit — neither exists (owner decision 2026-09-30).
+ *
+ * Each control shows *pending* until the server answers, and is disabled
+ * meanwhile: the client never presents a command as done before it is
+ * acknowledged (part 4 §3.1). There is no Pause and no Resume here or anywhere
+ * on the hunt path; the laboratory's pausable clock has its own panel in
+ * `apps/lab`. There is no speed control either: production playback speed is
+ * an open decision (part 4 §2), and the hunt plays at 1×.
+ *
+ * Both controls are always in the document, each enabled exactly while its
+ * action is legal, so their names stay reachable by `getByRole`.
+ *
+ * Ruling R166 (milestone B Task 9; the plan's R132): Stop is a command that
+ * returns the party to town and abandons the encounter, there is no resume,
+ * and once stopped the second control starts a new hunt whose copy says the
+ * encounter was abandoned and the return took travel time; no client path
+ * pauses authoritative time, and the Pause and Resume affordances and their
+ * locale keys leave the hunt path for `apps/lab` — because the owner decided
+ * Stop that way (index §4.0), and a pause on a server-owned clock would be the
+ * client asserting time (part 4 §1).
  */
 import { useTranslation } from 'react-i18next';
-import { formatNumber, type Translate } from '../i18n';
 import type { ExperimentStatus } from '../status';
 
-/** The only speeds `useExperiment.setSpeed` accepts; anything else is ignored there. */
-const SPEEDS = [1, 4, 16] as const;
+export type OrdersPending = 'start' | 'stop' | null;
 
 export interface OrdersPanelProps {
   status: ExperimentStatus;
-  speed: number;
   canStart: boolean;
+  pending: OrdersPending;
+  /** The strategy preset a start would run, by its saved name; `null` when there is none. */
+  strategyName: string | null;
   onStart: () => void;
-  onPause: () => void;
-  onResume: () => void;
   onStop: () => void;
-  onSpeedChange: (speed: number) => void;
-  onOpenSetup: () => void;
+  onOpenStrategy: () => void;
 }
 
-function RunButton({
-  label,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  disabled: boolean;
-  onClick: () => void;
-}): React.JSX.Element {
+interface Control {
+  readonly key: 'start' | 'stop';
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly busy: boolean;
+  readonly onClick: () => void;
+}
+
+function SealedButton({ control }: { control: Control }): React.JSX.Element {
   return (
-    <button className="stop" type="button" disabled={disabled} onClick={onClick}>
+    <button
+      className="stop"
+      type="button"
+      disabled={control.disabled}
+      aria-busy={control.busy}
+      onClick={control.onClick}
+    >
       <span className="stop-seal" aria-hidden="true">
         <i />
       </span>
-      {label}
+      {control.label}
     </button>
   );
 }
 
 export function OrdersPanel({
   status,
-  speed,
   canStart,
+  pending,
+  strategyName,
   onStart,
-  onPause,
-  onResume,
   onStop,
-  onSpeedChange,
-  onOpenSetup,
+  onOpenStrategy,
 }: OrdersPanelProps): React.JSX.Element {
-  const { t: rawT, i18n } = useTranslation();
-  const t = rawT as unknown as Translate;
-  const language = i18n.language;
+  const { t } = useTranslation();
 
-  const index = SPEEDS.indexOf(speed as (typeof SPEEDS)[number]);
-  const current = index === -1 ? SPEEDS[0] : SPEEDS[index];
-  const next = SPEEDS[(index === -1 ? 0 : index + 1) % SPEEDS.length];
+  const running = status === 'running';
+  const stopped = status === 'stopped';
+  const waiting = pending !== null;
 
-  const idle = status === 'idle' || status === 'stopped' || status === 'error';
+  const first: Control = {
+    key: 'start',
+    label: pending === 'start' && !stopped ? t('hunt.startPending') : t('hunt.start'),
+    disabled: waiting || running || stopped || !canStart,
+    busy: pending === 'start' && !stopped,
+    onClick: onStart,
+  };
 
-  /**
-   * The reference seals exactly one action into this window, so only the run
-   * action that is actually next takes the seal. The other three stay as compact
-   * controls: every name has to remain reachable by `getByRole` even while its
-   * action is illegal (R81), so none of them is ever unmounted.
-   */
-  const primary = status === 'running' ? 'pause' : status === 'paused' ? 'resume' : 'start';
+  // The second control: Stop while a hunt runs, and the way to a new hunt once it has stopped.
+  const second: Control = stopped
+    ? {
+        key: 'start',
+        label: pending === 'start' ? t('hunt.startPending') : t('hunt.newHunt'),
+        disabled: waiting || !canStart,
+        busy: pending === 'start',
+        onClick: onStart,
+      }
+    : {
+        key: 'stop',
+        label: pending === 'stop' ? t('hunt.stopPending') : t('hunt.stop'),
+        disabled: waiting || !running,
+        busy: pending === 'stop',
+        onClick: onStop,
+      };
 
-  const secondary: readonly { key: string; label: string; disabled: boolean; onClick: () => void }[] = [
-    { key: 'start', label: t('controls.start'), disabled: !canStart || !idle, onClick: onStart },
-    { key: 'pause', label: t('controls.pause'), disabled: status !== 'running', onClick: onPause },
-    { key: 'resume', label: t('controls.resume'), disabled: status !== 'paused', onClick: onResume },
-    { key: 'stop', label: t('controls.stop'), disabled: idle, onClick: onStop },
-  ].filter((action) => action.key !== primary);
+  // The reference seals the one action that is next; the other stays compact.
+  const sealed = running || stopped ? second : first;
+  const compact = sealed === first ? second : first;
 
-  const sealed = {
-    start: { label: t('controls.start'), disabled: !canStart || !idle, onClick: onStart },
-    pause: { label: t('controls.pause'), disabled: status !== 'running', onClick: onPause },
-    resume: { label: t('controls.resume'), disabled: status !== 'paused', onClick: onResume },
-  }[primary];
+  const help = running
+    ? t('hunt.runningHelp')
+    : stopped
+      ? t('hunt.stoppedHelp')
+      : canStart || waiting
+        ? t('hunt.idleHelp')
+        : t('hunt.unavailable');
 
   return (
-    <section className="orders win" aria-label={t('controls.orders')}>
-      <button className="preset" type="button" onClick={() => onSpeedChange(next)}>
-        <span className="preset-kind">{t('playback.speed')}</span>
-        <span className="preset-value">{t('playback.speedOption', { value: formatNumber(current, language) })}</span>
-      </button>
-
-      <button className="preset" type="button" onClick={onOpenSetup}>
-        <span className="preset-kind">{t('controls.section')}</span>
-        <span className="preset-value">{t('controls.openSetup')}</span>
+    <section className="orders win" aria-label={t('hunt.orders')}>
+      <button className="preset" type="button" onClick={onOpenStrategy}>
+        <span className="preset-kind">{t('hunt.strategy')}</span>
+        <span className="preset-value">{strategyName ?? t('strategy.noPresets')}</span>
         <span className="preset-edit">
           <svg aria-hidden="true">
             <use href="#i-quill" />
           </svg>
-          {t('controls.edit')}
+          {t('hunt.openStrategy')}
         </span>
       </button>
 
-      <RunButton label={sealed.label} disabled={sealed.disabled} onClick={sealed.onClick} />
+      <SealedButton control={sealed} />
 
       <div className="run-actions">
-        {secondary.map((action) => (
-          <button
-            key={action.key}
-            className="preset-edit"
-            type="button"
-            disabled={action.disabled}
-            onClick={action.onClick}
-          >
-            {action.label}
-          </button>
-        ))}
+        <button
+          className="preset-edit"
+          type="button"
+          disabled={compact.disabled}
+          aria-busy={compact.busy}
+          onClick={compact.onClick}
+        >
+          {compact.label}
+        </button>
       </div>
+
+      <p className="hint" data-testid="orders-help">
+        {help}
+      </p>
     </section>
   );
 }

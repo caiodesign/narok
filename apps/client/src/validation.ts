@@ -1,10 +1,19 @@
 /**
- * Client-side pre-validation for a draft `LabInput` (ruling R55). Runs before
- * `start` is enabled so the operator gets immediate feedback; the worker's real
- * `Simulation.start` still performs full authoritative validation regardless.
+ * Client-side pre-flight feedback for a draft (ruling R55; part 4 §1 "Lost").
  *
- * Returns `{field, messageKey}[]` — i18n keys under `validation.*`, never English
- * sentences, so Task 10 can localize this list without touching this module.
+ * It runs while the player edits, so a cell outside the party rows or an
+ * out-of-range threshold is flagged before anything is sent. It is feedback
+ * only: the server's validation is the one that counts (layer-1 §8.1), and a
+ * draft this module accepts may still be refused. Every refusal the client
+ * renders from a command comes from the server's stable code, localised as
+ * `serverError.<CODE>` through `i18n.ts` — never from this module and never
+ * from client English. This module, likewise, returns only `{field,
+ * messageKey}` pairs keyed under `validation.*`.
+ *
+ * Two entry points: `validateLabInput` for the laboratory's experiment, which
+ * also names a seed, a recipe and a roster; `validatePresetDraft` for a saved
+ * strategy preset, whose party is the account's characters and whose seed is
+ * the server's, so it checks placement, rules and rest only.
  */
 import type { Content } from '@narok/data';
 import type { LabInput } from '@narok/sim';
@@ -49,6 +58,9 @@ function parsePosition(position: string): { column: number; row: number } | null
   return { column: Number(match[1]), row: Number(match[2]) };
 }
 
+/** What a strategy preset holds (payload schema version 1), with the party it is drafted for. */
+export type PresetDraft = Pick<LabInput, 'classes' | 'placement' | 'strategies' | 'rest'>;
+
 export function validateLabInput(input: LabInput, content: Content): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -70,6 +82,13 @@ export function validateLabInput(input: LabInput, content: Content): ValidationI
     issues.push({ field: 'recipe', messageKey: 'validation.unknownRecipe' });
   }
 
+  issues.push(...validatePresetDraft(input, content));
+  return issues;
+}
+
+/** Placement, rest and rules: the parts of a draft a saved preset carries. */
+export function validatePresetDraft(input: PresetDraft, content: Content): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   const rosterIds = input.classes.map((_, index) => `p${index}`);
   const placementKeys = Object.keys(input.placement);
   const hasEveryRosterId = rosterIds.every((id) => Object.hasOwn(input.placement, id));

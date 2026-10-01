@@ -38,6 +38,9 @@ importers:
       '@narok/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@narok/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@6.0.3)

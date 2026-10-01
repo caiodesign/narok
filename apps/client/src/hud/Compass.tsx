@@ -15,9 +15,15 @@
  *    names the recipe the run was actually started with plus the real grid
  *    geometry;
  *  - the ledger keeps four measured entries. The reference's "Premium offline"
- *    and "Bag" entries are dropped: there is no premium system, no wallet and no
- *    inventory in this build, and premium wording is forbidden outright
- *    (realm-ui-spec §9, milestone spec §11).
+ *    entry is dropped: premium wording is forbidden outright (realm-ui-spec §9,
+ *    milestone spec §11).
+ *
+ * Milestone B binds what R108 left out, now that the server publishes it (part
+ * 4 §3.1): given `zone`, the block names the map the hunt runs on; given
+ * `wallet`, the ledger gains the reference's Gold and Bag entries, read from
+ * the account (`GET /api/inventory`) — never filled in when absent. And given
+ * `playback`, the state pill says when the client is buffering, resynchronising
+ * or reconnecting, rather than presenting a held frame as live.
  *
  * Nothing here invents a number. An unmeasurable figure renders `value.none`.
  */
@@ -27,14 +33,29 @@ import type { GridConfig } from '@narok/data';
 import type { PositionId, PublicState } from '@narok/sim';
 import { classNames, splitSides } from './model';
 import { formatMeasuredDuration, formatNumber, type Translate } from '../i18n';
+import type { PlaybackStatus } from '../playback';
 import type { ExperimentStatus } from '../status';
+
+/** The account's wallet and bag occupancy, as the server reports them. */
+export interface CompassWallet {
+  gold: number;
+  usedSlots: number;
+  capacity: number;
+}
 
 export interface CompassProps {
   state: PublicState | null;
   grid: GridConfig;
   status: ExperimentStatus;
   recipeId: string | null;
+  /** The map the hunt runs on (`GET /api/hunts/current`); takes the recipe's place. */
+  zone?: string | null;
+  wallet?: CompassWallet | null;
+  playback?: PlaybackStatus;
 }
+
+/** Playback states worth naming over the phase: the frame on screen is not live. */
+const HELD: ReadonlySet<PlaybackStatus> = new Set(['buffering', 'resyncing', 'disconnected', 'faulted', 'error']);
 
 /**
  * The reference's minimap is a 200x200 viewBox clipped to a circle of radius 80
@@ -100,7 +121,7 @@ function LedgerItem({
   );
 }
 
-export function Compass({ state, grid, status, recipeId }: CompassProps): React.JSX.Element {
+export function Compass({ state, grid, status, recipeId, zone = null, wallet = null, playback }: CompassProps): React.JSX.Element {
   const { t: rawT, i18n } = useTranslation();
   const t = rawT as unknown as Translate;
   const language = i18n.language;
@@ -120,7 +141,18 @@ export function Compass({ state, grid, status, recipeId }: CompassProps): React.
 
   const metrics = state?.metrics ?? null;
 
-  const huntState = state === null ? t(`status.${status}`) : t(`phase.${state.phase}`);
+  const huntState =
+    playback !== undefined && HELD.has(playback) && status === 'running'
+      ? t(`playbackState.${playback}`)
+      : state === null
+        ? t(`status.${status}`)
+        : t(`phase.${state.phase}`);
+  const walletGold = wallet === null ? null : formatNumber(wallet.gold, language);
+  const bag =
+    wallet === null
+      ? null
+      : t('compass.bagValue', { used: formatNumber(wallet.usedSlots, language), capacity: formatNumber(wallet.capacity, language) });
+  const zoneName = zone !== null ? t(`map.${zone}`, { defaultValue: zone }) : null;
   const gold = metrics === null ? t('value.none') : formatNumber(metrics.rawGold, language);
   const kills = metrics === null ? t('value.none') : formatNumber(metrics.kills, language);
   const elapsed = formatMeasuredDuration(state?.nowMs ?? null, t, language);
@@ -212,10 +244,10 @@ export function Compass({ state, grid, status, recipeId }: CompassProps): React.
        */}
       <div className="zone">
         <h2 className="zone-name">
-          {recipeId === null ? t('compass.noRun') : t(`recipe.${recipeId}`, { defaultValue: recipeId })}
+          {zoneName ?? (recipeId === null ? t('compass.noRun') : t(`recipe.${recipeId}`, { defaultValue: recipeId }))}
         </h2>
         <span className="zone-range">
-          {recipeId === null
+          {zoneName === null && recipeId === null
             ? t('compass.noRunRange')
             : t('compass.gridRange', {
                 width: formatNumber(grid.width, language),
@@ -225,9 +257,30 @@ export function Compass({ state, grid, status, recipeId }: CompassProps): React.
       </div>
 
       <div className="ledger">
+        {walletGold !== null && bag !== null && (
+          <>
+            <LedgerItem
+              glyph="i-coin"
+              modifier="ledger-gold"
+              caption={t('compass.wallet')}
+              label={`${t('compass.wallet')}: ${walletGold}`}
+            >
+              <span className="num">{walletGold}</span>
+            </LedgerItem>
+            <LedgerItem
+              glyph="i-bag"
+              modifier="ledger-bag"
+              glyphColor="#c9a46a"
+              caption={t('compass.bag')}
+              label={`${t('compass.bag')}: ${bag}`}
+            >
+              <span className="num">{bag}</span>
+            </LedgerItem>
+          </>
+        )}
         <LedgerItem
           glyph="i-coin"
-          modifier="ledger-gold"
+          modifier={wallet === null ? 'ledger-gold' : undefined}
           caption={t('metrics.rawGold')}
           label={`${t('metrics.rawGold')}: ${gold}`}
         >

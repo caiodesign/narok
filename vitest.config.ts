@@ -9,7 +9,8 @@ import { defineConfig } from 'vitest/config';
  * `db` is the suites that talk to PostgreSQL. They share one database and each
  * truncates between cases, so running their *files* in parallel makes them
  * truncate each other's rows mid-assertion — which showed up as every suite
- * failing together while each passed alone. `singleFork` serialises the files
+ * failing together while each passed alone. One worker with no file parallelism
+ * serialises the files
  * and keeps the truncation honest.
  */
 export default defineConfig({
@@ -28,7 +29,9 @@ export default defineConfig({
           include: ['**/test/**/*.db.test.ts'],
           exclude: ['**/node_modules/**', '**/.claude/**', '**/artifacts/**', '**/e2e/**'],
           pool: 'forks',
-          poolOptions: { forks: { singleFork: true } },
+          // Vitest 4 removed `poolOptions.forks.singleFork`; one worker and no
+          // file parallelism is its replacement (the v4 pool-rework guide).
+          maxWorkers: 1,
           fileParallelism: false,
         },
       },

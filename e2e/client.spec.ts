@@ -17,3 +17,11 @@ test('the client renders the Realm HUD and starts no simulation worker', async (
   await expect(page.getByRole('button', { name: 'Start experiment', exact: true })).toHaveCount(0);
   expect(workers).toEqual([]);
 });
+
+test('the hunt shell offers Start hunt and Stop, and never Pause or Resume (R166)', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveTitle('Narok hunt');
+  await expect(page.getByRole('button', { name: 'Start hunt', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /pause|resume/i })).toHaveCount(0);
+});

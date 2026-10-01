@@ -160,15 +160,17 @@ export function skillActivity(actor: PublicActor, skill: SkillDefinition, nowMs:
 }
 
 /** `hunt.html`'s slot state modifiers, keyed by the activity above. */
-const SLOT_MODIFIERS: Record<SkillActivity, string> = {
+const SLOT_MODIFIERS: Record<SkillActivity | 'passive', string> = {
   ready: 'slot--ready',
   active: 'slot--active',
   cooldown: 'slot--cooldown',
   casting: 'slot--casting',
   unavailable: 'slot--starved',
+  // Never yielded by `skillActivity` (R84); drawn only by `SkillSlot` (R173).
+  passive: 'slot--passive',
 };
 
-export function slotModifier(activity: SkillActivity): string {
+export function slotModifier(activity: SkillActivity | 'passive'): string {
   return SLOT_MODIFIERS[activity];
 }
 
