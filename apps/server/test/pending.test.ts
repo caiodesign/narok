@@ -21,7 +21,6 @@ function swapped() {
   return presetPayload({
     placement: { p0: input.placement.p1, p1: input.placement.p0, p2: input.placement.p2 },
     rest: { hpStart: 70, mpStart: 60 },
-    wipeLimit: 3,
   });
 }
 
@@ -41,7 +40,7 @@ describe('the queued payload is a deep validated copy (B-L14)', () => {
 
     // The same object the row was read into, edited in place afterwards.
     row.rest.hpStart = 5;
-    row.wipeLimit = 1;
+    row.strategies.p0!.target = { kind: 'highest-hp' };
     (row.placement as Record<string, string>).p0 = '0,0';
 
     expect(sim.decode(queued.state).pendingRules).toEqual(swapped());
@@ -50,9 +49,10 @@ describe('the queued payload is a deep validated copy (B-L14)', () => {
 
   test('an unactivatable payload never reaches the checkpoint', () => {
     const before = envelope();
-    expect(refusal(() => queueStrategy(sim, before, { presetId: PRESET, presetVersion: 1, payload: { ...swapped(), wipeLimit: 9 } }, { commandId: 'c1' }))).toEqual({
+    expect(refusal(() => queueStrategy(sim, before, { presetId: PRESET, presetVersion: 1, payload: { ...swapped(), wipeLimit: 1 } as never }, { commandId: 'c1' }))).toEqual({
+      // There is no wipe limit (ruling R154): the strict payload refuses one.
       code: 'VALIDATION',
-      field: 'strategyPreset.wipeLimit',
+      field: 'strategyPreset',
     });
     expect(refusal(() => queueStrategy(sim, before, { presetId: PRESET, presetVersion: 1, payload: { ...swapped(), rest: { hpStart: 99, mpStart: 0 } } }, { commandId: 'c1' }))).toEqual({
       code: 'VALIDATION',
@@ -71,13 +71,13 @@ describe('the queued payload is a deep validated copy (B-L14)', () => {
 describe('at most one pending strategy per hunt (B-L16)', () => {
   test('a newer acknowledged apply replaces the pending one; the replaced version is discarded', async () => {
     const first = queueStrategy(sim, envelope(), { presetId: PRESET, presetVersion: 2, payload: swapped() }, { commandId: 'c1' });
-    const second = queueStrategy(sim, first, { presetId: PRESET, presetVersion: 3, payload: { ...swapped(), wipeLimit: 4 } }, { commandId: 'c2' });
+    const second = queueStrategy(sim, first, { presetId: PRESET, presetVersion: 3, payload: { ...swapped(), rest: { hpStart: 40, mpStart: 10 } } }, { commandId: 'c2' });
 
     expect(second.pendingStrategy).toMatchObject({ presetVersion: 3, commandId: 'c2' });
-    expect(sim.decode(second.state).pendingRules?.wipeLimit).toBe(4);
+    expect(sim.decode(second.state).pendingRules?.rest).toEqual({ hpStart: 40, mpStart: 10 });
 
     const spawned = await settle(second, W0 + 2_000, real);
-    expect(sim.decode(spawned.envelope.state).input.wipeLimit).toBe(4);
+    expect(sim.decode(spawned.envelope.state).input.rest).toEqual({ hpStart: 40, mpStart: 10 });
     expect(spawned.envelope.activeStrategy).toEqual({ presetId: PRESET, presetVersion: 3 });
   });
 });
@@ -96,7 +96,7 @@ describe('active and pending are exposed separately', () => {
     // Short of the first spawn (the walk completes at 2,000 ms) nothing activates.
     const walking = await settle(queued, W0 + 1_999, real);
     expect(strategyVersions(walking.envelope).pendingVersion).toEqual({ presetId: PRESET, presetVersion: 2 });
-    expect(sim.decode(walking.envelope.state).input.wipeLimit).toBe(1);
+    expect(sim.decode(walking.envelope.state).input).toEqual(labInput());
 
     const spawned = await settle(walking.envelope, W0 + 2_000, real);
     expect(strategyVersions(spawned.envelope)).toEqual({

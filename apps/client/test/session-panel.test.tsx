@@ -22,7 +22,7 @@ function state(nowMs: number, overrides: Partial<PublicState['metrics']> = {}): 
     walkMs: 0,
     fightMs: 0,
     restMs: 0,
-    respawnMs: 0,
+    consumed: {},
     actors: {},
     ...overrides,
   } as unknown as PublicState['metrics'];

@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 import type { GridConfig } from '@narok/data';
 import type { PositionId, PublicState } from '@narok/sim';
 import { gridCoordinates } from '@narok/sim';
-import { classNames, deathPips, splitSides } from './model';
+import { classNames, splitSides } from './model';
 import { formatMeasuredDuration, formatNumber, type Translate } from '../i18n';
 import type { ExperimentStatus } from '../useExperiment';
 
@@ -33,7 +33,6 @@ export interface CompassProps {
   state: PublicState | null;
   grid: GridConfig;
   status: ExperimentStatus;
-  wipeLimit: number | null;
   recipeId: string | null;
 }
 
@@ -101,7 +100,7 @@ function LedgerItem({
   );
 }
 
-export function Compass({ state, grid, status, wipeLimit, recipeId }: CompassProps): React.JSX.Element {
+export function Compass({ state, grid, status, recipeId }: CompassProps): React.JSX.Element {
   const { t: rawT, i18n } = useTranslation();
   const t = rawT as unknown as Translate;
   const language = i18n.language;
@@ -120,19 +119,13 @@ export function Compass({ state, grid, status, wipeLimit, recipeId }: CompassPro
   }
 
   const metrics = state?.metrics ?? null;
-  const pips = deathPips(metrics, wipeLimit);
 
   const huntState = state === null ? t(`status.${status}`) : t(`phase.${state.phase}`);
   const gold = metrics === null ? t('value.none') : formatNumber(metrics.rawGold, language);
   const kills = metrics === null ? t('value.none') : formatNumber(metrics.kills, language);
   const elapsed = formatMeasuredDuration(state?.nowMs ?? null, t, language);
-  const wipes =
-    pips === null
-      ? t('metrics.wipes')
-      : t('compass.wipes', {
-          used: formatNumber(pips.used, language),
-          limit: formatNumber(pips.limit, language),
-        });
+  // A wipe ends the hunt (owner decision 2026-09-30): a count, with no limit to measure it against.
+  const wipes = metrics === null ? t('value.none') : formatNumber(metrics.wipes, language);
 
   return (
     <section className="compass win" aria-label={t('compass.label')}>
@@ -253,18 +246,10 @@ export function Compass({ state, grid, status, wipeLimit, recipeId }: CompassPro
         <LedgerItem
           glyph="i-skull"
           glyphColor="#c9b9a2"
-          caption={wipes}
+          caption={t('metrics.wipes')}
           label={`${t('metrics.wipes')}: ${wipes}`}
         >
-          {pips === null ? (
-            <span className="num">{t('value.none')}</span>
-          ) : (
-            <span className="pips">
-              {Array.from({ length: pips.limit }, (_unused, index) => (
-                <i key={index} className={classNames('pip', index < pips.used && 'spent')} />
-              ))}
-            </span>
-          )}
+          <span className="num">{wipes}</span>
         </LedgerItem>
       </div>
     </section>

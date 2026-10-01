@@ -17,15 +17,15 @@ const MATRIX_RECIPES: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
 const MATRIX_PLACEMENTS: readonly PlacementName[] = ['default', 'front', 'spread'];
 
 /**
- * Fixed rest thresholds and wipe limit every run/matrix job uses (rulings R48). Never
- * user-configurable in this CLI surface.
+ * Fixed rest thresholds every run/matrix job uses (rulings R48). Never
+ * user-configurable in this CLI surface. There is no wipe limit: a wipe ends
+ * the run (owner decision 2026-09-30).
  */
 const REST = { hpStart: 50, mpStart: 30 };
-const WIPE_LIMIT = 1;
 
 /**
  * Builds an explicit `LabInput` (rulings R48): the parsed roster in class order
- * (`p0`…), each class's own default strategy, fixed rest/wipe-limit, the chosen
+ * (`p0`…), each class's own default strategy, fixed rest thresholds, the chosen
  * recipe/seed, and the named placement.
  */
 export function buildLabInput(
@@ -45,7 +45,6 @@ export function buildLabInput(
     placement: buildPlacement(placementName, classes),
     strategies,
     rest: { ...REST },
-    wipeLimit: WIPE_LIMIT,
   };
 }
 

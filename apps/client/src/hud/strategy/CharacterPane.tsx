@@ -33,6 +33,7 @@ const SKILL_GLYPHS: Record<string, string> = {
   cleave: 's-cleave',
   heal: 's-heal',
   smite: 's-smite',
+  revive: 's-groupheal',
   'double-shot': 's-doubleshot',
   'arrow-rain': 's-arrowrain',
   'fire-bolt': 's-focus',

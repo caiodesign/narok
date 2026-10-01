@@ -135,7 +135,7 @@ function publicState(actors: PublicActor[]): PublicState {
       walkMs: 0,
       fightMs: 0,
       restMs: 0,
-      respawnMs: 0,
+      consumed: {},
       actors: {},
       drops: emptyDropMetrics(),
     },

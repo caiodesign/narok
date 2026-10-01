@@ -91,11 +91,10 @@ describe('locale resources', () => {
       walking: true,
       fighting: true,
       resting: true,
-      respawning: true,
       stopped: true,
     };
     const stopReasons: Record<StopReason, true> = {
-      'wipe-limit': true,
+      'wipe': true,
       stalemate: true,
       operator: true,
       retreat: true,
@@ -127,7 +126,6 @@ describe('locale resources', () => {
         placement: { p9: gridPosition(0, 0) },
         strategies: {},
         rest: { hpStart: 95, mpStart: 95 },
-        wipeLimit: 9,
       },
       {
         seed: 1,
@@ -139,7 +137,6 @@ describe('locale resources', () => {
           p1: { rules: [], target: { kind: 'nearest' } },
         },
         rest: { hpStart: 50, mpStart: 30 },
-        wipeLimit: 1,
       },
       {
         seed: 1,
@@ -148,7 +145,6 @@ describe('locale resources', () => {
         placement: { p0: gridPosition(2, 3) },
         strategies: { p0: { rules: [], target: { kind: 'nearest' } } },
         rest: { hpStart: 50, mpStart: 30 },
-        wipeLimit: 1,
       },
     ];
 

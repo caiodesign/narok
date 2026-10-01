@@ -18,7 +18,6 @@ import {
   applyAllocation,
   awardLevels,
   bagLock,
-  bagState,
   createCharacter,
   equip,
   expToNext,
@@ -93,14 +92,13 @@ function characterView(meta: Pick<CharacterRow, 'slot' | 'name'>, character: Cha
 
 /** The bag as a client reads it; slot counts come from the one rule (ruling R137). */
 function inventoryView(bag: Bag) {
-  const state = bagState(bag);
   return {
     capacity: bag.capacity,
     usedSlots: usedSlots(bag),
     items: bag.items,
     consumables: Object.keys(bag.consumables).sort().map((consumableId) => {
       const quantity = bag.consumables[consumableId]!;
-      return { consumableId, quantity, stacks: (quantity + state.stackHeadroom[consumableId]!) / CONSUMABLE_STACK_MAX };
+      return { consumableId, quantity, stacks: Math.ceil(quantity / CONSUMABLE_STACK_MAX) };
     }),
   };
 }

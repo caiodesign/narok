@@ -9,7 +9,8 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { content } from '@narok/data';
 import { ONBOARDING_GRANT_KEY, bagState } from '@narok/progression';
-import { DEFAULT_WIPE_LIMIT, deriveCharacter, resolveLoadout, type SimState } from '@narok/sim';
+import { deriveCharacter, resolveLoadout, type SimState } from '@narok/sim';
+import { IDUN_APPLE_ID } from '@narok/data';
 import { drizzleStores } from '../src/db/repositories/accounts';
 import { loadBag } from '../src/db/repositories/inventory';
 import * as schema from '../src/db/schema';
@@ -78,8 +79,7 @@ async function roster(who: Player, overrides: Partial<typeof schema.characters.$
   return rows;
 }
 
-/** Five wipes allowed, so a fresh level-1 party keeps hunting long enough to level. */
-async function start(who: Player, characterIds: readonly string[], payload: unknown = rules({ wipeLimit: 5 })) {
+async function start(who: Player, characterIds: readonly string[], payload: unknown = rules()) {
   const strategy = await insertStrategyPreset(db, who.accountId, payload);
   const loot = await insertLootPreset(db, who.accountId);
   const response = await h.app.inject({
@@ -139,13 +139,22 @@ describe('the party a hunt starts from (ruling R148)', () => {
     expect(withWeapon.progression!.p0.characterId).toBe(armedRoster[0].id);
   });
 
-  test('a preset without a wipe limit runs on the engine default', async () => {
+  test('a preset naming a wipe limit is refused: a wipe ends the hunt (owner decision 2026-09-30)', async () => {
     const me = await player();
     const rows = await roster(me);
-    const payload: Partial<ReturnType<typeof rules>> = rules();
-    delete payload.wipeLimit;
-    await start(me, rows.map((row) => row.id), payload);
-    expect((await engineState(me.accountId)).input.wipeLimit).toBe(DEFAULT_WIPE_LIMIT);
+    const strategy = await insertStrategyPreset(db, me.accountId, { ...rules(), wipeLimit: 1 });
+    const loot = await insertLootPreset(db, me.accountId);
+    const response = await h.app.inject({
+      method: 'POST',
+      url: '/api/hunts',
+      headers: { origin: ORIGIN, cookie: me.cookie, 'idempotency-key': crypto.randomUUID() },
+      payload: {
+        characterIds: rows.map((row) => row.id), mapId: 'prototype', strategyPresetId: strategy.id, lootPresetId: loot.id,
+        expectedStateVersion: await version(me.accountId),
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'VALIDATION' });
   });
 
   test('the engine\'s bag counts a consumable total past 999 as two slots, as the server does (ruling R137)', async () => {
@@ -163,12 +172,12 @@ describe('the party a hunt starts from (ruling R148)', () => {
 
     const [stack] = await db.select().from(schema.stackItems).where(eq(schema.stackItems.accountId, me.accountId));
     expect(stack.quantity).toBe(1_010);
-    expect(bagState(await loadBag(db, me.accountId))).toMatchObject({ usedSlots: 2, stackHeadroom: { 'small-hp-potion': 988 } });
+    expect(bagState(await loadBag(db, me.accountId))).toMatchObject({ usedSlots: 2, held: { 'small-hp-potion': 1_010 } });
     const inventory = await h.app.inject({ method: 'GET', url: '/api/inventory', headers: { origin: ORIGIN, cookie: me.cookie } });
     expect(inventory.json()).toMatchObject({ usedSlots: 2, consumables: [{ consumableId: 'small-hp-potion', quantity: 1_010, stacks: 2 }] });
 
     await start(me, rows.map((row) => row.id));
-    expect((await engineState(me.accountId)).bagState).toMatchObject({ usedSlots: 2, stackHeadroom: { 'small-hp-potion': 988 } });
+    expect((await engineState(me.accountId)).bagState).toMatchObject({ usedSlots: 2, held: { 'small-hp-potion': 1_010 } });
   });
 });
 
@@ -177,6 +186,8 @@ describe('what a settlement writes back (ruling R148)', () => {
     const me = await player();
     const template = { targets: [{ attribute: 'vit', value: 10 }], remainder: 'str' };
     const rows = await roster(me, { autoSpend: template });
+    // Apples keep a fresh level-1 party hunting long enough to level: one wipe now ends the hunt.
+    await db.insert(schema.stackItems).values({ accountId: me.accountId, definitionId: IDUN_APPLE_ID, quantity: 200 });
     await start(me, rows.map((row) => row.id));
     await settleAfter(me.accountId, 300_000);
 
@@ -264,7 +275,8 @@ describe('the onboarding grant (part 3 §6; rulings R146, R150)', () => {
     });
     await start(granting, a.map((row) => row.id));
     await start(holding, b.map((row) => row.id));
-    r.clock.now += 120_000;
+    // Inside the hunt: a level-1 party now wipes before 120 s, since the fallen stay dead (ruling R151).
+    r.clock.now += 60_000;
     await stopHunt(r.lifecycle, { accountId: granting.accountId });
     await stopHunt(r.lifecycle, { accountId: holding.accountId });
 
@@ -281,21 +293,74 @@ describe('the onboarding grant (part 3 §6; rulings R146, R150)', () => {
   });
 });
 
-describe('the return to town (ruling R149)', () => {
-  test('a party stopped by its wipe limit comes home alive and can start again', async () => {
+describe('death and the return to town (owner decision 2026-09-30; rulings R152, R154, R155)', () => {
+  async function characterRow(id: string) {
+    const [row] = await db.select().from(schema.characters).where(eq(schema.characters.id, id));
+    return row;
+  }
+
+  test("an apple consumed mid-hunt is taken off its stack in the settlement's commit", async () => {
     const me = await player();
     const rows = await roster(me);
-    await start(me, rows.map((row) => row.id), rules({ wipeLimit: 1 }));
+    await db.insert(schema.stackItems).values({ accountId: me.accountId, definitionId: IDUN_APPLE_ID, quantity: 5 });
+    await start(me, rows.map((row) => row.id));
+    expect((await engineState(me.accountId)).bagState.held).toEqual({ [IDUN_APPLE_ID]: 5 });
+
     await settleAfter(me.accountId, 300_000);
     const state = await engineState(me.accountId);
-    expect(state.stopReason).toBe('wipe-limit');
-    for (const row of rows) {
-      const [after] = await db.select().from(schema.characters).where(eq(schema.characters.id, row.id));
-      expect(after.hp).toBeGreaterThanOrEqual(1);
-      expect(after.dead).toBe(false);
+    const eaten = state.metrics.consumed[IDUN_APPLE_ID] ?? 0;
+    expect(eaten, 'a level-1 party loses someone in five minutes').toBeGreaterThan(0);
+    const [stack] = await db.select().from(schema.stackItems)
+      .where(and(eq(schema.stackItems.accountId, me.accountId), eq(schema.stackItems.definitionId, IDUN_APPLE_ID)));
+    expect(stack.quantity).toBe(5 - eaten);
+    const audit = await db.select().from(schema.resourceAudit)
+      .where(and(eq(schema.resourceAudit.accountId, me.accountId), eq(schema.resourceAudit.reason, 'consumed')));
+    expect(audit.map((row) => row.delta)).toEqual([{ consumed: { [IDUN_APPLE_ID]: eaten } }]);
+  });
+
+  test('a player stop heals every character row, the dead and the living, to full HP and MP (R155)', async () => {
+    const me = await player();
+    const rows = await roster(me);
+    await start(me, rows.map((row) => row.id));
+    await settleAfter(me.accountId, 30_000);
+    const midHunt = await engineState(me.accountId);
+    const hurt = rows.filter((_, index) => {
+      const actor = midHunt.actors[`p${index}`];
+      return actor.hp < actor.stats.maxHp || actor.mp < actor.stats.maxMp;
+    });
+    expect(hurt.length, 'the party has spent something by 30 s').toBeGreaterThan(0);
+
+    await stopHunt(r.lifecycle, { accountId: me.accountId });
+    const home = await engineState(me.accountId);
+    for (const [index, row] of rows.entries()) {
+      const after = await characterRow(row.id);
+      const { maxHp, maxMp } = home.actors[`p${index}`].stats;
+      expect({ hp: after.hp, mp: after.mp, dead: after.dead }).toEqual({ hp: maxHp, mp: maxMp, dead: false });
     }
+  });
+
+  test('a full wipe stops the hunt, and the party starts again at full HP and MP', async () => {
+    const me = await player();
+    const rows = await roster(me);
+    await start(me, rows.map((row) => row.id));
+    await settleAfter(me.accountId, 600_000);
+    const state = await engineState(me.accountId);
+    expect(state.stopReason).toBe('wipe');
+    expect(state.metrics.wipes).toBe(1);
+    for (const [index, row] of rows.entries()) {
+      const after = await characterRow(row.id);
+      const { maxHp, maxMp } = state.actors[`p${index}`].stats;
+      expect({ hp: after.hp, mp: after.mp, dead: after.dead }).toEqual({ hp: maxHp, mp: maxMp, dead: false });
+    }
+
     r.clock.now += 60_000;
     await start(me, rows.map((row) => row.id));
+    const next = await engineState(me.accountId);
+    expect(next.phase).not.toBe('stopped');
+    for (const id of ['p0', 'p1', 'p2']) {
+      const actor = next.actors[id];
+      expect([actor.hp, actor.mp]).toEqual([actor.stats.maxHp, actor.stats.maxMp]);
+    }
   });
 });
 

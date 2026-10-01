@@ -48,7 +48,6 @@ async function running(options: Parameters<typeof rig>[1] = {}) {
   const other = await insertStrategyPreset(db, account.id, {
     ...swapped,
     placement: { p0: swapped.placement.p1, p1: swapped.placement.p0, p2: swapped.placement.p2 },
-    wipeLimit: 3,
   });
   return { account, r, active, other };
 }
@@ -242,7 +241,7 @@ describe('the command classes of part 2 §4', () => {
     const before = await huntRow(db, account.id);
 
     const outcome = await applyCommand(r.commands, account, {
-      command: { kind: 'save-strategy-preset', presetId: active.id, payload: rules({ wipeLimit: 5 }) },
+      command: { kind: 'save-strategy-preset', presetId: active.id, payload: rules({ rest: { hpStart: 60, mpStart: 20 } }) },
     });
     expect(outcome.preset).toEqual({ presetId: active.id, presetVersion: 2 });
 
@@ -250,15 +249,15 @@ describe('the command classes of part 2 §4', () => {
     expect(Buffer.from(after.checkpoint).equals(Buffer.from(before.checkpoint))).toBe(true);
     const row = await presetRow(db, active.id);
     expect(row.presetVersion).toBe(2);
-    expect((row.payload as { wipeLimit: number }).wipeLimit).toBe(5);
+    expect((row.payload as { rest: unknown }).rest).toEqual({ hpStart: 60, mpStart: 20 });
   });
 
-  test('save preset refuses a malformed payload and writes nothing', async () => {
+  test('save preset refuses a malformed payload — a stale wipe limit (R154) — and writes nothing', async () => {
     const { account, r, active } = await running();
     expect(
       await rejection(() =>
         applyCommand(r.commands, account, {
-          command: { kind: 'save-strategy-preset', presetId: active.id, payload: { ...rules(), wipeLimit: 0 } },
+          command: { kind: 'save-strategy-preset', presetId: active.id, payload: { ...rules(), wipeLimit: 1 } },
         }),
       ),
     ).toMatchObject({ code: 'VALIDATION' });
@@ -272,7 +271,7 @@ describe('the queued snapshot is the one that activates (B-L14, B-11)', () => {
     r.clock.now = T0 + 500;
     await applyCommand(r.commands, account, { command: { kind: 'apply-strategy', presetId: other.id, presetVersion: 1 } });
     await applyCommand(r.commands, account, {
-      command: { kind: 'save-strategy-preset', presetId: other.id, payload: rules({ wipeLimit: 5, rest: { hpStart: 10, mpStart: 10 } }) },
+      command: { kind: 'save-strategy-preset', presetId: other.id, payload: rules({ rest: { hpStart: 10, mpStart: 10 } }) },
     });
 
     // The walk completes at 2,000 ms; settle past it.
@@ -282,7 +281,10 @@ describe('the queued snapshot is the one that activates (B-L14, B-11)', () => {
     const envelope = await checkpointOf(db, account.id);
     const state = sim.decode(envelope.state);
     expect(state.encounterCount).toBe(1);
-    expect(state.input.wipeLimit).toBe(3);
+    // The queued snapshot's swapped placement, not the edit's default one.
+    expect(state.input.placement).toEqual({
+      p0: rules().placement.p1, p1: rules().placement.p0, p2: rules().placement.p2,
+    });
     expect(state.input.rest).toEqual(rules().rest);
     expect(envelope.activeStrategy).toEqual({ presetId: other.id, presetVersion: 1 });
     expect(envelope.pendingStrategy).toBeNull();
@@ -335,7 +337,7 @@ describe('a settlement committed inside a command’s own settle (R120)', () => 
     });
     const active = await insertStrategyPreset(db, account.id, rules());
     await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({}, active.id) });
-    const other = await insertStrategyPreset(db, account.id, rules({ wipeLimit: 3 }));
+    const other = await insertStrategyPreset(db, account.id, rules({ rest: { hpStart: 40, mpStart: 20 } }));
     return { account, r, other };
   }
 

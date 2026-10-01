@@ -37,7 +37,7 @@ function targetReasonState(): SimState {
   const zero = { damageDealt: 0, damageReceived: 0, healingDone: 0 };
   const metrics: Metrics = {
     kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
-    walkMs: 2_000, fightMs: 0, restMs: 0, respawnMs: 0,
+    walkMs: 2_000, fightMs: 0, restMs: 0, consumed: {},
     actors: { p0: { ...zero }, p1: { ...zero }, p2: { ...zero }, e0: { ...zero } },
     drops: emptyDropMetrics(),
   };
@@ -57,7 +57,7 @@ function targetReasonState(): SimState {
     stopReason: null,
     input: {
       seed: 1, classes: ['guardian'], recipe: 'melee', placement: {}, strategies: {},
-      rest: { hpStart: 50, mpStart: 30 }, wipeLimit: 1,
+      rest: { hpStart: 50, mpStart: 30 },
     },
     pendingRules: null,
     ...rewardFields(),

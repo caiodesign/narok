@@ -62,7 +62,7 @@ test('writeCsv quotes a roster field naturally, since it always joins with comma
     drop_protection: { epicPlus: 0, legendary: 0 },
     metrics: {
       kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
-      walkMs: 1000, fightMs: 0, restMs: 0, respawnMs: 0, actors: {}, drops: emptyDropMetrics(),
+      walkMs: 1000, fightMs: 0, restMs: 0, consumed: {}, actors: {}, drops: emptyDropMetrics(),
     },
   };
   const csv = writeCsv([row]);

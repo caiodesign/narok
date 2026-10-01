@@ -9,6 +9,7 @@ import {
   livingActors,
   recoveryMs,
 } from './effects';
+import { reviveMember } from './lifecycle';
 import { damage, effectiveHeal } from './math';
 import { awardKillExp, rollKill } from './rewards';
 import { drawBelow } from './rng';
@@ -358,8 +359,36 @@ function resolveArea(
   }
 }
 
+/**
+ * Revive (ruling R153): its target must still be a fallen ally inside the
+ * cast's range — one an apple already brought back makes it fizzle. It
+ * restores exactly what Idun's Apple does and spends no apple. Draws nothing,
+ * and adds no healing metric or heal threat: it is a revival, not a heal.
+ */
+function resolveRevive(
+  state: SimState,
+  ctx: Context,
+  caster: Actor,
+  cast: PendingCast,
+  skill: SkillDefinition,
+): void {
+  const target = cast.targets[0] === undefined ? undefined : state.actors[cast.targets[0]];
+  if (
+    target === undefined || target.side !== caster.side || target.hp > 0 ||
+    !ctx.battlefield.inRange(caster.position, target.position, skill.range)
+  ) {
+    fizzle(state, ctx, caster, cast);
+    return;
+  }
+  reviveMember(state, ctx, target, 'revive', caster.id);
+}
+
 function applyCast(state: SimState, ctx: Context, caster: Actor, cast: PendingCast): void {
   const skill = skillOf(ctx, cast.skillId);
+  if (skill !== null && skill.effect === 'revive') {
+    resolveRevive(state, ctx, caster, cast, skill);
+    return;
+  }
   if (skill !== null && skill.effect === 'heal') {
     resolveHeal(state, ctx, caster, cast, skill);
     return;

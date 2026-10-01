@@ -1,5 +1,5 @@
 export type ClassId = 'guardian' | 'cleric' | 'ranger' | 'arcanist';
-export type SkillId = 'taunt' | 'cleave' | 'heal' | 'smite'
+export type SkillId = 'taunt' | 'cleave' | 'heal' | 'smite' | 'revive'
   | 'double-shot' | 'arrow-rain' | 'fire-bolt' | 'frost-nova';
 export type RecipeId = 'melee' | 'ranged' | 'clustered';
 export type Element = 'neutral' | 'fire' | 'water' | 'earth' | 'wind';
@@ -23,7 +23,7 @@ export interface ClassDefinition {
 export interface SkillDefinition {
   id: SkillId; mp: number; cooldownMs: number; baseCastMs: number;
   range: number; shape: ShapeId; powerBp: number; hits: number;
-  effect: 'damage' | 'heal' | 'taunt'; damageKind: DamageKind;
+  effect: 'damage' | 'heal' | 'taunt' | 'revive'; damageKind: DamageKind;
   element: Element; slowBp: number; durationMs: number;
 }
 export interface MonsterDefinition {
@@ -149,8 +149,20 @@ export interface ProgressionTables {
   attributeCap: number;
 }
 
-/** A potion definition (layer-1 §7.6): restores a share of a maximum, in basis points. */
-export interface ConsumableDefinition { id: string; resource: 'hp' | 'mp'; restoreBp: number }
+/**
+ * A consumable definition, restoring a share of a maximum in basis points: a
+ * potion (layer-1 §7.6) restores HP or MP to the living; a `revive`
+ * consumable — Idun's Apple — returns a fallen member at that share of its
+ * maximum HP (owner decision 2026-09-30).
+ */
+export interface ConsumableDefinition { id: string; resource: 'hp' | 'mp' | 'revive'; restoreBp: number }
+
+/**
+ * Idun's Apple (owner decision 2026-09-30; the name avoids Ragnarok's
+ * "Yggdrasil"): the one consumable the simulation itself spends, so content
+ * must define it.
+ */
+export const IDUN_APPLE_ID = 'idun-apple';
 
 /** One fixed instance granted rather than rolled: a definition, rarity, item level and bonuses. */
 export interface StarterWeapon { definitionId: string; rarity: Rarity; itemLevel: number; bonuses: RolledBonus[] }
@@ -173,7 +185,7 @@ export interface Content {
   recipes: Record<RecipeId, RecipeDefinition>;
   shapes: Record<ShapeId, [number, number][]>;
   elements: Record<Element, Record<Element, number>>;
-  walkMs: number; regenMs: number; encounterLimitMs: number; respawnMs: number;
+  walkMs: number; regenMs: number; encounterLimitMs: number;
   /**
    * Duration of the simulated travel segment a stop consumes on its way back to
    * town (owner decision 2026-09-21, spec §4.0; ruling R114). OPEN CONTENT INPUT:

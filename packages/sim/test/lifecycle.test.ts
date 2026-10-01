@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { content } from '@narok/data';
+import { IDUN_APPLE_ID, content } from '@narok/data';
 import type { ClassId, RecipeId } from '@narok/data';
 import { transition, regenerate, finishEncounter, deadline } from '../src/lifecycle';
 import { drawBelow } from '../src/rng';
@@ -56,7 +56,7 @@ function multiActorState(
     queue: [],
     metrics: {
       kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
-      walkMs: 0, fightMs: 0, restMs: 0, respawnMs: 0, actors: metricsActors,
+      walkMs: 0, fightMs: 0, restMs: 0, consumed: {}, actors: metricsActors,
       drops: emptyDropMetrics(),
     },
   };
@@ -66,21 +66,23 @@ function soloState(phase: Phase, hp: number, mp: number, maxMp?: number): SimSta
   return multiActorState(phase, [{ id: 'p0', hp, mp, maxMp }]);
 }
 
-test('one allowed wipe stops on the first wipe', () => {
+test('a full wipe stops the hunt with wipe and returns the party to town (R154)', () => {
   const state = fightFixture();
   for (const a of Object.values(state.actors).filter(a => a.side === 'party')) a.hp = 0;
   finishEncounter(state, context(state, []));
   expect(state.phase).toBe('stopped');
-  expect(state.stopReason).toBe('wipe-limit');
+  expect(state.stopReason).toBe('wipe');
   expect(state.metrics.wipes).toBe(1);
+  expect(state.queue).toEqual([]);
 });
-test('won encounter revives a member without a free MP refill', () => {
+test('a member dead at a won encounter stays dead with its MP kept (R151)', () => {
   const state = fightFixture();
   state.actors.p1.hp = 0;
   state.actors.p1.mp = 3;
   for (const a of Object.values(state.actors).filter(a => a.side === 'enemy')) a.hp = 0;
   finishEncounter(state, context(state, []));
-  expect(state.actors.p1.hp).toBe(Math.floor(state.actors.p1.stats.maxHp / 10));
+  expect(state.metrics.wins).toBe(1);
+  expect(state.actors.p1.hp).toBe(0);
   expect(state.actors.p1.mp).toBe(3);
 });
 
@@ -182,26 +184,6 @@ test('cooldown timestamps survive both win and wipe cleanup', () => {
   expect(wipeState.actors.p0.cooldowns.cleave).toBe(2_500);
 });
 
-test('five total wipes stop only at the configured limit', () => {
-  const state = fightFixture();
-  state.input.wipeLimit = 5;
-  const events: DomainEvent[] = [];
-  const ctx = context(state, events);
-  for (let i = 1; i <= 5; i++) {
-    state.phase = 'fighting';
-    for (const a of Object.values(state.actors)) if (a.side === 'party') a.hp = 0;
-    finishEncounter(state, ctx);
-    expect(state.metrics.wipes).toBe(i);
-    if (i < 5) {
-      expect(state.phase).toBe('respawning');
-      expect(state.stopReason).toBeNull();
-    }
-  }
-  expect(state.phase).toBe('stopped');
-  expect(state.stopReason).toBe('wipe-limit');
-  expect(state.queue).toEqual([]);
-});
-
 test('a zero-MP actor never triggers a rest start from its MP threshold', () => {
   const state = fightFixture();
   state.input.rest = { hpStart: 0, mpStart: 50 };
@@ -210,44 +192,6 @@ test('a zero-MP actor never triggers a rest start from its MP threshold', () => 
   for (const a of Object.values(state.actors)) if (a.side === 'enemy') a.hp = 0;
   finishEncounter(state, context(state, []));
   expect(state.phase).toBe('walking');
-});
-
-test('30-second respawn: wipe schedules a respawn transition, which fully restores HP/MP and resumes walking', () => {
-  const state = fightFixture();
-  state.input.wipeLimit = 2; // must not be the final wipe, or it stops instead of respawning
-  state.actors.p0.cooldowns.cleave = 6_000;
-  state.actors.p1.mp = 3;
-  for (const a of Object.values(state.actors)) if (a.side === 'party') a.hp = 0;
-
-  const events: DomainEvent[] = [];
-  const ctx = context(state, events);
-  finishEncounter(state, ctx);
-  expect(state.phase).toBe('respawning');
-
-  const respawnEntry = state.queue.find((e) => e.kind === 'transition');
-  expect(respawnEntry).toMatchObject({ at: state.nowMs + 30_000, actorId: '', epoch: null, token: null });
-
-  // Stand in for the dispatcher, which always pops an entry before running its handler.
-  state.queue.splice(state.queue.indexOf(respawnEntry!), 1);
-  state.nowMs = respawnEntry!.at;
-  transition(state, ctx);
-
-  expect(state.phase).toBe('walking');
-  for (const id of ['p0', 'p1', 'p2'] as const) {
-    const member = state.actors[id];
-    expect(member.hp).toBe(member.stats.maxHp);
-    expect(member.mp).toBe(member.stats.maxMp);
-    expect(member.statuses).toEqual([]);
-    expect(member.pendingCast).toBeNull();
-    expect(member.forcedTarget).toBeNull();
-    expect(member.threat).toEqual({});
-  }
-  expect(state.actors.p0.cooldowns.cleave).toBe(6_000); // preserved exactly, not recomputed
-  const nextTransition = state.queue.find((e) => e.kind === 'transition');
-  expect(nextTransition).toMatchObject({
-    at: state.nowMs + content.walkMs, actorId: '', epoch: null, token: null,
-  });
-  expect(events.some((e) => e.kind === 'phase' && e.reason === 'walking')).toBe(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -268,10 +212,12 @@ function livingCells(state: SimState): string[] {
  * member *in place* then left two living actors on one cell and the next
  * `assertInvariants` threw `INVALID_STATE actors.pN.position "shares a cell with
  * pM"`; it aborted `pnpm balance matrix` on 934 of 30,600 cells. Encounter exit
- * now re-seats the party at `input.placement`, which `startState` validated
- * collision-free, exactly as `spawnEncounter` already did.
+ * re-seats the party at `input.placement`, which `startState` validated
+ * collision-free, exactly as `spawnEncounter` already did. A win no longer
+ * revives anyone (ruling R151), but the re-seat still runs and must leave no
+ * two living actors on one cell.
  */
-test('R92: a win revives a corpse an ally stands on without stacking two living actors', () => {
+test('R92: a win with a corpse under an ally re-seats the party; the corpse stays dead and nothing stacks', () => {
   const sim = lab();
   const state = fightFixture();
   const placement = state.input.placement;
@@ -296,7 +242,7 @@ test('R92: a win revives a corpse an ally stands on without stacking two living 
   const result = sim.advance(state, 2_100);
 
   expect(result.state.metrics.wins).toBe(1);
-  expect(result.state.actors.p0.hp).toBe(Math.floor(state.actors.p0.stats.maxHp / 10));
+  expect(result.state.actors.p0.hp, 'a win revives no one (R151)').toBe(0);
   const cells = livingCells(result.state);
   expect(new Set(cells).size).toBe(cells.length);
   for (const id of ['p0', 'p1', 'p2'] as const) {
@@ -305,24 +251,55 @@ test('R92: a win revives a corpse an ally stands on without stacking two living 
   // Re-seating is a teleport, matching spawnEncounter: no move event is emitted.
   expect(result.events.some((event) => event.kind === 'move')).toBe(false);
 
-  // Ruling R96: `validateSimState` enforces the same rule independently
-  // (`duplicate live position with <id>`), so the overlap also broke snapshot
-  // decode — browser export/import and every checkpoint/restore path — for a
-  // state captured between the revive and the next spawn. It must round-trip.
+  // Ruling R96: `validateSimState` enforces the same rule independently, so the
+  // state captured between the win and the next spawn must round-trip.
   const encoded = sim.encode(result.state);
   expect(sim.encode(sim.decode(encoded))).toBe(encoded);
 });
 
 /**
- * The wipe path had the same shape (ruling R92): two members can die on one cell
- * for the same reason, and `completeRespawn` restored both to full HP without
- * touching position. Re-seating at encounter exit covers it, so the respawn
- * transition can no longer resurrect a stack.
+ * The R92 shape on the revive path (ruling R156): a Revive lands on a corpse
+ * an ally stands on, and the corpse lies on its own seat, so neither the death
+ * cell nor the input placement is free. The revived member rejoins at the
+ * first free party-side cell instead of stacking.
  */
-test('R92: a respawn after two members die on one cell restores them to separate cells', () => {
+test('R92/R156: a Revive onto a corpse an ally stands on rejoins at a free cell, never stacked', () => {
   const sim = lab();
   const state = fightFixture();
-  state.input.wipeLimit = 2; // not the final wipe, so it respawns instead of stopping
+  const placement = state.input.placement;
+
+  // p0 fell on its own seat; p2 stepped onto the corpse.
+  state.actors.p0.hp = 0;
+  state.actors.p2.position = placement.p0;
+
+  state.actors.p1.actionToken = 1;
+  state.actors.p1.currentTarget = null;
+  state.actors.p1.pendingCast = {
+    skillId: 'revive', targets: ['p0'], startedAt: 2_000, completesAt: 2_100, token: 1,
+  };
+  schedule(state, { at: 2_100, kind: 'resolve', actorId: 'p1', epoch: 0, token: 1 });
+
+  const result = sim.advance(state, 2_100);
+  const revived = result.state.actors.p0;
+  expect(revived.hp).toBe(Math.max(1, Math.floor(revived.stats.maxHp / 2)));
+  expect(revived.position).not.toBe(placement.p0);
+  const cells = livingCells(result.state);
+  expect(new Set(cells).size).toBe(cells.length);
+  expect(result.events.find((event) => event.kind === 'revive')).toMatchObject({
+    actorId: 'p0', targetId: 'p1', reason: 'revive', position: revived.position,
+  });
+  const encoded = sim.encode(result.state);
+  expect(sim.encode(sim.decode(encoded))).toBe(encoded);
+});
+
+/**
+ * The wipe path had the same shape (ruling R92): two members can die on one
+ * cell. A wipe now returns the party to town at full HP and MP (rulings R154,
+ * R155), and the re-seat at encounter exit keeps the two apart.
+ */
+test('R92: a wipe after two members die on one cell brings them home to separate cells', () => {
+  const sim = lab();
+  const state = fightFixture();
   const placement = state.input.placement;
 
   // p2 died first; p1 stepped onto the corpse and died there too.
@@ -338,40 +315,40 @@ test('R92: a respawn after two members die on one cell restores them to separate
   };
   schedule(state, { at: 2_100, kind: 'resolve', actorId: 'e0', epoch: 0, token: 1 });
 
-  const wiped = sim.advance(state, 2_100).state;
-  expect(wiped.phase).toBe('respawning');
-
-  const respawned = sim.advance(wiped, 2_100 + content.respawnMs).state;
-  expect(respawned.phase).toBe('walking');
+  const home = sim.advance(state, 2_100).state;
+  expect(home.phase).toBe('stopped');
+  expect(home.stopReason).toBe('wipe');
   for (const id of ['p0', 'p1', 'p2'] as const) {
-    expect(respawned.actors[id].hp).toBe(respawned.actors[id].stats.maxHp);
-    expect(respawned.actors[id].position).toBe(placement[id]);
+    expect(home.actors[id].hp).toBe(home.actors[id].stats.maxHp);
+    expect(home.actors[id].mp).toBe(home.actors[id].stats.maxMp);
+    expect(home.actors[id].position).toBe(placement[id]);
   }
-  const cells = livingCells(respawned);
+  const cells = livingCells(home);
   expect(new Set(cells).size).toBe(cells.length);
-  const encoded = sim.encode(respawned);
+  const encoded = sim.encode(home);
   expect(sim.encode(sim.decode(encoded))).toBe(encoded);
 });
 
 /**
- * Ruling R100. The two tests above reproduce the *state* ruling R92 describes;
+ * Ruling R100. The tests above reproduce the *state* ruling R92 describes;
  * this one replays the *sequence*. Every step is executed by the engine itself,
- * including step 2 of the chain — `executeMove` permitting a step onto a corpse
- * — which is the behaviour that makes the whole bug possible and which a
- * hand-built precondition never exercises.
+ * including `executeMove` permitting a step onto a corpse — the behaviour that
+ * makes the whole bug possible and which a hand-built precondition never
+ * exercises.
  *
  * The input is R92's own reproduction, the balance-matrix cell that aborted:
  * seed 4, two Guardians, the `melee` recipe and the CLI's `front` placement
  * ((1,3) and (2,3) in roster order). Two Guardians converge on the same front
- * cell, which is exactly the geometry that puts a corpse under an ally. Before
- * the fix this threw `INVALID_STATE actors.pN.position "shares a cell with pM"`
- * advancing past `nowMs` 121,980.
+ * cell, which is exactly the geometry that puts a corpse under an ally. Since
+ * a win no longer revives (ruling R151), the bag carries Idun's Apples so the
+ * engine's own revive path (rulings R152, R156) runs through the same fight;
+ * without them this party wipes before 130 s.
  *
  * `tools/balance`'s `buildLabInput` is deliberately not imported: `packages/sim`
  * must not gain a dependency on `tools/`, so the equivalent input is built here
- * from the same rest thresholds and wipe limit that CLI uses.
+ * from the same rest thresholds that CLI uses.
  */
-test('R100: R92\'s own reproduction runs past the instant it used to abort on', () => {
+test('R100: R92\'s own reproduction, with apples, runs past the instant it used to abort on', () => {
   const sim = lab();
   const classes: ClassId[] = ['guardian', 'guardian'];
   const input = labInput({
@@ -384,14 +361,14 @@ test('R100: R92\'s own reproduction runs past the instant it used to abort on', 
 
   // Summary collection keeps a two-minute drive cheap; `runTo` drains any
   // work-budget yield to the same absolute target.
-  let state = sim.start(input);
+  let state = sim.start(input, { bag: { capacity: 100, usedSlots: 1, held: { [IDUN_APPLE_ID]: 20 } } });
   for (let target = 5_000; target <= 130_000; target += 5_000) {
     state = runTo(sim, state, target, { collect: 'summary' }).state;
   }
 
   expect(state.nowMs).toBe(130_000);
-  expect(state.metrics.wins).toBe(2);
   expect(state.stopReason).toBeNull();
+  expect(state.metrics.consumed[IDUN_APPLE_ID], 'the engine revived someone').toBeGreaterThan(0);
   const cells = livingCells(state);
   expect(new Set(cells).size).toBe(cells.length);
   const encoded = sim.encode(state);
@@ -483,7 +460,7 @@ test('a mixed recipe draws exactly one bounded roll and repeats identically for 
 });
 
 // ---------------------------------------------------------------------------
-// regenerate: phase multipliers, caps, rest exit, stop/respawn scheduling
+// regenerate: phase multipliers, caps, rest exit, stop scheduling
 // ---------------------------------------------------------------------------
 
 test('fighting regen applies the x1/2 multiplier, floored, minimum one', () => {
@@ -576,16 +553,6 @@ test('successful rest exit schedules the next transition and emits phase walking
   expect(next).toMatchObject({ at: state.nowMs + content.walkMs, actorId: '', epoch: null, token: null });
 });
 
-test('regen still schedules its successor while respawning but applies no gains', () => {
-  const state = soloState('respawning', 500, 500);
-  const events: DomainEvent[] = [];
-  regenerate(state, context(state, events));
-  expect(state.actors.p0.hp).toBe(500);
-  expect(state.actors.p0.mp).toBe(500);
-  expect(events).toEqual([]);
-  expect(state.queue.some((e) => e.kind === 'regen' && e.at === state.nowMs + content.regenMs)).toBe(true);
-});
-
 test('regen does not schedule a successor once stopped', () => {
   const state = soloState('stopped', 500, 500);
   regenerate(state, context(state, []));
@@ -637,7 +604,6 @@ function otherRules(overrides: Partial<PendingRules> = {}): PendingRules {
       p0: { ...base.strategies.p0, target: { kind: 'lowest-hp' } },
     },
     rest: { hpStart: 70, mpStart: 60 },
-    wipeLimit: 3,
     ...overrides,
   };
 }
@@ -692,7 +658,7 @@ test('queueRules refuses an unactivatable payload with the engine input validato
     }
     throw new Error('expected a refusal');
   };
-  expect(refusal(otherRules({ wipeLimit: 9 }))).toEqual({ code: 'INVALID_INPUT', field: 'pendingRules.wipeLimit' });
+  expect(refusal({ ...otherRules(), wipeLimit: 2 } as PendingRules).code).toBe('INVALID_INPUT');
   expect(refusal(otherRules({ rest: { hpStart: 95, mpStart: 0 } }))).toEqual({
     code: 'INVALID_INPUT',
     field: 'pendingRules.rest.hpStart',
@@ -703,12 +669,12 @@ test('queueRules refuses an unactivatable payload with the engine input validato
 
 test('a newer queue replaces the pending rules; there is at most one pending set (B-L16)', () => {
   const sim = lab();
-  const first = sim.queueRules(sim.start(labInput()), otherRules({ wipeLimit: 2 }));
-  const second = sim.queueRules(first, otherRules({ wipeLimit: 4 }));
-  expect(second.pendingRules?.wipeLimit).toBe(4);
+  const first = sim.queueRules(sim.start(labInput()), otherRules({ rest: { hpStart: 20, mpStart: 0 } }));
+  const second = sim.queueRules(first, otherRules({ rest: { hpStart: 40, mpStart: 10 } }));
+  expect(second.pendingRules?.rest).toEqual({ hpStart: 40, mpStart: 10 });
 
   const spawned = runTo(sim, second, content.walkMs).state;
-  expect(spawned.input.wipeLimit).toBe(4);
+  expect(spawned.input.rest).toEqual({ hpStart: 40, mpStart: 10 });
   expect(spawned.pendingRules).toBeNull();
 });
 
@@ -743,7 +709,7 @@ test('rules queued mid-fight wait for the fight to end and activate at the next 
   const fighting = atFight();
   expect(fighting.phase).toBe('fighting');
   const original = fighting.input;
-  const queued = sim.queueRules(fighting, otherRules({ wipeLimit: 2 }));
+  const queued = sim.queueRules(fighting, otherRules({ rest: { hpStart: 20, mpStart: 0 } }));
   const startedIn = queued.encounterCount;
 
   let sawAnotherPhase = false;
@@ -760,7 +726,7 @@ test('rules queued mid-fight wait for the fight to end and activate at the next 
     },
   );
   expect(sawAnotherPhase).toBe(true);
-  expect(spawned.input.wipeLimit).toBe(2);
+  expect(spawned.input.rest).toEqual({ hpStart: 20, mpStart: 0 });
   expect(spawned.pendingRules).toBeNull();
 });
 
@@ -788,39 +754,6 @@ test('rules queued while resting activate at the spawn after the rest, not when 
   expect(spawned.input.rest).toEqual({ hpStart: 0, mpStart: 0 });
 });
 
-test('an activated wipe limit at or below the wipes already used stops the hunt at once with wipe-limit', () => {
-  const sim = lab();
-  for (const [limit, wipes] of [
-    [1, 1],
-    [2, 3],
-  ] as const) {
-    const start = sim.start(labInput({ wipeLimit: 5 }));
-    start.metrics.wipes = wipes;
-    const queued = sim.queueRules(start, otherRules({ wipeLimit: limit }));
-
-    const result = runTo(sim, queued, content.walkMs + 60_000);
-    const state = result.state;
-    expect(state.phase).toBe('stopped');
-    expect(state.stopReason).toBe('wipe-limit');
-    expect(state.nowMs).toBe(content.walkMs);
-    // No free continuation, no recovery: nothing spawned, nothing drawn, nothing healed.
-    expect(state.encounterCount).toBe(0);
-    expect(state.rng).toBe(start.rng);
-    expect(state.metrics.wipes).toBe(wipes);
-    expect(state.queue).toEqual([]);
-    expect(state.input.wipeLimit).toBe(limit);
-    expect(state.pendingRules).toBeNull();
-    expect(result.events.at(-1)).toMatchObject({ kind: 'stop', reason: 'wipe-limit' });
-  }
-
-  // Above the wipes used, the hunt simply continues under the new limit.
-  const start = sim.start(labInput({ wipeLimit: 5 }));
-  start.metrics.wipes = 1;
-  const continued = runTo(sim, sim.queueRules(start, otherRules({ wipeLimit: 2 })), content.walkMs).state;
-  expect(continued.phase).toBe('fighting');
-  expect(continued.input.wipeLimit).toBe(2);
-});
-
 test('stop neither activates the pending rules nor resets encounter state (B-L17)', () => {
   const sim = lab();
   const queued = sim.queueRules(atFight(), otherRules());
@@ -838,8 +771,8 @@ test('pending rules survive a snapshot round trip and a corrupted queue is refus
   expect(sim.decode(text).pendingRules).toEqual(otherRules());
   expect(sim.encode(sim.decode(text))).toBe(text);
 
-  const corrupted = JSON.parse(text) as { pendingRules: { wipeLimit: number } };
-  corrupted.pendingRules.wipeLimit = 0;
+  const corrupted = JSON.parse(text) as { pendingRules: { rest: { hpStart: number } } };
+  corrupted.pendingRules.rest.hpStart = 95;
   expect(() => sim.decode(JSON.stringify(corrupted))).toThrow();
   const extra = JSON.parse(text) as { pendingRules: Record<string, unknown> };
   extra.pendingRules.seed = 5;

@@ -19,7 +19,6 @@ function input(seed: number): LabInput {
     placement: { p0: '2,3' },
     strategies: {},
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   } as unknown as LabInput;
 }
 

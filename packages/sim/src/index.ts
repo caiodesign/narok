@@ -34,7 +34,7 @@ export { resolveLoadout, deriveCharacter, offenseBonusFor, resistFor, characterM
 export type { ResolvedLoadout } from './loadout';
 export {
   startState, defaultStrategy, validatePendingRules, validateBag, validateLoot, validateProtection,
-  DEFAULT_WIPE_LIMIT, WIPE_LIMIT_RANGE, validateProgress, validateEquipped, validateHuntCharacter,
+  validateProgress, validateEquipped, validateHuntCharacter,
 } from './state';
 export {
   bandFor, rollReward, rollKill, dispositionRewards, raiseToGuarantee, emptyDropMetrics, defaultBag, starterLoot,
@@ -44,7 +44,9 @@ export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
 export { decide, resolveCast } from './actions';
 export { expire } from './effects';
-export { transition, regenerate, finishEncounter, deadline, activatePending, returnToTown } from './lifecycle';
+export {
+  transition, regenerate, finishEncounter, deadline, activatePending, returnToTown, reviveMember, reviveWithApples,
+} from './lifecycle';
 export { advance } from './advance';
 export { project } from './project';
 
@@ -104,9 +106,9 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
     },
 
     /**
-     * Operator stop (ruling R43): the experiment keeps its exact time, metrics,
-     * RNG and actor conditions — except that the return to town revives a dead
-     * member (ruling R149) — drops all scheduled work, and emits nothing — no
+     * Operator stop (ruling R43): the experiment keeps its exact time, metrics
+     * and RNG — the return to town heals the whole party to full (rulings R149,
+     * R155) — drops all scheduled work, and emits nothing — no
      * win, no wipe, no new reward. Drops the abandoned encounter's kills already
      * rolled are dispositioned silently, so none is left waiting for an
      * encounter end that will never come (ruling R127).
@@ -116,7 +118,7 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
         const stopped = cloneState(state);
         const silent: Context = { content: bound, battlefield, emit: () => undefined };
         dispositionRewards(stopped, silent);
-        // The return to town, which revives the fallen (ruling R149).
+        // The return to town, which heals the whole party (rulings R149, R155).
         returnToTown(stopped, 'operator');
         return stopped;
       });

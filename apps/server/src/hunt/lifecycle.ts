@@ -50,7 +50,10 @@ import {
 } from './envelope';
 import { lootVersions, strategyVersions } from './pending';
 import { commitProgression } from './progression';
-import { commitRewards, identifyRewards, indexDropProtection, type HuntReward, type RewardSink } from './rewards';
+import { consumedDuring } from '../reports/away';
+import {
+  commitConsumption, commitRewards, identifyRewards, indexDropProtection, type HuntReward, type RewardSink,
+} from './rewards';
 import { settle, type Settlement } from './settle';
 
 /**
@@ -277,11 +280,16 @@ async function commitHuntRewards(
   state: SimState,
   rewards: readonly HuntReward[],
   stateVersionAfter: number,
+  spent: { readonly before: SimState; readonly sourceRef: string } | null = null,
 ): Promise<void> {
   await indexDropProtection(tx, accountId, state.dropProtection);
   if (rewards.length > 0) {
     const sink = deps.rewardSink ?? commitRewards;
     await sink(tx, rewards, { accountId, stateVersionAfter, contentVersion: state.contentVersion, content: deps.content });
+  }
+  // Ruling R152: the apples the span ate come off their stack in the same commit.
+  if (spent !== null) {
+    await commitConsumption(tx, accountId, consumedDuring(spent.before, state), spent.sourceRef, stateVersionAfter);
   }
   await commitProgression(tx, deps.content, accountId, state, stateVersionAfter);
 }
@@ -816,7 +824,10 @@ async function persistRound(
         });
         // Drained rewards and the bad-luck index reach their tables in the
         // checkpoint's transaction, so neither exists without it (P-27).
-        await commitHuntRewards(deps, tx, accountId, state, settlement.rewards, loaded.stateVersion + 1);
+        await commitHuntRewards(deps, tx, accountId, state, settlement.rewards, loaded.stateVersion + 1, {
+          before: deps.sim.decode(envelope.state),
+          sourceRef: `${updated.huntId}:consumed:${updated.checkpointSeq}`,
+        });
         await deps.hooks?.beforeCommit?.();
       },
     );

@@ -289,10 +289,13 @@ Compare specialist and mixed-stat builds. Investigate DEX efficiency and LUK's p
 
 - A wipe means all party members are dead.
 - **No EXP loss and no de-leveling during beta.**
-- Configure a **maximum wipe count**, default **one**, permitted range **one to five**. This is total allowed wipes, not extra retries.
-- On reaching the limit, return to town and end the hunt. Before reaching it, use the explicit respawn transition.
-- Proposed respawn: full HP after 30 seconds. 🟡 MP, statuses, and cooldown behavior must be specified; only the wipe/respawn transition can grant this recovery, never stop/start.
-- A single dead member after an otherwise won encounter revives at 10% HP. 🟡 EXP eligibility is still open.
+- ~~Configure a **maximum wipe count**, default **one**, permitted range **one to five**. This is total allowed wipes, not extra retries.~~ **Superseded (owner decision 2026-09-30):** there is no wipe limit; a full wipe ends the hunt with stop reason `wipe` and the party returns to town (ruling R154).
+- ~~On reaching the limit, return to town and end the hunt. Before reaching it, use the explicit respawn transition.~~ **Superseded (owner decision 2026-09-30):** there is no respawn transition (ruling R154).
+- ~~Proposed respawn: full HP after 30 seconds. 🟡 MP, statuses, and cooldown behavior must be specified; only the wipe/respawn transition can grant this recovery, never stop/start.~~ **Superseded (owner decision 2026-09-30):** every return to town — stop, wipe or stalemate — heals the whole party, living or dead, to full HP and MP (ruling R155, amending R149). This is the one exception to §4.5's "stop/start grants no free recovery".
+- ~~A single dead member after an otherwise won encounter revives at 10% HP. 🟡 EXP eligibility is still open.~~ **Superseded (owner decision 2026-09-30):** a dead member stays dead for the rest of the hunt (ruling R151); it is ineligible for EXP and still counts in the divisor (ruling R135). It comes back only by:
+  - **Idun's Apple** (`idun-apple`), a 999-stack consumable in the shared bag, eaten automatically at the instant of death: one apple, HP `max(1, floor(maxHp × 50 / 100))`, MP as at death; simultaneous deaths resolve in ascending character id (ruling R152). Its sources (drops, quests, player/NPC sale) and price are open.
+  - **Revive**, a Cleric skill cast by a living Cleric with Revive rank ≥ 1 on a dead ally through an `ally-dead` strategy rule, restoring what the apple restores (ruling R153). Its MP cost, cast time, cooldown and range are owner placeholders (`OPEN_CONTENT_INPUTS.revive`).
+  - A revived member rejoins the encounter with statuses, casts and threat cleared and cooldowns kept, at its death cell if free, else its input placement, else the first free party cell (ruling R156); reviving draws no RNG.
 - Death costs elapsed time and resources already spent. Evaluate whether this supplies sufficient risk before proposing any EXP penalty.
 - Away reports expose evidence about failure, such as potion exhaustion, mana depletion, sustained incoming damage, or an exposed damage dealer. Avoid asserting an unsupported causal diagnosis.
 

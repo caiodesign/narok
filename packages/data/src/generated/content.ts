@@ -658,7 +658,8 @@ export const content: Content = {
       "mpPerLevel": 8,
       "skills": [
         "heal",
-        "smite"
+        "smite",
+        "revive"
       ],
       "weaponAtk": 10,
       "weaponMatk": 22
@@ -719,6 +720,11 @@ export const content: Content = {
     }
   },
   "consumables": {
+    "idun-apple": {
+      "id": "idun-apple",
+      "resource": "revive",
+      "restoreBp": 5000
+    },
     "small-hp-potion": {
       "id": "small-hp-potion",
       "resource": "hp",
@@ -1435,7 +1441,6 @@ export const content: Content = {
     }
   },
   "regenMs": 5000,
-  "respawnMs": 30000,
   "shapes": {
     "cleave": [
       [
@@ -1589,6 +1594,21 @@ export const content: Content = {
       "shape": "single",
       "slowBp": 0
     },
+    "revive": {
+      "baseCastMs": 3000,
+      "cooldownMs": 0,
+      "damageKind": "magic",
+      "durationMs": 0,
+      "effect": "revive",
+      "element": "neutral",
+      "hits": 1,
+      "id": "revive",
+      "mp": 8,
+      "powerBp": 0,
+      "range": 4,
+      "shape": "single",
+      "slowBp": 0
+    },
     "smite": {
       "baseCastMs": 600,
       "cooldownMs": 3000,
@@ -1655,6 +1675,6 @@ export const content: Content = {
     }
   },
   "townReturnTravelMs": 10000,
-  "version": "659c31029e9979c6bfcd71c09ba2d691838ce2cd4629beb1995f560bec21caca",
+  "version": "2afa20bacd8473db84d2ef8043832507ecdd7467b1996499a7cbec1575013bdd",
   "walkMs": 2000
 };

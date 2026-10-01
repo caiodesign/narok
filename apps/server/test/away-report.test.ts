@@ -20,7 +20,7 @@ function withMetrics(state: SimState, metrics: Partial<SimState['metrics']>, ext
   return { ...structuredClone(state), ...extra, metrics: { ...structuredClone(state.metrics), ...metrics } };
 }
 
-const before = withMetrics(startState({ wipeLimit: 3 }), { kills: 40, wins: 12, wipes: 1, rawExp: 900, rawGold: 300 }, { nowMs: 5_400_000 });
+const before = withMetrics(startState(), { kills: 40, wins: 12, wipes: 0, rawExp: 900, rawGold: 300 }, { nowMs: 5_400_000 });
 
 function input(overrides: Partial<AwayReportInput> = {}): AwayReportInput {
   return {
@@ -33,7 +33,7 @@ function input(overrides: Partial<AwayReportInput> = {}): AwayReportInput {
     uncovered: { afterStopMs: 0, afterCapMs: 0 },
     stop: null,
     before,
-    after: withMetrics(before, { kills: 70, wins: 22, wipes: 1, rawExp: 1_600, rawGold: 520 }, { nowMs: 5_400_000 + HOUR }),
+    after: withMetrics(before, { kills: 70, wins: 22, wipes: 0, rawExp: 1_600, rawGold: 520 }, { nowMs: 5_400_000 + HOUR }),
     rewardsCredited: 0,
     ...overrides,
   };
@@ -81,29 +81,29 @@ describe('the four states, each with its own copy and actions (UI spec §8)', ()
 
   test('stopped, the part 2 §3 worked example: the actual reason and the restart action', () => {
     const W1 = W0 + 68_400_000;
-    const after = withMetrics(before, { wipes: 3 }, { nowMs: 46_000_000, phase: 'stopped', stopReason: 'wipe-limit' });
+    const after = withMetrics(before, { wipes: 1 }, { nowMs: 46_000_000, phase: 'stopped', stopReason: 'wipe' });
     const report = buildAwayReport(
       input({
         returnedAtWall: W1,
         window: { capCutoffWall: W0 + 43_200_000, eligibleCutoffWall: W0 + 43_200_000, simTarget: 48_600_000, creditableMs: 43_200_000, cappedBy: 'cap' },
         creditedSimMs: 40_600_000,
         uncovered: { afterStopMs: 2_600_000, afterCapMs: 25_200_000 },
-        stop: { reason: 'wipe-limit', atSimMs: 46_000_000, atWallMs: W0 + 40_600_000 },
+        stop: { reason: 'wipe', atSimMs: 46_000_000, atWallMs: W0 + 40_600_000 },
         after,
       }),
     );
     // A stop outranks the cap: the hunt ended before the cap was reached.
     expect(report.status).toBe('stopped');
-    expect(report.stopReason).toBe('wipe-limit');
-    expect(report.copyKey).toBe('away.stopped.wipe-limit');
+    expect(report.stopReason).toBe('wipe');
+    expect(report.copyKey).toBe('away.stopped.wipe');
     expect(report.actions).toEqual(['start-hunt']);
     expect(report.timeAwayMs).toBe(68_400_000);
     expect(report.simulatedMs).toBe(40_600_000);
     expect(report.accrualEndedAtWall).toBe(W0 + 40_600_000);
-    // Wipes during this absence and wipes used this hunt are separate counts.
-    expect(report.outcomes.wipes).toBe(2);
-    expect(report.wipesThisHunt).toBe(3);
-    expect(report.wipeLimit).toBe(3);
+    // A wipe ends the hunt (owner decision 2026-09-30): there is no wipe limit to report.
+    expect(report.outcomes.wipes).toBe(1);
+    expect(report.wipesThisHunt).toBe(1);
+    expect(report).not.toHaveProperty('wipeLimit');
   });
 
   test('bag-full: drops were lost to a full bag, the hunt kept going, and managing the bag is the primary action', () => {
@@ -119,7 +119,7 @@ describe('the four states, each with its own copy and actions (UI spec §8)', ()
   test('a full bag outranks the cap, and a stop outranks a full bag', () => {
     const lost = withDrops(input().after, { lost: 1 });
     expect(buildAwayReport(input({ after: lost, window: { ...input().window, cappedBy: 'cap' } })).status).toBe('bag-full');
-    const stopped = withDrops(withMetrics(input().after, {}, { phase: 'stopped', stopReason: 'wipe-limit' }), { lost: 1 });
+    const stopped = withDrops(withMetrics(input().after, {}, { phase: 'stopped', stopReason: 'wipe' }), { lost: 1 });
     expect(buildAwayReport(input({ after: stopped })).status).toBe('stopped');
     // Drops lost before this absence are not this absence's news.
     const earlier = withDrops(before, { lost: 2 });
@@ -143,7 +143,17 @@ describe('the report is built from committed deltas and credits nothing (B-17)',
     expect(report.outcomes).toEqual({
       kills: 30, wins: 10, wipes: 0, rawExp: 700, rawGold: 220,
       drops: { rolled: 0, kept: 0, autoSold: 0, ignored: 0, lost: 0 },
+      consumed: {},
     });
+  });
+
+  test("Idun's Apples eaten during the absence are its resource consumption (R152)", () => {
+    const earlier = withMetrics(before, { consumed: { 'idun-apple': 2 } });
+    const report = buildAwayReport(input({
+      before: earlier,
+      after: withMetrics(earlier, { consumed: { 'idun-apple': 5 } }, { nowMs: 5_400_000 + HOUR }),
+    }));
+    expect(report.outcomes.consumed).toEqual({ 'idun-apple': 3 });
   });
 
   test('building it again from the same inputs is identical and leaves its inputs untouched', () => {

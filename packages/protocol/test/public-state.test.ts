@@ -54,7 +54,7 @@ const STATE = {
     walkMs: 4000,
     fightMs: 15016,
     restMs: 13605,
-    respawnMs: 0,
+    consumed: {},
     actors: { p0: { damageDealt: 411, damageReceived: 232, healingDone: 0 } },
     drops: {
       rolled: { common: 1, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -77,12 +77,18 @@ describe('the public state wire schema', () => {
   });
 
   test('accepts every phase and stop reason the simulation publishes', () => {
-    for (const phase of ['walking', 'fighting', 'resting', 'respawning', 'stopped']) {
+    for (const phase of ['walking', 'fighting', 'resting', 'stopped']) {
       expect(publicStateSchema.safeParse({ ...STATE, phase }).success, phase).toBe(true);
     }
-    for (const stopReason of ['wipe-limit', 'stalemate', 'operator', null]) {
+    for (const stopReason of ['wipe', 'stalemate', 'operator', null]) {
       expect(publicStateSchema.safeParse({ ...STATE, stopReason }).success, String(stopReason)).toBe(true);
     }
+  });
+
+  test('the respawn phase and the wipe limit are gone (owner decision 2026-09-30)', () => {
+    expect(publicStateSchema.safeParse({ ...STATE, phase: 'respawning' }).success).toBe(false);
+    expect(publicStateSchema.safeParse({ ...STATE, stopReason: 'wipe-limit' }).success).toBe(false);
+    expect(publicStateSchema.safeParse({ ...STATE, metrics: { ...STATE.metrics, respawnMs: 0 } }).success).toBe(false);
   });
 
   test('a null target, no cast and no reason are all legal', () => {

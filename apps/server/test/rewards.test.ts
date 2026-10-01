@@ -17,7 +17,7 @@ import { envelope, labInput, richSim, W0 } from './hunt-fixtures';
 
 const runner: SegmentRunner = (request) => runSegment(richSim, request);
 /** A long-lived party, so a window of minutes has kills and drops and no stop. */
-const sturdy = () => envelope({ state: richSim.encode(richSim.start(labInput({ wipeLimit: 5, seed: 11 }))) });
+const sturdy = () => envelope({ state: richSim.encode(richSim.start(labInput({ seed: 11 }))) });
 const TEN_MINUTES = 600_000;
 /** 2 x the grid's five enemies: the most rewards one encounter end can release. */
 const CAP = 10;

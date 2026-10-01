@@ -63,7 +63,7 @@ test('a mid-cast snapshot round-trips through encode/decode and still resolves (
   expect(resumed.actors[casting!.id].pendingCast).toBeNull();
 });
 
-test('stop() sets operator phase/reason, clears the queue, and preserves everything else', () => {
+test('stop() sets operator phase/reason, clears the queue, heals the party and preserves everything else', () => {
   const sim = lab();
   const running = runTo(sim, sim.start(labInput()), 5_000).state;
   const before = sim.encode(running);
@@ -76,7 +76,11 @@ test('stop() sets operator phase/reason, clears the queue, and preserves everyth
   expect(stopped.nowMs).toBe(running.nowMs);
   expect(stopped.rng).toBe(running.rng);
   expect(stopped.metrics).toEqual(running.metrics);
-  expect(stopped.actors).toEqual(running.actors);
+  // The return to town heals the whole party to full and changes nothing else (ruling R155).
+  const healed = Object.fromEntries(Object.entries(running.actors).map(([id, actor]) => [
+    id, actor.side === 'party' ? { ...actor, hp: actor.stats.maxHp, mp: actor.stats.maxMp } : actor,
+  ]));
+  expect(stopped.actors).toEqual(healed);
   // stop() clones rather than mutating its argument (contract §3).
   expect(sim.encode(running)).toBe(before);
 });

@@ -11,7 +11,7 @@ import type {
   SkillDefinition,
   SkillId,
 } from '@narok/data';
-import { RARITY_RULES, content } from '@narok/data';
+import { IDUN_APPLE_ID, RARITY_RULES, content } from '@narok/data';
 import { createGrid, gridPosition } from '../src/battlefield/grid';
 import type { Battlefield } from '../src/battlefield/types';
 import { schedule } from '../src/scheduler';
@@ -55,7 +55,7 @@ export const STRESS_GRID_HASH = 'engine-stress-grid-1';
 
 const CLASS_IDS: readonly ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
 const SKILL_IDS: readonly SkillId[] = [
-  'taunt', 'cleave', 'heal', 'smite', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
+  'taunt', 'cleave', 'heal', 'smite', 'revive', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
 ];
 const RECIPE_IDS: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
 const ELEMENTS: readonly Element[] = ['neutral', 'fire', 'water', 'earth', 'wind'];
@@ -149,7 +149,6 @@ function buildFillerContent(): Content {
     walkMs: 1,
     regenMs: 1,
     encounterLimitMs: STRESS_ENCOUNTER_LIMIT_MS,
-    respawnMs: 1,
     townReturnTravelMs: null,
     // Inert: the stress fight equips nothing and rolls no drops.
     items: {},
@@ -159,7 +158,8 @@ function buildFillerContent(): Content {
     pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
     // Inert too: the stress fight carries no progression and drinks nothing.
     progression: structuredClone(content.progression),
-    consumables: {},
+    // Idun's Apple is required content; the stress bag holds none.
+    consumables: { [IDUN_APPLE_ID]: structuredClone(content.consumables[IDUN_APPLE_ID]) },
     potionCooldownMs: content.potionCooldownMs,
     starterKit: {} as Content['starterKit'],
   };
@@ -256,7 +256,6 @@ export function buildStressFixture(seed = 1): StressFixture {
     },
     strategies,
     rest: { hpStart: 0, mpStart: 0 },
-    wipeLimit: 1,
   };
 
   const state: SimState = {
@@ -295,7 +294,7 @@ export function buildStressFixture(seed = 1): StressFixture {
       walkMs: 0,
       fightMs: 0,
       restMs: 0,
-      respawnMs: 0,
+      consumed: {},
       actors: metricsActors,
       drops: emptyDropMetrics(),
     },

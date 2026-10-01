@@ -142,7 +142,8 @@ export const presetPayloadSchema = z
 /**
  * What a saved strategy preset holds, payload schema version 1 (owner decision
  * 2026-09-25, spec §4.0.1): placement and one strategy per party slot, plus
- * the wipe limit and the rest thresholds. Slots are `p0`–`p2` in party order.
+ * the rest thresholds. It holds no wipe limit: a full wipe ends the hunt
+ * (owner decision 2026-09-30, ruling R154), so `.strict()` refuses one. Slots are `p0`–`p2` in party order.
  * The rules inside each strategy are validated by the engine itself at start,
  * so there is one validator for them, not two.
  */
@@ -152,12 +153,6 @@ export const strategyPresetPayloadSchema = z
   .object({
     placement: z.record(partySlot, z.string().min(1).max(16)),
     strategies: z.record(partySlot, z.unknown()),
-    /**
-     * A total, not extra retries: 1 by default, configurable to 5 (layer-1
-     * §6.6). Optional: absent, the server applies the engine's
-     * `DEFAULT_WIPE_LIMIT` (ruling R148), so the default lives in one place.
-     */
-    wipeLimit: z.number().int().min(1).max(5).optional(),
     rest: z.object({ hpStart: z.number().int(), mpStart: z.number().int() }).strict(),
   })
   .strict();

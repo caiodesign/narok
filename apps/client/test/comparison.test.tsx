@@ -85,7 +85,7 @@ test('the stop report states observed facts only (stop reason, wipes, kills, ela
             ...state,
             nowMs: 30_000,
             phase: 'stopped',
-            stopReason: 'wipe-limit',
+            stopReason: 'wipe',
             metrics: { ...state.metrics, kills: 5, wipes: 1 },
           },
         },
@@ -93,7 +93,7 @@ test('the stop report states observed facts only (stop reason, wipes, kills, ela
     />,
   );
   const a = within(screen.getByTestId('comparison-slot-a'));
-  expect(a.getByTestId('stop-reason')).toHaveTextContent('Wipe limit reached');
+  expect(a.getByTestId('stop-reason')).toHaveTextContent('The party was wiped out');
   expect(a.getByTestId('wipes')).toHaveTextContent('1');
   expect(a.getByTestId('kills')).toHaveTextContent('5');
 });

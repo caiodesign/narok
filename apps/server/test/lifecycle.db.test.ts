@@ -56,7 +56,6 @@ function plan(overrides: Partial<HuntPlan['input']> = {}): HuntPlan {
       placement: defaultPlacement([...classes]),
       strategies: Object.fromEntries(classes.map((id, index) => [`p${index}`, defaultStrategy(id)])),
       rest: { hpStart: 50, mpStart: 30 },
-      wipeLimit: 1,
       ...overrides,
     },
     activeStrategy: { presetId: crypto.randomUUID(), presetVersion: 1 },
@@ -247,7 +246,7 @@ describe('step 1: start', () => {
     const { deps } = harness();
 
     const refused = await rejection(() =>
-      startHunt(deps, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 0 }) }),
+      startHunt(deps, { accountId: account.id, expectedStateVersion: 0, plan: plan({ rest: { hpStart: 95, mpStart: 0 } }) }),
     );
     expect(refused.code).toBe('VALIDATION');
     expect(await huntRow(account.id)).toBeUndefined();
@@ -733,7 +732,7 @@ describe('stop: settle, then return to town (spec §4.0, §4.0.1)', () => {
     expect(stopped.state.phase).toBe('stopped');
   });
 
-  test('B-L18: stopping preserves rng, metrics, wipes and encounter count exactly', async () => {
+  test('B-L18: stopping preserves rng, metrics, wipes and encounter count exactly; only the party is healed (R155)', async () => {
     const control = await insertAccount(db);
     const settledOnly = harness();
     await startHunt(settledOnly.deps, { accountId: control.id, expectedStateVersion: 0, plan: plan() });
@@ -748,9 +747,14 @@ describe('stop: settle, then return to town (spec §4.0, §4.0.1)', () => {
     await stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 });
     const stopped = sim.decode(decodeCheckpoint(Buffer.from((await huntRow(account.id)).checkpoint).toString('utf8')).state);
 
-    for (const key of ['rng', 'metrics', 'encounterCount', 'actors', 'nowMs', 'epoch'] as const) {
+    for (const key of ['rng', 'metrics', 'encounterCount', 'nowMs', 'epoch'] as const) {
       expect(JSON.stringify(stopped[key]), key).toBe(JSON.stringify(settled[key]));
     }
+    // The return to town heals the whole party to full and touches nothing else (ruling R155).
+    const healed = Object.fromEntries(Object.entries(settled.actors).map(([id, actor]) => [
+      id, actor.side === 'party' ? { ...actor, hp: actor.stats.maxHp, mp: actor.stats.maxMp } : actor,
+    ]));
+    expect(JSON.stringify(stopped.actors)).toBe(JSON.stringify(healed));
   });
 
   test('a new hunt waits for the party to reach town', async () => {
@@ -812,7 +816,7 @@ describe('stop: settle, then return to town (spec §4.0, §4.0.1)', () => {
 
     const row = await huntRow(account.id);
     expect(row.status, 'the settlement stood').toBe('stopped');
-    expect(sim.decode(decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8')).state).stopReason).toBe('wipe-limit');
+    expect(sim.decode(decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8')).state).stopReason).toBe('wipe');
   });
 });
 

@@ -1,31 +1,26 @@
 /**
  * The party rules pane (`codex-examples/realm-refined/strategy.html:1331-1414`).
  *
- * Three of the reference's four sections survive into milestone A, and each is
- * bound to a real field of `LabInput`:
+ * Two of the reference's four sections survive, each bound to a real field of
+ * `LabInput`:
  *
  * - "Rest between fights" → `rest.hpStart` / `rest.mpStart`, on the design's own
  *   HP and MP ranges.
- * - The retreat section's death pips → `wipeLimit`. The reference's pips count
- *   deaths against a five-death cap; the laboratory's are wipes against the
- *   configured limit, which defaults to one (the rules override the mockup's
- *   five — see the UI spec's correction table).
  * - Roster size, recipe and seed have no counterpart on a game screen, which
  *   starts from a party that already exists. They are the laboratory's own and
  *   use the design's `.section` / `.subhead` / `.chips` / `.rule` vocabulary
  *   rather than a new one.
  *
- * Dropped whole: potions and the bag-full policy (no items in A), and "return to
- * town" (no town, and travel costs are an open milestone B decision).
+ * Dropped whole: potions and the bag-full policy (no items in A), "return to
+ * town" (no town, and travel costs are an open milestone B decision), and the
+ * retreat section's death pips: a wipe ends the hunt (owner decision
+ * 2026-09-30), so there is no wipe limit to choose.
  */
 import { useTranslation } from 'react-i18next';
 import type { Content, RecipeId } from '@narok/data';
 import type { LabInput } from '@narok/sim';
 import { formatNumber, type Translate } from '../../i18n';
 import type { ValidationIssue } from '../../validation';
-
-/** The reference's pip strip is five wide; the laboratory's cap is the same. */
-const WIPE_PIPS = [1, 2, 3, 4, 5] as const;
 
 export interface PartyRulesPaneProps {
   content: Content;
@@ -34,7 +29,6 @@ export interface PartyRulesPaneProps {
   onRecipe: (recipe: RecipeId | 'mixed') => void;
   onSeed: (seed: number) => void;
   onRest: (part: 'hpStart' | 'mpStart', value: number) => void;
-  onWipeLimit: (limit: number) => void;
   issuesFor: (field: string) => ValidationIssue[];
 }
 
@@ -168,32 +162,6 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
           <Alerts issues={props.issuesFor('rest')} />
         </div>
 
-        <div className="section">
-          <h3 className="subhead">{t('controls.wipeLimit')}</h3>
-          <div className="inline-rule">
-            <div className="attempts">
-              <fieldset className="attempt-pips">
-                <legend className="sr-only">{t('controls.wipeLimit')}</legend>
-                {WIPE_PIPS.map((limit) => (
-                  <label key={limit}>
-                    <input
-                      type="radio"
-                      name="wipe-limit"
-                      aria-label={t('controls.wipeLimitOption', { count: limit })}
-                      checked={draft.wipeLimit === limit}
-                      onChange={() => props.onWipeLimit(limit)}
-                    />
-                    <span className="pip num">{formatNumber(limit, language)}</span>
-                  </label>
-                ))}
-              </fieldset>
-              <span className="rule-label">
-                {t('controls.wipeLimitNote', { count: draft.wipeLimit })}
-              </span>
-            </div>
-          </div>
-          <Alerts issues={props.issuesFor('wipeLimit')} />
-        </div>
       </div>
     </section>
   );

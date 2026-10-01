@@ -62,7 +62,7 @@ describe('rewards drain at the commit and nowhere else', () => {
         },
       },
     });
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
 
     r.clock.now = T0 + 600_000;
     fail = true;
@@ -84,7 +84,7 @@ describe('rewards drain at the commit and nowhere else', () => {
   test('kept equipment becomes an item keyed by its reward id, under the hunt’s pinned content; auto-sell credits no gold', async () => {
     const account = await insertAccount(db);
     const r = rig(db, { engine });
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
     r.clock.now = T0 + 600_000;
     const committed = await persistHunt(r.lifecycle, account.id, { live: true });
 
@@ -137,7 +137,7 @@ describe('rewards drain at the commit and nowhere else', () => {
     const capped = rig(db, { engine, config: { rewardCarrierCap: 10 } });
     const uncapped = rig(db, { engine });
     for (const [index, harness] of [capped, uncapped].entries()) {
-      await startHunt(harness.lifecycle, { accountId: accounts[index].id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+      await startHunt(harness.lifecycle, { accountId: accounts[index].id, expectedStateVersion: 0, plan: plan() });
       harness.clock.now = T0 + 300_000;
     }
 
@@ -165,7 +165,7 @@ describe('account_drop_protection is an index of the checkpoint’s counters (pa
       engine,
       lifecycle: { hooks: { beforeCommit: () => { if (fail) throw new Error('injected'); } } },
     });
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
 
     for (const at of [60_000, 180_000, 240_000]) {
       r.clock.now = T0 + at;
@@ -185,7 +185,7 @@ describe('account_drop_protection is an index of the checkpoint’s counters (pa
   test('stopping keeps the counters, and the next hunt starts from the account’s index (layer-1 §4.5)', async () => {
     const account = await insertAccount(db);
     const r = rig(db, { engine });
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
     r.clock.now = T0 + 120_000;
     const stopped = await stopHunt(r.lifecycle, { accountId: account.id });
     const counters = richSim.decode((await checkpointOf(db, account.id)).state).dropProtection;
@@ -196,7 +196,7 @@ describe('account_drop_protection is an index of the checkpoint’s counters (pa
     const next = await startHunt(r.lifecycle, {
       accountId: account.id,
       expectedStateVersion: stopped.stateVersion,
-      plan: plan({ wipeLimit: 5 }, undefined, { dropProtection: await readDropProtection(db, account.id) }),
+      plan: plan({}, undefined, { dropProtection: await readDropProtection(db, account.id) }),
     });
     const state = richSim.decode((await checkpointOf(db, account.id)).state);
     expect(state.dropProtection).toEqual(counters);
@@ -212,7 +212,7 @@ describe('a Keep the bag cannot hold is lost, audited, and the hunt goes on (par
     await startHunt(r.lifecycle, {
       accountId: account.id,
       expectedStateVersion: 0,
-      plan: plan({ wipeLimit: 5 }, undefined, { loot: KEEP_ALL, bag: { capacity: 2, usedSlots: 0, stackHeadroom: {} } }),
+      plan: plan({}, undefined, { loot: KEEP_ALL, bag: { capacity: 2, usedSlots: 0, held: {} } }),
     });
     r.clock.now = T0 + 600_000;
     const committed = await persistHunt(r.lifecycle, account.id, { live: true });

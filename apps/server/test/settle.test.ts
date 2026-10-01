@@ -50,7 +50,7 @@ describe('the part 2 §3 worked example, end to end', () => {
     const settled = await settle(
       before,
       W1,
-      stub({ simNowMs: 46_000_000, creditedSimMs: 40_600_000, completion: 'stopped', stopReason: 'wipe-limit' }, seen),
+      stub({ simNowMs: 46_000_000, creditedSimMs: 40_600_000, completion: 'stopped', stopReason: 'wipe' }, seen),
     );
 
     // capCutoffWall = W0 + 43,200,000; eligibleCutoffWall = min(W1, that).
@@ -63,7 +63,7 @@ describe('the part 2 §3 worked example, end to end', () => {
 
     // The engine wiped out at 46,000,000: 11 h 16 m 40 s credited.
     expect(settled.creditedSimMs).toBe(40_600_000);
-    expect(settled.stop).toEqual({ reason: 'wipe-limit', atSimMs: 46_000_000, atWallMs: W0 + 40_600_000 });
+    expect(settled.stop).toEqual({ reason: 'wipe', atSimMs: 46_000_000, atWallMs: W0 + 40_600_000 });
 
     // Both uncovered intervals (B-L03): stop → cap cutoff, and cap cutoff → return.
     expect(settled.uncovered).toEqual({ afterStopMs: 2_600_000, afterCapMs: 25_200_000 });
@@ -73,7 +73,7 @@ describe('the part 2 §3 worked example, end to end', () => {
     expect(settled.envelope.wallAnchorMs).toBe(W1);
     expect(settled.envelope.simAnchorMs).toBe(46_000_000);
     expect(settled.envelope.pausedWallMs).toBe(0);
-    expect(settled.envelope.stopContext).toMatchObject({ reason: 'wipe-limit', atSimMs: 46_000_000, atWallMs: W0 + 40_600_000 });
+    expect(settled.envelope.stopContext).toMatchObject({ reason: 'wipe', atSimMs: 46_000_000, atWallMs: W0 + 40_600_000 });
 
     // Time away and simulated duration are two numbers, not one.
     expect(W1 - before.lastSeenAt).toBe(68_400_000);

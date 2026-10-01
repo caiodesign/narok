@@ -23,7 +23,6 @@ export function rules(overrides: Partial<PendingRules> = {}): PendingRules {
     placement: defaultPlacement([...party]),
     strategies: Object.fromEntries(party.map((id, index) => [`p${index}`, defaultStrategy(id)])),
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
     ...overrides,
   };
 }

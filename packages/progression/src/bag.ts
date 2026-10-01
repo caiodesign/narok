@@ -42,16 +42,17 @@ function copy(bag: Bag): Bag {
 
 /**
  * What a hunt may assume about this bag (Part 3 §2.5): the simulation's
- * `BagState`, whose `stackHeadroom` is the units still free in each
- * consumable's open stack. Built here so the server never re-derives it.
+ * `BagState`, whose `held` is the total of each consumable — the one figure
+ * its stacks and their headroom follow from (ruling R137), and what the
+ * simulation spends Idun's Apples from (ruling R152). Built here so the
+ * server never re-derives it.
  */
-export function bagState(bag: Bag): { capacity: number; usedSlots: number; stackHeadroom: Record<string, number> } {
-  const stackHeadroom: Record<string, number> = {};
+export function bagState(bag: Bag): { capacity: number; usedSlots: number; held: Record<string, number> } {
+  const held: Record<string, number> = {};
   for (const id of Object.keys(bag.consumables).sort()) {
-    const units = bag.consumables[id]!;
-    stackHeadroom[id] = stacks(units) * CONSUMABLE_STACK_MAX - units;
+    if (bag.consumables[id]! > 0) held[id] = bag.consumables[id]!;
   }
-  return { capacity: bag.capacity, usedSlots: usedSlots(bag), stackHeadroom };
+  return { capacity: bag.capacity, usedSlots: usedSlots(bag), held };
 }
 
 /** Places an unequipped equipment instance in a free slot. */
@@ -111,7 +112,8 @@ export function consumePotion(
   content: Content,
 ): Result<{ bag: Bag; user: PotionUser }> {
   const potion = Object.hasOwn(content.consumables, consumableId) ? content.consumables[consumableId] : undefined;
-  if (potion === undefined) return fail('VALIDATION', 'consumableId');
+  // Idun's Apple is no potion: only the simulation spends it, at a death (ruling R152).
+  if (potion === undefined || potion.resource === 'revive') return fail('VALIDATION', 'consumableId');
   if (!isCount(nowMs)) return fail('VALIDATION', 'nowMs');
   if (user.hp <= 0) return rule('CHARACTER_DEAD');
   if (nowMs < user.potionReadyAt) return rule('POTION_COOLDOWN');

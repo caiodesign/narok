@@ -253,7 +253,7 @@ function stoppedWith(reason: unknown): string {
   return mutate(stopped, (raw) => { raw.stopReason = reason; });
 }
 
-test.each(['wipe-limit', 'stalemate', 'operator', 'retreat', 'potion-floor'] as const)(
+test.each(['wipe', 'stalemate', 'operator', 'retreat', 'potion-floor'] as const)(
   'decodeSnapshot accepts the closed B stop reason %s (R114)',
   (reason) => {
     const decoded = decodeSnapshot(stoppedWith(reason), content, createGrid(content.grid));
@@ -286,7 +286,7 @@ test('a fresh state and its round-tripped snapshot are both b1 (R114)', () => {
   expect(decodeSnapshot(encodeSnapshot(state), content, grid).simulationVersion).toBe('b1');
 });
 
-test('stop changes only phase, stopReason and queue in the canonical encoding (B-L18)', () => {
+test('stop changes only phase, stopReason, queue and the party’s HP/MP in the canonical encoding (B-L18, R155)', () => {
   const sim = lab();
   // Mid-fight at 5 s: a live queue, spent MP, cooldowns and damage all exist to be preserved.
   const running = runTo(sim, sim.start(labInput()), 5_000).state;
@@ -303,8 +303,17 @@ test('stop changes only phase, stopReason and queue in the canonical encoding (B
   // The return-to-town travel is the fourth permitted difference, and it is not
   // in the engine: the server records it as a wall-clock arrival in the
   // checkpoint envelope (spec §4.0.1), so `nowMs` and the walk metrics hold still.
-  expect(changed).toEqual(['phase', 'queue', 'stopReason']);
-  for (const key of ['rng', 'actors', 'metrics', 'encounterCount', 'nowMs', 'epoch', 'input']) {
+  // The return to town heals the whole party to full (ruling R155), so `actors`
+  // changes too — in each member's HP and MP and nothing else.
+  expect(changed).toEqual(['actors', 'phase', 'queue', 'stopReason']);
+  type Encoded = { side: string; hp: number; mp: number; stats: { maxHp: number; maxMp: number } };
+  const beforeActors = before.actors as Record<string, Encoded>;
+  const afterActors = after.actors as Record<string, Encoded>;
+  for (const [id, actor] of Object.entries(beforeActors)) {
+    const healed = actor.side === 'party' ? { ...actor, hp: actor.stats.maxHp, mp: actor.stats.maxMp } : actor;
+    expect(JSON.stringify(afterActors[id])).toBe(JSON.stringify(healed));
+  }
+  for (const key of ['rng', 'metrics', 'encounterCount', 'nowMs', 'epoch', 'input']) {
     expect(JSON.stringify(after[key])).toBe(JSON.stringify(before[key]));
   }
   expect(after.stopReason).toBe('operator');

@@ -88,6 +88,11 @@ function validateCondition(value: unknown, field: string, skillId: SkillId): Con
     if (kind !== 'ally-targeted') failInput(`${field}.kind`, 'taunt requires ally-targeted');
     return { kind: 'ally-targeted' };
   }
+  // Ruling R153: Revive aims at a fallen ally and at nothing else.
+  if (skillId === 'revive') {
+    if (kind !== 'ally-dead') failInput(`${field}.kind`, 'revive requires ally-dead');
+    return { kind: 'ally-dead' };
+  }
   if (AOE_THRESHOLD_SKILLS.includes(skillId)) {
     if (kind === 'always') return { kind: 'always' };
     if (kind === 'targets-at-least') {
@@ -208,23 +213,14 @@ export function validateLabInput(value: unknown, content: Content, battlefield: 
     mpStart: requireInt(restRecord.mpStart, 'input.rest.mpStart', 0, 79),
   };
 
-  const wipeLimit = requireInt(record.wipeLimit, 'input.wipeLimit', WIPE_LIMIT_RANGE[0], WIPE_LIMIT_RANGE[1]);
   const seed = requireInt(record.seed, 'input.seed', 1, 4294967295);
   const recipe = requireOneOf(record.recipe, 'input.recipe', RECIPE_IDS);
 
-  return { seed, classes, recipe, placement, strategies, rest, wipeLimit };
+  return { seed, classes, recipe, placement, strategies, rest };
 }
 
-/**
- * The wipe limit (layer-1 §5.6; Part 3 §5.5): the total number of wipes a hunt
- * allows — not retries on top of one — one to five, and one for a strategy
- * preset that has not chosen (ruling R140). `validateLabInput` enforces the range.
- */
-export const DEFAULT_WIPE_LIMIT = 1;
-export const WIPE_LIMIT_RANGE: readonly [number, number] = [1, 5];
-
-/** The four fields a strategy preset holds (owner decision 2026-09-25), and nothing else. */
-const PENDING_RULE_KEYS: readonly (keyof PendingRules)[] = ['placement', 'strategies', 'rest', 'wipeLimit'];
+/** The three fields a strategy preset holds (owner decisions 2026-09-25 and 2026-09-30), and nothing else. */
+const PENDING_RULE_KEYS: readonly (keyof PendingRules)[] = ['placement', 'strategies', 'rest'];
 
 /**
  * Validates an unknown value as {@link PendingRules} for the roster of `input`
@@ -257,7 +253,6 @@ export function validatePendingRules(
         placement: record.placement,
         strategies: record.strategies,
         rest: record.rest,
-        wipeLimit: record.wipeLimit,
       },
       content,
       battlefield,
@@ -276,11 +271,15 @@ export function validatePendingRules(
     placement: merged.placement,
     strategies: merged.strategies,
     rest: merged.rest,
-    wipeLimit: merged.wipeLimit,
   };
 }
 
-/** Spec §6 default rule tables (R22), all rules enabled. */
+/**
+ * Spec §6 default rule tables (R22), all rules enabled. The Cleric's Revive
+ * comes first (ruling R153): a fallen ally outranks a hurt one. It never fires
+ * while the Cleric's Revive rank is 0, so a Cleric without the spell plays
+ * exactly as before.
+ */
 export function defaultStrategy(classId: ClassId): Strategy {
   switch (classId) {
     case 'guardian':
@@ -294,6 +293,7 @@ export function defaultStrategy(classId: ClassId): Strategy {
     case 'cleric':
       return {
         rules: [
+          { skillId: 'revive', enabled: true, condition: { kind: 'ally-dead' } },
           { skillId: 'heal', enabled: true, condition: { kind: 'ally-hp-below', value: 60 } },
           { skillId: 'smite', enabled: true, condition: { kind: 'always' } },
         ],
@@ -338,20 +338,25 @@ function checkRecord(value: unknown, field: string, code: SimErrorCode): Record<
 }
 
 /**
- * The bag a hunt may assume (part 3 §2.5). Shared by `start` (`INVALID_INPUT`)
- * and snapshot decoding (`INVALID_STATE`); returns a fresh copy.
+ * The bag a hunt may assume (part 3 §2.5): each consumable's total held is a
+ * positive count, and its stacks (`ceil(n / 999)`, ruling R137) fit in the
+ * slots in use. Shared by `start` (`INVALID_INPUT`) and snapshot decoding
+ * (`INVALID_STATE`); returns a fresh copy.
  */
 export function validateBag(value: unknown, field: string, code: SimErrorCode): BagState {
   const record = checkRecord(value, field, code);
   const capacity = checkInt(record.capacity, `${field}.capacity`, code, 0, MAX_COUNT);
   const usedSlots = checkInt(record.usedSlots, `${field}.usedSlots`, code, 0, capacity);
-  const headroomRecord = checkRecord(record.stackHeadroom, `${field}.stackHeadroom`, code);
-  const stackHeadroom: Record<string, number> = {};
-  for (const id of Object.keys(headroomRecord).sort()) {
-    if (!CONSUMABLE_ID.test(id)) throw new SimError(code, `${field}.stackHeadroom`, 'expected consumable ids');
-    stackHeadroom[id] = checkInt(headroomRecord[id], `${field}.stackHeadroom.${id}`, code, 0, CONSUMABLE_STACK_MAX);
+  const heldRecord = checkRecord(record.held, `${field}.held`, code);
+  const held: Record<string, number> = {};
+  let stacks = 0;
+  for (const id of Object.keys(heldRecord).sort()) {
+    if (!CONSUMABLE_ID.test(id)) throw new SimError(code, `${field}.held`, 'expected consumable ids');
+    held[id] = checkInt(heldRecord[id], `${field}.held.${id}`, code, 1, MAX_COUNT);
+    stacks += Math.ceil(held[id] / CONSUMABLE_STACK_MAX);
   }
-  return { capacity, usedSlots, stackHeadroom };
+  if (stacks > usedSlots) throw new SimError(code, `${field}.usedSlots`, 'fewer slots in use than consumable stacks');
+  return { capacity, usedSlots, held };
 }
 
 /** The bad-luck counters (part 3 §2.4); returns a fresh copy. */
@@ -664,9 +669,9 @@ export function startState(
       walkMs: 0,
       fightMs: 0,
       restMs: 0,
-      respawnMs: 0,
       actors: metricsActors,
       drops: emptyDropMetrics(),
+      consumed: {},
     },
     // A new hunt is a new reward namespace, so its ordinals start again (part 2 §2).
     nextRewardSeq: 0,

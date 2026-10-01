@@ -1,7 +1,7 @@
 import {
   BAND_DRAW_SPACE, BASE_BAND_PPM, RARITIES, RARITY_RULES, TIER_LEVEL_REQUIREMENTS, bonusCount, valueTier,
 } from './items';
-import { EQUIPMENT_SLOTS } from './types';
+import { EQUIPMENT_SLOTS, IDUN_APPLE_ID } from './types';
 import type {
   Attributes,
   BonusDefinition,
@@ -46,14 +46,14 @@ export class ContentError extends Error {
 
 const CLASS_IDS: readonly ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
 const SKILL_IDS: readonly SkillId[] = [
-  'taunt', 'cleave', 'heal', 'smite', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
+  'taunt', 'cleave', 'heal', 'smite', 'revive', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
 ];
 const RECIPE_IDS: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
 const ELEMENTS: readonly Element[] = ['neutral', 'fire', 'water', 'earth', 'wind'];
 const SHAPE_IDS: readonly ShapeId[] = ['single', 'cleave', 'square', 'plus'];
 const DAMAGE_KINDS: readonly DamageKind[] = ['physical', 'magic'];
 const FAMILIES: readonly Family[] = ['beast', 'undead', 'demon', 'plant', 'insect', 'humanoid'];
-const EFFECTS: readonly SkillDefinition['effect'][] = ['damage', 'heal', 'taunt'];
+const EFFECTS: readonly SkillDefinition['effect'][] = ['damage', 'heal', 'taunt', 'revive'];
 
 function fail(field: string, message: string): never {
   throw new ContentError(field, message);
@@ -172,7 +172,8 @@ function validateSkill(value: unknown, field: string, id: SkillId): SkillDefinit
   return {
     id,
     mp: requireSafeInt(record.mp, `${field}.mp`, 0, 1_000),
-    cooldownMs: requireSafeInt(record.cooldownMs, `${field}.cooldownMs`, 1, 1_000_000),
+    // Zero is a skill with no cooldown: Revive's owner placeholder (2026-09-30).
+    cooldownMs: requireSafeInt(record.cooldownMs, `${field}.cooldownMs`, 0, 1_000_000),
     baseCastMs: requireSafeInt(record.baseCastMs, `${field}.baseCastMs`, 0, 1_000_000),
     range: requireSafeInt(record.range, `${field}.range`, 1, 20),
     shape: requireOneOf(record.shape, `${field}.shape`, SHAPE_IDS),
@@ -617,7 +618,11 @@ function validateProgression(value: unknown, field: string): ProgressionTables {
   };
 }
 
-/** Potion definitions (layer-1 §7.6): ids are content ids, the restore a share in (0, 100%]. */
+/**
+ * Consumable definitions (layer-1 §7.6; owner decision 2026-09-30): ids are
+ * content ids, the restore a share in (0, 100%] of the resource it names.
+ * Idun's Apple must be one of them, as a `revive`: the simulation spends it.
+ */
 function validateConsumableDefinitions(value: unknown, field: string): Record<string, ConsumableDefinition> {
   const record = requireRecord(value, field);
   const result: Record<string, ConsumableDefinition> = {};
@@ -628,10 +633,11 @@ function validateConsumableDefinitions(value: unknown, field: string): Record<st
     if (entry.id !== id) fail(`${entryField}.id`, 'id must match its key');
     result[id] = {
       id,
-      resource: requireOneOf(entry.resource, `${entryField}.resource`, ['hp', 'mp'] as const),
+      resource: requireOneOf(entry.resource, `${entryField}.resource`, ['hp', 'mp', 'revive'] as const),
       restoreBp: requireSafeInt(entry.restoreBp, `${entryField}.restoreBp`, 1, 10_000),
     };
   }
+  if (result[IDUN_APPLE_ID]?.resource !== 'revive') fail(`${field}.${IDUN_APPLE_ID}`, "Idun's Apple must be a revive consumable");
   return result;
 }
 
@@ -733,7 +739,6 @@ export function validateContent(value: unknown): Content {
   const walkMs = requireSafeInt(root.walkMs, 'walkMs', 1, 1_000_000);
   const regenMs = requireSafeInt(root.regenMs, 'regenMs', 1, 1_000_000);
   const encounterLimitMs = requireSafeInt(root.encounterLimitMs, 'encounterLimitMs', 1, 100_000_000);
-  const respawnMs = requireSafeInt(root.respawnMs, 'respawnMs', 1, 1_000_000);
   // R114: an explicit `null` marks the open input; a missing key is still refused.
   const townReturnTravelMs = root.townReturnTravelMs === null
     ? null
@@ -765,7 +770,6 @@ export function validateContent(value: unknown): Content {
     walkMs,
     regenMs,
     encounterLimitMs,
-    respawnMs,
     townReturnTravelMs,
     ...equipment,
     pity,

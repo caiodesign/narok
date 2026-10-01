@@ -32,15 +32,15 @@ import type {
 /** Generous but finite bound for timestamp/counter fields, well under the safe-integer ceiling. */
 const MAX_TIME = 1_000_000_000_000;
 
-const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'respawning', 'stopped'];
+const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'stopped'];
 /** Ruling R114: the closed `b1` union; any other value is refused, never passed through. */
-const STOP_REASONS: readonly StopReason[] = ['wipe-limit', 'stalemate', 'operator', 'retreat', 'potion-floor'];
+const STOP_REASONS: readonly StopReason[] = ['wipe', 'stalemate', 'operator', 'retreat', 'potion-floor'];
 const SIDES = ['party', 'enemy'] as const;
 const FAMILIES: readonly Family[] = ['beast', 'undead', 'demon', 'plant', 'insect', 'humanoid'];
 const ELEMENTS: readonly Element[] = ['neutral', 'fire', 'water', 'earth', 'wind'];
 const DAMAGE_KINDS: readonly DamageKind[] = ['physical', 'magic'];
 const SKILL_IDS: readonly SkillId[] = [
-  'taunt', 'cleave', 'heal', 'smite', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
+  'taunt', 'cleave', 'heal', 'smite', 'revive', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
 ];
 const QUEUE_KINDS: readonly QueueKind[] = ['expire', 'regen', 'resolve', 'act', 'deadline', 'transition'];
 const STATUS_KINDS = ['slow', 'stun'] as const;
@@ -347,9 +347,20 @@ function validateMetrics(
     walkMs: nonNegativeInt('walkMs'),
     fightMs: nonNegativeInt('fightMs'),
     restMs: nonNegativeInt('restMs'),
-    respawnMs: nonNegativeInt('respawnMs'),
     actors: metricsActors,
+    consumed: validateConsumed(record.consumed, `${field}.consumed`),
   };
+}
+
+/** Units spent per consumable id (ruling R152): content ids, positive counts. */
+function validateConsumed(value: unknown, field: string): Record<string, number> {
+  const record = requireRecord(value, field);
+  const consumed: Record<string, number> = {};
+  for (const id of Object.keys(record).sort()) {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) fail('INVALID_STATE', field, 'expected consumable ids');
+    consumed[id] = requireIntRange(record[id], `${field}.${id}`, 1, MAX_TIME);
+  }
+  return consumed;
 }
 
 function validateWaits(value: unknown, field: string): number[] {

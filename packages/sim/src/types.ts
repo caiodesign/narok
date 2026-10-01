@@ -17,21 +17,27 @@ import type { Battlefield } from './battlefield/types';
 
 export type ActorId = string;
 export type PositionId = string & { readonly __position: unique symbol };
-export type Phase = 'walking' | 'fighting' | 'resting' | 'respawning' | 'stopped';
+/**
+ * There is no respawn phase (owner decision 2026-09-30; ruling R154): a full
+ * wipe ends the hunt.
+ */
+export type Phase = 'walking' | 'fighting' | 'resting' | 'stopped';
 /**
  * The closed stop vocabulary of simulation version `b1` (ruling R114, part 2
- * §9 #5): A's `wipe-limit`, `stalemate` and `operator`, plus `retreat` (the
- * party abandons its encounter for town) and `potion-floor` (layer-1 §6.6's
- * "return when HP potions fall below N"). A full bag is not a stop — the drop is
- * lost and the hunt continues (spec §4.0) — and reaching the offline cap is not
- * a stop either: it bounds accrual and leaves the hunt running.
+ * §9 #5): `wipe` (every member dead with no apple or revive left to act —
+ * owner decision 2026-09-30, ruling R154, replacing A's `wipe-limit`),
+ * `stalemate` and `operator`, plus `retreat` (the party abandons its encounter
+ * for town) and `potion-floor` (layer-1 §6.6's "return when HP potions fall
+ * below N"). A full bag is not a stop — the drop is lost and the hunt
+ * continues (spec §4.0) — and reaching the offline cap is not a stop either:
+ * it bounds accrual and leaves the hunt running.
  */
-export type StopReason = 'wipe-limit' | 'stalemate' | 'operator' | 'retreat' | 'potion-floor';
+export type StopReason = 'wipe' | 'stalemate' | 'operator' | 'retreat' | 'potion-floor';
 export type TargetMode =
   | { kind: 'lowest-hp' | 'highest-hp' | 'highest-level' | 'nearest' }
   | { kind: 'attacking'; partyId: ActorId };
 export type Condition =
-  | { kind: 'always' | 'ally-targeted' }
+  | { kind: 'always' | 'ally-targeted' | 'ally-dead' }
   | { kind: 'ally-hp-below' | 'targets-at-least'; value: number };
 export interface Rule { skillId: SkillId; enabled: boolean; condition: Condition }
 export interface Strategy { rules: Rule[]; target: TargetMode }
@@ -39,16 +45,17 @@ export interface LabInput {
   seed: number; classes: ClassId[]; recipe: RecipeId | 'mixed';
   placement: Record<ActorId, PositionId>;
   strategies: Record<ActorId, Strategy>;
-  rest: { hpStart: number; mpStart: number }; wipeLimit: number;
+  rest: { hpStart: number; mpStart: number };
 }
 /**
  * A queued strategy (milestone B part 2 §4, ruling R115): exactly what a
- * strategy preset holds — placement, per-character strategies, rest thresholds
- * and the wipe limit (owner decision 2026-09-25) — and nothing of the roster,
- * recipe or seed. It activates as one atomic replacement of those four
- * `input` fields at the next encounter spawn, before the recipe draw.
+ * strategy preset holds — placement, per-character strategies and rest
+ * thresholds (owner decision 2026-09-25; the wipe limit went with the owner
+ * decision of 2026-09-30, ruling R154) — and nothing of the roster, recipe or
+ * seed. It activates as one atomic replacement of those three `input` fields
+ * at the next encounter spawn, before the recipe draw.
  */
-export type PendingRules = Pick<LabInput, 'placement' | 'strategies' | 'rest' | 'wipeLimit'>;
+export type PendingRules = Pick<LabInput, 'placement' | 'strategies' | 'rest'>;
 export interface DerivedStats {
   maxHp: number; maxMp: number; atk: number; matk: number; def: number; mdef: number;
   hit: number; flee: number; critBp: number; intervalMs: number;
@@ -92,9 +99,15 @@ export interface DropMetrics {
 export interface Metrics {
   kills: number; wins: number; wipes: number; rawExp: number; rawGold: number;
   damageDealt: number; effectiveHealing: number;
-  walkMs: number; fightMs: number; restMs: number; respawnMs: number;
+  walkMs: number; fightMs: number; restMs: number;
   actors: Record<ActorId, { damageDealt: number; damageReceived: number; healingDone: number }>;
   drops: DropMetrics;
+  /**
+   * Units of each consumable the hunt has spent from the bag, cumulative —
+   * Idun's Apples (ruling R152). The commit that settles a span takes the
+   * span's increase off the account's stacks.
+   */
+  consumed: Record<string, number>;
 }
 /**
  * Bad-luck counters (part 3 §2.4): eligible opportunities since the last award
@@ -104,10 +117,12 @@ export interface Metrics {
 export interface DropProtection { epicPlus: number; legendary: number }
 /**
  * What the simulation may assume about the shared bag (part 3 §2.5): slots in
- * use of `capacity`, and the units still free in the open stack of each
- * consumable. A simulation input, because a Keep that does not fit is lost.
+ * use of `capacity`, and the total held of each consumable, which its stacks
+ * follow from (`ceil(n / 999)`, ruling R137). A simulation input, because a
+ * Keep that does not fit is lost, and Idun's Apples are spent from it (ruling
+ * R152).
  */
-export interface BagState { capacity: number; usedSlots: number; stackHeadroom: Record<string, number> }
+export interface BagState { capacity: number; usedSlots: number; held: Record<string, number> }
 /**
  * A loot filter applied mid-hunt (part 3 §3.3; ruling R131): it governs the
  * rewards numbered from `fromRewardSeq`, the acknowledged cutoff, and replaces
@@ -180,7 +195,7 @@ export interface SimState {
 export interface DomainEvent {
   seq: number; at: number; encounter: number;
   kind: 'phase' | 'spawn' | 'move' | 'cast' | 'damage' | 'miss' | 'heal'
-    | 'death' | 'status' | 'taunt' | 'regen' | 'win' | 'wipe' | 'stop' | 'drop-lost';
+    | 'death' | 'revive' | 'status' | 'taunt' | 'regen' | 'win' | 'wipe' | 'stop' | 'drop-lost';
   actorId: ActorId | null; targetId: ActorId | null; amount: number | null;
   reason: string | null; position: PositionId | null;
 }

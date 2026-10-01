@@ -19,7 +19,7 @@ import {
   STRATEGY_PAYLOAD_SCHEMA_VERSION,
   strategyPresetPayloadSchema,
 } from '@narok/protocol';
-import { DEFAULT_WIPE_LIMIT, SimError, type PendingRules, type PositionId, type Simulation, type Strategy } from '@narok/sim';
+import { SimError, type PendingRules, type PositionId, type Simulation, type Strategy } from '@narok/sim';
 import { AppError } from '../errors';
 import type { CheckpointEnvelope, PresetRef } from './envelope';
 
@@ -50,8 +50,6 @@ export function presetRules(payload: unknown, payloadSchemaVersion: number = STR
     placement: parsed.data.placement as Record<string, PositionId>,
     strategies: parsed.data.strategies as Record<string, Strategy>,
     rest: parsed.data.rest,
-    // Absent, the engine's own default (ruling R148): one place owns the number.
-    wipeLimit: parsed.data.wipeLimit ?? DEFAULT_WIPE_LIMIT,
   };
 }
 

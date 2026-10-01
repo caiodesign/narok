@@ -25,7 +25,6 @@ function labInput(overrides: Partial<LabInput> = {}): LabInput {
     placement: { p0: gridPosition(2, 3), p1: gridPosition(1, 4), p2: gridPosition(3, 4) },
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
     ...overrides,
   };
 }
@@ -41,7 +40,7 @@ const EMPTY_METRICS: Metrics = {
   walkMs: 0,
   fightMs: 0,
   restMs: 0,
-  respawnMs: 0,
+  consumed: {},
   actors: {},
   drops: emptyDropMetrics(),
 };
@@ -146,19 +145,7 @@ describe('validateLabInput', () => {
     );
   });
 
-  test('rejects a wipeLimit outside its sim-enforced bounds (R76: 1..5)', () => {
-    expect(validateLabInput(labInput({ wipeLimit: 0 }), content)).toContainEqual(
-      expect.objectContaining({ field: 'wipeLimit', messageKey: 'validation.wipeLimit' }),
-    );
-    expect(validateLabInput(labInput({ wipeLimit: 5 }), content).some((issue) => issue.field === 'wipeLimit')).toBe(
-      false,
-    );
-    expect(validateLabInput(labInput({ wipeLimit: 6 }), content)).toContainEqual(
-      expect.objectContaining({ field: 'wipeLimit', messageKey: 'validation.wipeLimit' }),
-    );
-  });
-
-  test('R76: client rest/wipeLimit bounds agree with the real sim at every boundary, so they cannot silently drift apart', () => {
+  test('R76: client rest bounds agree with the real sim at every boundary, so they cannot silently drift apart', () => {
     const validated = validateContent(content);
     const sim = createSimulation(validated, createGrid(validated.grid, validated.shapes));
 
@@ -181,11 +168,6 @@ describe('validateLabInput', () => {
       expect(clientRejectsMp).toBe(simRejects(mpCandidate, 'input.rest.mpStart'));
     }
 
-    for (let value = -1; value <= 8; value += 1) {
-      const candidate = labInput({ wipeLimit: value });
-      const clientRejects = validateLabInput(candidate, content).some((issue) => issue.field === 'wipeLimit');
-      expect(clientRejects).toBe(simRejects(candidate, 'input.wipeLimit'));
-    }
   });
 
   test('rejects a rule threshold outside its declared range', () => {
@@ -202,7 +184,8 @@ describe('validateLabInput', () => {
     };
     const input = labInput({ strategies });
     expect(validateLabInput(input, content)).toContainEqual(
-      expect.objectContaining({ field: 'strategies.p1.rules.0.condition.value', messageKey: 'validation.ruleThreshold' }),
+      // Heal is the Cleric's second rule: Revive leads (ruling R153).
+      expect.objectContaining({ field: 'strategies.p1.rules.1.condition.value', messageKey: 'validation.ruleThreshold' }),
     );
   });
 

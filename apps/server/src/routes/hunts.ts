@@ -95,7 +95,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
     // 2. The rules.
     const recipe = MAPS[body.mapId];
     if (recipe === undefined) throw new AppError('VALIDATION', 'mapId');
-    // The preset's rules, with the engine's default wipe limit when it names none.
+    // The preset's rules: placement, strategies and rest thresholds.
     const rules = presetRules(strategy.payload, strategy.payloadSchemaVersion);
 
     // The filter that will run at encounter end is a validated copy of the

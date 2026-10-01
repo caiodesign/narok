@@ -44,14 +44,14 @@ async function running() {
   const started = await startHunt(r.lifecycle, {
     accountId: account.id,
     expectedStateVersion: 0,
-    plan: plan({ wipeLimit: 5 }, undefined, { loot: KEEP_ALL, lootPresetId: active.id }),
+    plan: plan({}, undefined, { loot: KEEP_ALL, lootPresetId: active.id }),
   });
   return { account, r, active, other, started };
 }
 
 /** The first instant, on a 1 s grid, at which a rolled drop is still waiting for its encounter to end. */
 async function midEncounterWithWaitingDrop(): Promise<number> {
-  const state = richSim.start({ ...plan({ wipeLimit: 5 }).input, seed: 4_242 }, { loot: KEEP_ALL });
+  const state = richSim.start({ ...plan().input, seed: 4_242 }, { loot: KEEP_ALL });
   let current = state;
   for (let at = 1_000; at < 600_000; at += 1_000) {
     current = richSim.advance(current, at).state;
@@ -157,7 +157,7 @@ describe('apply affects only drops after the acknowledged cutoff (UI spec §6)',
  * and at least one more drop rolled between them (fix round 1).
  */
 function twoCutoffsInOneEncounter(): [number, number] {
-  let current = richSim.start({ ...plan({ wipeLimit: 5 }).input, seed: 4_242 }, { loot: KEEP_ALL });
+  let current = richSim.start({ ...plan().input, seed: 4_242 }, { loot: KEEP_ALL });
   let first: { at: number; encounter: number; seq: number } | null = null;
   for (let at = 1_000; at < 600_000; at += 1_000) {
     current = richSim.advance(current, at).state;

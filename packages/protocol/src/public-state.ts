@@ -19,8 +19,9 @@ import type { SkillId } from '@narok/data';
 const count = z.number().int();
 const timestamp = z.number().int().nonnegative();
 
-export const phaseSchema = z.enum(['walking', 'fighting', 'resting', 'respawning', 'stopped']);
-export const stopReasonSchema = z.enum(['wipe-limit', 'stalemate', 'operator', 'retreat', 'potion-floor']);
+/** No respawn phase and no wipe limit: a full wipe ends the hunt with `wipe` (owner decision 2026-09-30, R154). */
+export const phaseSchema = z.enum(['walking', 'fighting', 'resting', 'stopped']);
+export const stopReasonSchema = z.enum(['wipe', 'stalemate', 'operator', 'retreat', 'potion-floor']);
 
 /**
  * Three fields whose runtime check is "a string" but whose *type* is narrower
@@ -97,12 +98,13 @@ export const metricsSchema = z
     walkMs: timestamp,
     fightMs: timestamp,
     restMs: timestamp,
-    respawnMs: timestamp,
     actors: z.record(
       z.string(),
       z.object({ damageDealt: count, damageReceived: count, healingDone: count }).strict(),
     ),
     drops: dropMetricsSchema,
+    /** Units of each consumable the hunt has spent — Idun's Apples (ruling R152). */
+    consumed: z.record(z.string(), count),
   })
   .strict();
 

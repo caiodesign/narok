@@ -41,7 +41,7 @@ describe('a reconnect after an absence produces one report from the committed de
   test('time away and simulated duration are separate, and the report matches the committed checkpoint', async () => {
     const account = await insertAccount(db);
     const r = rig(db, { config: { offlineCapMs: 60_000 } });
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
 
     // Five minutes away under a one-minute recorded cap.
     r.clock.now = T0 + 300_000;
@@ -64,24 +64,25 @@ describe('a reconnect after an absence produces one report from the committed de
   test('a hunt the engine stopped while away reports the stop and the restart action', async () => {
     const account = await insertAccount(db);
     const r = rig(db);
-    // Seed 4,242 with no resting and one allowed wipe falls at 128,179 ms (re-probed in task 6: the kill handler now draws drops).
+    // Seed 4,242 with no resting wipes at 127,378 ms, which ends the hunt (re-probed in task 7c: a member
+    // dead at a win now stays dead, ruling R151, so the wipe comes sooner than task 6’s 128,179 ms).
     await startHunt(r.lifecycle, {
       accountId: account.id,
       expectedStateVersion: 0,
-      plan: plan({ wipeLimit: 1, rest: { hpStart: 0, mpStart: 0 } }),
+      plan: plan({ rest: { hpStart: 0, mpStart: 0 } }),
     });
 
     r.clock.now = T0 + 3_600_000;
     const view = await r.feed.connect(account.id);
     const report = await readAwayReport(db, account.id, view!.reportId!);
     expect(report.status).toBe('stopped');
-    expect(report.stopReason).toBe('wipe-limit');
-    expect(report.copyKey).toBe('away.stopped.wipe-limit');
+    expect(report.stopReason).toBe('wipe');
+    expect(report.copyKey).toBe('away.stopped.wipe');
     expect(report.actions).toEqual(['start-hunt']);
     expect(report.timeAwayMs).toBe(3_600_000);
-    expect(report.simulatedMs).toBe(128_179);
-    expect(report.accrualEndedAtWall).toBe(T0 + 128_179);
-    expect(report.uncovered).toEqual({ afterStopMs: 3_600_000 - 128_179, afterCapMs: 0 });
+    expect(report.simulatedMs).toBe(127_378);
+    expect(report.accrualEndedAtWall).toBe(T0 + 127_378);
+    expect(report.uncovered).toEqual({ afterStopMs: 3_600_000 - 127_378, afterCapMs: 0 });
     expect(report.outcomes.wipes).toBe(1);
     expect((await huntRow(db, account.id)).status).toBe('stopped');
   });
@@ -89,7 +90,7 @@ describe('a reconnect after an absence produces one report from the committed de
   test('only the latest report is retained (part 4 §3.5, option a)', async () => {
     const account = await insertAccount(db);
     const r = rig(db);
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
     r.clock.now = T0 + 60_000;
     const first = await r.feed.connect(account.id);
     r.clock.now = T0 + 120_000;
@@ -105,7 +106,7 @@ describe('a reconnect after an absence produces one report from the committed de
   test('the socket announces the report after the snapshot it describes', async () => {
     const account = await insertAccount(db);
     const r = rig(db);
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
     r.clock.now = T0 + 90_000;
 
     const sent: ServerMessage[] = [];
@@ -142,7 +143,7 @@ describe('reading a report credits nothing (B-17)', () => {
 
       // The memory store's account is mirrored into the database for the hunt.
       await insertAccount(db, { id: accountId });
-      await startHunt(r.lifecycle, { accountId, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+      await startHunt(r.lifecycle, { accountId, expectedStateVersion: 0, plan: plan() });
       r.clock.now = T0 + 45_000;
       const view = await r.feed.connect(accountId);
       const reportId = view!.reportId!;
@@ -189,7 +190,7 @@ describe('a report that cannot be stored (review fix)', () => {
         },
       },
     });
-    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan({ wipeLimit: 5 }) });
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
     r.clock.now = T0 + 90_000;
 
     const sent: ServerMessage[] = [];

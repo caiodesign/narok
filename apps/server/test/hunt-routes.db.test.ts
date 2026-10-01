@@ -64,7 +64,6 @@ function strategyPayload(overrides: Record<string, unknown> = {}) {
   return {
     placement: defaultPlacement([...party]),
     strategies: Object.fromEntries(party.map((id, index) => [`p${index}`, defaultStrategy(id)])),
-    wipeLimit: 1,
     rest: { hpStart: 50, mpStart: 30 },
     ...overrides,
   };
@@ -121,15 +120,15 @@ describe('POST /api/hunts', () => {
     expect(row.status).toBe('running');
   });
 
-  test('the preset carries the wipe limit and rest thresholds into the hunt (spec §4.0.1)', async () => {
+  test('the preset carries the rest thresholds into the hunt, and no wipe limit (spec §4.0.1, ruling R154)', async () => {
     const me = await player();
-    const refs = await setup(me, strategyPayload({ wipeLimit: 3, rest: { hpStart: 70, mpStart: 40 } }));
+    const refs = await setup(me, strategyPayload({ rest: { hpStart: 70, mpStart: 40 } }));
     await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
 
     const [row] = await db.select().from(schema.hunts).where(eq(schema.hunts.accountId, me.accountId));
     const envelope = JSON.parse(Buffer.from(row.checkpoint).toString('utf8'));
     const input = JSON.parse(envelope.state).input;
-    expect(input.wipeLimit).toBe(3);
+    expect(input).not.toHaveProperty('wipeLimit');
     expect(input.rest).toEqual({ hpStart: 70, mpStart: 40 });
     expect(envelope.activeStrategy).toEqual({ presetId: refs.strategyPresetId, presetVersion: 1 });
   });
@@ -153,9 +152,9 @@ describe('POST /api/hunts', () => {
 
   test('a preset whose payload is malformed is a validation error, and writes nothing', async () => {
     const me = await player();
-    const refs = await setup(me, strategyPayload({ wipeLimit: 9 }));
+    const refs = await setup(me, strategyPayload({ rest: { hpStart: 99, mpStart: 0 } }));
     const response = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
-    expect(response.json()).toMatchObject({ code: 'VALIDATION', field: 'strategyPreset.wipeLimit' });
+    expect(response.json()).toMatchObject({ code: 'VALIDATION', field: 'plan.input.rest.hpStart' });
     expect(await db.select().from(schema.hunts)).toHaveLength(0);
   });
 
@@ -259,7 +258,7 @@ describe('POST /api/hunts/current/strategy (apply next encounter)', () => {
     await start(who, { ...refs, mapId: 'prototype', expectedStateVersion: await version(who.accountId) });
     const [other] = await db
       .insert(schema.strategyPresets)
-      .values({ accountId: who.accountId, name: 'Other', payload: strategyPayload({ wipeLimit: 3 }), payloadSchemaVersion: 1, gridHash: validated.gridHash })
+      .values({ accountId: who.accountId, name: 'Other', payload: strategyPayload({ rest: { hpStart: 40, mpStart: 20 } }), payloadSchemaVersion: 1, gridHash: validated.gridHash })
       .returning();
     return { refs, other };
   }

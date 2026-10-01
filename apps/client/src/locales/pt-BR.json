@@ -45,10 +45,9 @@
     "placementHelp": "Selecione um personagem e escolha uma célula nas fileiras do grupo com o clique ou com as setas e Enter.",
     "invalidCell": "Fora da zona do grupo",
     "invalidCellMark": "×",
-    "restAndWipe": "Descanso e limite de derrotas",
+    "restAndWipe": "Descanso",
     "restHp": "HP de descanso %",
     "restMp": "MP de descanso %",
-    "wipeLimit": "Limite de derrotas totais",
     "strategy": "Regras de estratégia",
     "strategyFor": "Estratégia: {{actor}}",
     "targetMode": "Modo de alvo",
@@ -90,8 +89,6 @@
     "partyRules": "Regras do grupo",
     "recipeAside": "o encontro que esta execução repete",
     "restBetween": "Descanso entre lutas",
-    "wipeLimitOption": "Parar após {{count}}",
-    "wipeLimitNote": "Parar o experimento após {{count}} aniquilações",
     "rosterSizeOption": "Grupo de {{count}}"
   },
   "validation": {
@@ -103,7 +100,6 @@
     "duplicatePlacement": "Dois integrantes não podem ocupar a mesma célula.",
     "invalidCell": "Essa célula está fora da zona do grupo.",
     "restRange": "O HP de descanso deve ficar entre 0 e 89% e o MP entre 0 e 79%.",
-    "wipeLimit": "O limite de derrotas totais deve ficar entre 1 e 5.",
     "ruleThreshold": "Esse limite está fora do intervalo permitido.",
     "unknownTargetParty": "Esse personagem não está mais no grupo."
   },
@@ -117,6 +113,7 @@
     "always": "Usar sempre que estiver pronta",
     "ally-targeted": "Usar quando um inimigo estiver atacando um aliado",
     "ally-hp-below": "Usar quando o HP de um aliado estiver abaixo de",
+    "ally-dead": "Usar quando um aliado tiver caído",
     "targets-at-least": "Usar quando atingir pelo menos"
   },
   "skill": {
@@ -125,6 +122,7 @@
     "cleave": "Talho",
     "heal": "Cura",
     "smite": "Castigo",
+    "revive": "Reviver",
     "double-shot": "Tiro Duplo",
     "arrow-rain": "Chuva de Flechas",
     "fire-bolt": "Dardo de Fogo",
@@ -158,11 +156,10 @@
     "walking": "Caminhando",
     "fighting": "Em combate",
     "resting": "Descansando",
-    "respawning": "Ressurgindo",
     "stopped": "Parado"
   },
   "stopReason": {
-    "wipe-limit": "Limite de derrotas atingido",
+    "wipe": "O grupo foi aniquilado",
     "stalemate": "Limite de tempo do encontro atingido",
     "operator": "Parado pelo operador",
     "retreat": "Retirada para a cidade",
@@ -247,6 +244,10 @@
     },
     "heal": "{{actor}} restaura {{amount}} de HP em {{target}} com {{skill}}.",
     "death": "{{actor}} é derrotado por {{target}}.",
+    "revive": {
+      "apple": "{{actor}} é revivido pela Maçã de Idun com {{amount}} de HP.",
+      "spell": "{{target}} revive {{actor}} com {{amount}} de HP."
+    },
     "status": {
       "slow": "{{actor}} é retardado por {{target}}.",
       "other": "{{actor}} é afetado por {{target}}."
@@ -256,7 +257,6 @@
       "walking": "O grupo caminha até o próximo encontro.",
       "fighting": "Um encontro começa.",
       "resting": "O grupo descansa.",
-      "respawning": "O grupo está ressurgindo.",
       "stopped": "O experimento está parado.",
       "other": "O grupo muda de fase."
     },
@@ -270,7 +270,7 @@
     "wipe": "O grupo foi derrotado por completo.",
     "dropLost": "Um item foi perdido: a bolsa está cheia.",
     "stop": {
-      "wipe-limit": "O experimento parou: o limite de derrotas foi atingido.",
+      "wipe": "A caçada parou: o grupo foi aniquilado.",
       "stalemate": "O experimento parou: o encontro atingiu seu limite de tempo.",
       "operator": "O experimento foi parado pelo operador.",
       "other": "O experimento parou."
@@ -306,8 +306,7 @@
     "minimap": "Minimapa do campo de batalha",
     "gridRange": "{{width}} × {{height}} células",
     "noRun": "Nenhuma execução",
-    "noRunRange": "Nenhuma receita vinculada ainda",
-    "wipes": "{{used}} de {{limit}} derrotas totais"
+    "noRunRange": "Nenhuma receita vinculada ainda"
   },
   "metrics": {
     "elapsed": "Tempo simulado",
@@ -326,7 +325,6 @@
     "walkMs": "Tempo caminhando",
     "fightMs": "Tempo em combate",
     "restMs": "Tempo descansando",
-    "respawnMs": "Tempo ressurgindo",
     "seed": "Semente",
     "recipe": "Receita"
   },

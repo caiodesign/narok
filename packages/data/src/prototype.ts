@@ -21,6 +21,7 @@ import type {
   StarterKit,
   StarterWeapon,
 } from './types';
+import { IDUN_APPLE_ID } from './types';
 
 /** Prototype map identifier. Not a {@link Content} field; the map is fixed for milestone A. */
 export const mapId = 'meadow-lab';
@@ -66,7 +67,7 @@ const classes: Record<ClassId, ClassDefinition> = {
     basicIntervalMs: 1_800,
     basicRange: 4,
     basicKind: 'magic',
-    skills: ['heal', 'smite'],
+    skills: ['heal', 'smite', 'revive'],
   },
   ranger: {
     id: 'ranger',
@@ -104,7 +105,8 @@ const classes: Record<ClassId, ClassDefinition> = {
   },
 };
 
-const skills: Record<SkillId, SkillDefinition> = {
+/** Every skill but Revive, whose open inputs below read Heal's (owner placeholder 2026-09-30). */
+const baseSkills: Record<Exclude<SkillId, 'revive'>, SkillDefinition> = {
   taunt: {
     id: 'taunt',
     mp: 8,
@@ -373,6 +375,23 @@ export const OPEN_CONTENT_INPUTS = {
    */
   pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
   /**
+   * The Cleric's Revive (owner decision 2026-09-30; ruling R153). What it
+   * restores is stated — exactly what Idun's Apple restores — but its MP
+   * cost, cast time, cooldown and range are owner placeholders (2026-09-30),
+   * "to be discussed", not stated values: a 3 s cast, no cooldown, and Heal's MP cost ("not so
+   * expensive") and range.
+   */
+  revive: {
+    mp: baseSkills.heal.mp, baseCastMs: 3_000, cooldownMs: 0, range: baseSkills.heal.range,
+  },
+  /**
+   * Idun's Apple's sources (owner decision 2026-09-30). The owner intends
+   * monster drops, quest rewards and player and NPC sale, following the
+   * milestones. None is in milestone B: no drop chance is set, so no monster
+   * drops it, and nothing may price it (spec §4.0).
+   */
+  idunApple: { monsterDropPpm: null },
+  /**
    * The starter kit's weapon (Part 3 §8 #10; ruling R141): layer-1 §7.6 names
    * only "class starter weapon". Each class's tier-1 weapon as a Common at item
    * level 1 — no bonus, so the onboarding Uncommon is strictly better than it
@@ -403,6 +422,24 @@ export const PROGRESSION_SOURCE = {
   attributeCap: 99,
   maxSkillRank: 5,
 } as const;
+
+const skills: Record<SkillId, SkillDefinition> = {
+  ...baseSkills,
+  // Owner decision 2026-09-30: the Cleric's revive spell (ruling R153).
+  // `powerBp` is unused: it restores what Idun's Apple restores.
+  revive: {
+    id: 'revive',
+    ...OPEN_CONTENT_INPUTS.revive,
+    shape: 'single',
+    powerBp: 0,
+    hits: 1,
+    effect: 'revive',
+    damageKind: 'magic',
+    element: 'neutral',
+    slowBp: 0,
+    durationMs: 0,
+  },
+};
 
 const ATTRIBUTE_KEYS = ['str', 'agi', 'vit', 'int', 'dex', 'luk'] as const;
 const FAMILY_VARIANTS: readonly Family[] = ['beast', 'undead', 'demon', 'plant', 'insect', 'humanoid'];
@@ -543,11 +580,14 @@ const onboardingGrant = Object.fromEntries(
 
 /**
  * The two potions (layer-1 §7.6): Small HP Potion heals 25% of Max HP, Small
- * MP Potion restores 20% of Max MP. No price: prices are deferred (spec §4.0).
+ * MP Potion restores 20% of Max MP. Idun's Apple (owner decision 2026-09-30)
+ * returns a fallen member at 50% of its Max HP; its sources are open
+ * ({@link OPEN_CONTENT_INPUTS}). No price: prices are deferred (spec §4.0).
  */
 const consumables: Record<string, ConsumableDefinition> = {
   'small-hp-potion': { id: 'small-hp-potion', resource: 'hp', restoreBp: 2_500 },
   'small-mp-potion': { id: 'small-mp-potion', resource: 'mp', restoreBp: 2_000 },
+  [IDUN_APPLE_ID]: { id: IDUN_APPLE_ID, resource: 'revive', restoreBp: 5_000 },
 };
 
 function starterWeapon(classId: ClassId): StarterWeapon {
@@ -630,7 +670,6 @@ export const prototypeDefinition: Omit<Content, 'version' | 'gridHash' | 'progre
   walkMs: 2_000,
   regenMs: 5_000,
   encounterLimitMs: 120_000,
-  respawnMs: 30_000,
   // Owner decision 2026-09-25 (spec §4.0.1): ten seconds, against a 2 s walk.
   townReturnTravelMs: 10_000,
   items,

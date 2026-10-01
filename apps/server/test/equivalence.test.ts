@@ -32,7 +32,6 @@ function input(seed: number, classes: readonly ('guardian' | 'cleric' | 'ranger'
     placement: defaultPlacement([...classes]),
     strategies: Object.fromEntries(classes.map((id, index) => [`p${index}`, defaultStrategy(id)])),
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   };
 }
 
@@ -116,7 +115,7 @@ describe('an engine stop ends accrual before the target', () => {
 
     expect(viaWorker.encodedState).toBe(sim.encode(viaCli));
     expect(viaWorker.completion).toBe('stopped');
-    expect(viaWorker.stopReason).toBe('wipe-limit');
+    expect(viaWorker.stopReason).toBe('wipe');
     expect(viaWorker.simNowMs).toBe(viaCli.nowMs);
     expect(viaWorker.simNowMs, 'credit is the state delta, never the horizon').toBeLessThan(SIX_HOURS);
     expect(viaWorker.creditedSimMs).toBe(viaCli.nowMs);

@@ -97,7 +97,6 @@ function defaultDraft(grid: Content['grid']): LabInput {
     placement: seatRoster(classes, grid),
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   };
 }
 
@@ -467,7 +466,6 @@ export function ExperimentControls({
             onRest={(part, value) =>
               setDraft((previous) => ({ ...previous, rest: { ...previous.rest, [part]: value } }))
             }
-            onWipeLimit={(wipeLimit) => setDraft((previous) => ({ ...previous, wipeLimit }))}
             issuesFor={(field) => issuesFor(field, issues)}
           />
         </div>

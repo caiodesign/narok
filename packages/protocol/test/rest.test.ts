@@ -95,10 +95,10 @@ describe('request schemas', () => {
     expect(autoSpendCommandSchema.safeParse({ template: { ...template, extra: 1 }, expectedStateVersion: 2 }).success).toBe(false);
   });
 
-  test('a strategy preset may omit the wipe limit; the server then applies the engine default', () => {
+  test('a strategy preset holds no wipe limit: a wipe ends the hunt (owner decision 2026-09-30)', () => {
     const payload = { placement: {}, strategies: {}, rest: { hpStart: 50, mpStart: 30 } };
     expect(strategyPresetPayloadSchema.safeParse(payload).success).toBe(true);
-    expect(strategyPresetPayloadSchema.safeParse({ ...payload, wipeLimit: 6 }).success).toBe(false);
+    expect(strategyPresetPayloadSchema.safeParse({ ...payload, wipeLimit: 1 }).success).toBe(false);
   });
 
   test('sell takes a bounded list of owned ids', () => {

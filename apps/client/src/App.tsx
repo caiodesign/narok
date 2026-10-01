@@ -49,7 +49,7 @@ export function App(): React.JSX.Element {
   const [activeInput, setActiveInput] = useState<LabInput | null>(null);
   // The draft the setup form currently describes, so the Orders window can start
   // it without owning the form's state. It is held in state because the compass
-  // renders from it — a ref alone would leave the recipe and wipe limit stale
+  // renders from it — a ref alone would leave the recipe stale
   // whenever the draft changed without `canStart` changing with it — and mirrored
   // into a ref so `onStartDraft` never closes over a stale copy.
   const [draft, setDraft] = useState<{ input: LabInput | null; canStart: boolean }>({
@@ -196,7 +196,6 @@ export function App(): React.JSX.Element {
           state={state}
           grid={content.grid}
           status={status}
-          wipeLimit={shownInput?.wipeLimit ?? null}
           recipeId={shownInput?.recipe ?? null}
         />
         <RunsPanel runs={runs} />

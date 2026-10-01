@@ -64,7 +64,7 @@ function state(nowMs: number): PublicStateWire {
       walkMs: 0,
       fightMs: 0,
       restMs: 0,
-      respawnMs: 0,
+      consumed: {},
       actors: {},
       drops: emptyDropMetrics(),
     },
@@ -177,7 +177,6 @@ function labInput(seed: number): LabInput {
     placement: defaultPlacement([...classes]),
     strategies: Object.fromEntries(classes.map((id, index) => [`p${index}`, defaultStrategy(id)])),
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   };
 }
 

@@ -45,7 +45,6 @@ export function labInput(overrides: Partial<LabInput> = {}): LabInput {
     placement: defaultPlacement([...party]),
     strategies: Object.fromEntries(party.map((id, index) => [`p${index}`, defaultStrategy(id)])),
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
     ...overrides,
   };
 }
@@ -57,7 +56,6 @@ export function presetPayload(overrides: Partial<PendingRules> = {}): PendingRul
     placement: input.placement,
     strategies: input.strategies,
     rest: input.rest,
-    wipeLimit: input.wipeLimit,
     ...overrides,
   };
 }

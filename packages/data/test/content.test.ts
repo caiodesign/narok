@@ -148,3 +148,24 @@ test('rejects a starter weapon its class cannot equip', () => {
   value.starterKit.weapons.guardian.definitionId = 'ranger-bow';
   expectInvalidContent(value, 'starterKit.weapons.guardian.definitionId');
 });
+
+test("Idun's Apple and the Cleric's Revive are content (owner decision 2026-09-30)", () => {
+  const value = validateContent(baseContent());
+  expect(value.consumables['idun-apple']).toEqual({ id: 'idun-apple', resource: 'revive', restoreBp: 5_000 });
+  // Its drop source is open: no monster drops it yet, and nothing prices it.
+  for (const monster of Object.values(value.monsters)) {
+    expect(monster.consumables.map((entry) => entry.consumableId)).not.toContain('idun-apple');
+  }
+  expect(value.classes.cleric.skills).toContain('revive');
+  // Owner placeholders 2026-09-30: Heal's MP cost and range, a 3 s cast, no cooldown.
+  expect(value.skills.revive).toMatchObject({
+    id: 'revive', effect: 'revive', mp: value.skills.heal.mp, range: value.skills.heal.range, baseCastMs: 3_000, cooldownMs: 0,
+  });
+  expect(value).not.toHaveProperty('respawnMs');
+});
+
+test("rejects content without Idun's Apple, which the simulation consumes", () => {
+  const value = baseContent();
+  delete (value.consumables as Record<string, unknown>)['idun-apple'];
+  expectInvalidContent(value, 'consumables.idun-apple');
+});

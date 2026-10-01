@@ -2,7 +2,7 @@ import type { Content } from '@narok/data';
 import { decide, resolveCast } from './actions';
 import { expire } from './effects';
 import { SimError } from './errors';
-import { deadline, finishEncounter, regenerate, transition } from './lifecycle';
+import { deadline, finishEncounter, regenerate, reviveWithApples, transition } from './lifecycle';
 import { compareScheduled, isStale, takeNext } from './scheduler';
 import { compareIds } from './effects';
 import type { Battlefield } from './battlefield/types';
@@ -57,7 +57,7 @@ function cloneActor(actor: Actor): Actor {
   };
 }
 
-/** Deep-copies the four preset-held fields; shared by `cloneInput` and the pending queue. */
+/** Deep-copies the three preset-held fields; shared by `cloneInput` and the pending queue. */
 function cloneRules(rules: PendingRules): PendingRules {
   const placement: LabInput['placement'] = {};
   for (const id of Object.keys(rules.placement)) placement[id] = rules.placement[id];
@@ -73,7 +73,7 @@ function cloneRules(rules: PendingRules): PendingRules {
       target: { ...strategy.target },
     };
   }
-  return { placement, strategies, rest: { ...rules.rest }, wipeLimit: rules.wipeLimit };
+  return { placement, strategies, rest: { ...rules.rest } };
 }
 
 function cloneInput(input: LabInput): LabInput {
@@ -99,7 +99,6 @@ function cloneMetrics(metrics: Metrics): Metrics {
     walkMs: metrics.walkMs,
     fightMs: metrics.fightMs,
     restMs: metrics.restMs,
-    respawnMs: metrics.respawnMs,
     actors,
     drops: {
       ...metrics.drops,
@@ -107,6 +106,7 @@ function cloneMetrics(metrics: Metrics): Metrics {
       epicPlusWaits: [...metrics.drops.epicPlusWaits],
       legendaryWaits: [...metrics.drops.legendaryWaits],
     },
+    consumed: { ...metrics.consumed },
   };
 }
 
@@ -166,7 +166,7 @@ export function cloneState(state: SimState): SimState {
     dropProtection: { ...state.dropProtection },
     lootPresetSnapshot: cloneLoot(state.lootPresetSnapshot),
     pendingLoot: state.pendingLoot.map((pending) => ({ preset: cloneLoot(pending.preset), fromRewardSeq: pending.fromRewardSeq })),
-    bagState: { ...state.bagState, stackHeadroom: { ...state.bagState.stackHeadroom } },
+    bagState: { ...state.bagState, held: { ...state.bagState.held } },
     progression: state.progression === null ? null : cloneProgression(state.progression),
   };
 }
@@ -240,9 +240,6 @@ function accrue(state: SimState, delta: number): void {
     case 'resting':
       state.metrics.restMs += delta;
       return;
-    case 'respawning':
-      state.metrics.respawnMs += delta;
-      return;
     case 'stopped':
       return;
   }
@@ -285,6 +282,11 @@ function assertInvariants(state: SimState, previousNowMs: number): void {
   }
 }
 
+/** The living party members, by id. */
+function partyStanding(state: SimState): ActorId[] {
+  return Object.keys(state.actors).filter((id) => state.actors[id].side === 'party' && state.actors[id].hp > 0);
+}
+
 /** Routes one due, non-stale entry to its handler (ruling R41's dispatch table). */
 function dispatch(state: SimState, ctx: Context, entry: ScheduledEvent): void {
   switch (entry.kind) {
@@ -294,13 +296,20 @@ function dispatch(state: SimState, ctx: Context, entry: ScheduledEvent): void {
     case 'regen':
       regenerate(state, ctx);
       return;
-    case 'resolve':
+    case 'resolve': {
+      // Ruling R152: one resolution is one instant of death. The party members
+      // it killed eat Idun's Apples, in character-id order, before the
+      // encounter is judged, so an apple can still avert a wipe.
+      const standing = partyStanding(state);
       resolveCast(state, entry.actorId, ctx);
+      const fallen = standing.filter((id) => state.actors[id].hp <= 0);
+      if (fallen.length > 0) reviveWithApples(state, ctx, fallen);
       // Encounter completion is the dispatcher's job: the resolver stays free of
       // lifecycle, and a kill resolving at the deadline instant therefore wins
       // before the same-time `deadline` entry (priority 20 before 40) can run.
       finishEncounter(state, ctx);
       return;
+    }
     case 'act':
       decide(state, entry.actorId, ctx);
       return;

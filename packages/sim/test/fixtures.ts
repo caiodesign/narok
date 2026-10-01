@@ -91,7 +91,6 @@ export function labInput(overrides: Partial<LabInput> = {}): LabInput {
     placement: defaultPlacement(classes),
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   };
   return { ...base, ...overrides };
 }
@@ -211,7 +210,7 @@ export function fightFixture(): SimState {
       walkMs: 2_000,
       fightMs: 0,
       restMs: 0,
-      respawnMs: 0,
+      consumed: {},
       actors: metricsActors,
       drops: emptyDropMetrics(),
     },

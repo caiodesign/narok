@@ -63,7 +63,8 @@ test("the bag's simulation view places exactly what the bag places (one stack mo
       let current = bag(Array.from({ length: equipment }, (_, index) => item(`i${index}`)), 6);
       for (const quantity of quantities) {
         const view = bagState(current);
-        const headroom = view.stackHeadroom['small-hp-potion'] ?? 0;
+        const units = view.held['small-hp-potion'] ?? 0;
+        const headroom = Math.ceil(units / CONSUMABLE_STACK_MAX) * CONSUMABLE_STACK_MAX - units;
         const simFits = view.usedSlots + Math.ceil(Math.max(0, quantity - headroom) / CONSUMABLE_STACK_MAX) <= view.capacity;
         const placed = bagPlaceConsumable(current, 'small-hp-potion', quantity, content);
         expect(placed.ok).toBe(simFits);
@@ -108,6 +109,9 @@ test('the shared 10-second potion cooldown is per character and covers both poti
   expect(consumePotion(stocked, user('c1', { hp: 0 }), 'small-hp-potion', 0, content))
     .toEqual({ ok: false, code: 'RULE_VIOLATION', field: 'CHARACTER_DEAD' });
   expect(consumePotion(stocked, user('c1'), 'elixir', 0, content)).toEqual({ ok: false, code: 'VALIDATION', field: 'consumableId' });
+  // Idun's Apple is no potion: only the simulation spends it, at a death (ruling R152).
+  expect(consumePotion(bag([], 100, { 'idun-apple': 1 }), user('c1'), 'idun-apple', 0, content))
+    .toEqual({ ok: false, code: 'VALIDATION', field: 'consumableId' });
 });
 
 test('simultaneous consumers resolve in ascending character id and never share a unit', () => {

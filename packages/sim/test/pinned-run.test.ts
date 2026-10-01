@@ -16,6 +16,12 @@ import { lab, runTo } from './fixtures';
  * and the event count all moved, and the content digest moved with the rarity
  * band widths and the pity switch. `simulationVersion` was already `b1`.
  *
+ * Re-pinned for task 7c (owner decision 2026-09-30): only the content digest
+ * (Idun's Apple, Revive) and the input's shape moved — the Cleric's rules gain
+ * Revive and the wipe limit is gone — and the metrics lost `respawnMs` and
+ * gained `consumed`. The run has no deaths, and its `rng`, event count and
+ * every other metric are exactly the task-6 pin's.
+ *
  * Loaded as a plain JSON module (the bundler's static import, not `node:fs`),
  * so `packages/sim` still imports no Node or browser globals anywhere,
  * including its tests.

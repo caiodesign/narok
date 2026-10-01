@@ -43,6 +43,7 @@ export const EVENT_TAB_BY_KIND: Record<DomainEvent['kind'], EventTab> = {
   miss: 'combat',
   heal: 'combat',
   death: 'combat',
+  revive: 'combat',
   status: 'combat',
   taunt: 'combat',
   phase: 'system',
@@ -62,8 +63,8 @@ export function eventsForTab(tab: EventTab, events: readonly DomainEvent[]): Dom
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'respawning', 'stopped'];
-const STOP_REASONS = ['wipe-limit', 'stalemate', 'operator'] as const;
+const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'stopped'];
+const STOP_REASONS = ['wipe', 'stalemate', 'operator'] as const;
 
 /** `reason` on a damage/miss/cast event is `<skillId|basic>[:critical|:fizzle]`. */
 function skillLabel(t: Translate, reason: string | null): string {
@@ -96,6 +97,8 @@ function eventKey(event: DomainEvent): string {
       return 'event.heal';
     case 'death':
       return 'event.death';
+    case 'revive':
+      return event.targetId === null ? 'event.revive.apple' : 'event.revive.spell';
     case 'status':
       return event.reason === 'slow' ? 'event.status.slow' : 'event.status.other';
     case 'taunt':

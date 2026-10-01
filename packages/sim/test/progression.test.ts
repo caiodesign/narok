@@ -4,10 +4,9 @@ import { createProgress, expToNext, gainExp, splitExp } from '@narok/progression
 import type { Progress } from '@narok/progression';
 import { describe, expect, test } from 'vitest';
 import { characterMaxima, deriveCharacter, resolveLoadout } from '../src/index';
-import { finishEncounter, transition } from '../src/lifecycle';
+import { finishEncounter } from '../src/lifecycle';
 import { awardKillExp } from '../src/rewards';
 import { encodeSnapshot } from '../src/snapshot';
-import { DEFAULT_WIPE_LIMIT } from '../src/state';
 import type { DomainEvent, HuntPartyMember, SimError, SimState } from '../src/index';
 import { context, lab, labInput, runTo } from './fixtures';
 
@@ -35,14 +34,14 @@ function party(overrides: Partial<Record<string, Partial<Progress>>> = {}): Reco
   return Object.fromEntries(ROSTER.map((classId, index) => [`p${index}`, member(classId, index, overrides[`p${index}`])]));
 }
 
-function started(overrides: Partial<Record<string, Partial<Progress>>> = {}, wipeLimit = 1): SimState {
-  return lab().start(labInput({ wipeLimit }), { party: party(overrides) });
+function started(overrides: Partial<Record<string, Partial<Progress>>> = {}): SimState {
+  return lab().start(labInput(), { party: party(overrides) });
 }
 
 /** The fight at 2,000 ms with every party actor's progression recorded. */
-function fighting(wipeLimit = 1, overrides: Partial<Record<string, Partial<Progress>>> = {}): SimState {
+function fighting(overrides: Partial<Record<string, Partial<Progress>>> = {}): SimState {
   const sim = lab();
-  return runTo(sim, sim.start(labInput({ wipeLimit, recipe: 'melee' }), { party: party(overrides) }), 2_000).state;
+  return runTo(sim, sim.start(labInput({ recipe: 'melee' }), { party: party(overrides) }), 2_000).state;
 }
 
 describe('a hunt with progression', () => {
@@ -89,7 +88,7 @@ describe('a hunt with progression', () => {
 
   test('a mid-hunt level-up grants its points once, auto-spends from the checkpointed template and re-derives at once', () => {
     const needed = expToNext(10, content.progression)!;
-    const state = fighting(1, {
+    const state = fighting({
       p0: {
         exp: needed - 1,
         autoSpendTemplate: { targets: [{ attribute: 'vit', value: 20 }], remainder: null },
@@ -118,7 +117,7 @@ describe('a hunt with progression', () => {
   });
 
   test('a level-up clamps HP and MP when a maximum falls short of them', () => {
-    const state = fighting(1, { p1: { exp: expToNext(10, content.progression)! - 1 } });
+    const state = fighting({ p1: { exp: expToNext(10, content.progression)! - 1 } });
     const ctx = context(state, []);
     const cleric = state.actors.p1!;
     awardKillExp(state, ctx, 30);
@@ -186,9 +185,14 @@ describe('a hunt with progression', () => {
   });
 });
 
-describe('death regressions (Part 3 §5.5)', () => {
-  test('a wipe moves no EXP, level, point or item field', () => {
-    const state = fighting(2, { p0: { exp: 123, expCarry: 4_567, statPoints: 9, skillRanks: { cleave: 1 } } });
+/**
+ * Part 3 §5.5's death rules as the owner decision of 2026-09-30 replaced them
+ * (rulings R151–R155): a wipe ends the hunt, the town heals the whole party,
+ * and a member dead at a win stays dead.
+ */
+describe('death regressions (Part 3 §5.5, owner decision 2026-09-30)', () => {
+  test('a wipe moves no EXP, level, point or item field, and ends the hunt', () => {
+    const state = fighting({ p0: { exp: 123, expCarry: 4_567, statPoints: 9, skillRanks: { cleave: 1 } } });
     const events: DomainEvent[] = [];
     const ctx = context(state, events);
     const before = structuredClone(state.progression);
@@ -196,71 +200,55 @@ describe('death regressions (Part 3 §5.5)', () => {
     for (const actor of Object.values(state.actors)) if (actor.side === 'party') actor.hp = 0;
     finishEncounter(state, ctx);
     expect(state.metrics.wipes).toBe(1);
+    expect(state.phase).toBe('stopped');
+    expect(state.stopReason).toBe('wipe');
     expect(state.progression).toEqual(before);
     expect(state.bagState).toEqual(bag);
-    // Nor does the respawn that follows: full recovery, and nothing else.
-    const respawn = state.queue.find((entry) => entry.kind === 'transition')!;
-    state.queue.splice(state.queue.indexOf(respawn), 1);
-    state.nowMs = respawn.at;
-    transition(state, ctx);
-    expect(state.phase).toBe('walking');
-    expect(state.progression).toEqual(before);
     expect(state.actors.p0!.level).toBe(10);
   });
 
-  test('the wipe limit defaults to one and is a total of one to five wipes, not extra retries', () => {
-    expect(DEFAULT_WIPE_LIMIT).toBe(1);
-    for (const limit of [1, 2, 3, 4, 5]) {
-      const state = fighting(limit);
-      const ctx = context(state, []);
-      for (let wipe = 1; wipe <= limit; wipe += 1) {
-        state.phase = 'fighting';
-        for (const actor of Object.values(state.actors)) if (actor.side === 'party') actor.hp = 0;
-        finishEncounter(state, ctx);
-        expect(state.phase).toBe(wipe === limit ? 'stopped' : 'respawning');
-      }
-      expect(state.stopReason).toBe('wipe-limit');
-      expect(state.metrics.wipes).toBe(limit);
-    }
-    for (const limit of [0, 6]) {
-      expect(() => lab().start(labInput({ wipeLimit: limit }))).toThrow(/wipeLimit|between 1 and 5/);
-    }
+  test('there is no wipe limit: a queued preset carrying one is refused, and a start drops it (R154)', () => {
+    const sim = lab();
+    const state = sim.start({ ...labInput(), wipeLimit: 1 } as never);
+    expect(Object.hasOwn(state.input, 'wipeLimit')).toBe(false);
+    const { placement, strategies, rest } = state.input;
+    expect(() => sim.queueRules(state, { placement, strategies, rest, wipeLimit: 1 } as never)).toThrow();
   });
 
-  test('the return to town revives the fallen like a won encounter (ruling R149): after a wipe-limit wipe', () => {
-    const state = fighting(1);
+  test('the return to town after a wipe heals the whole party to full HP and MP (rulings R149, R155)', () => {
+    const state = fighting();
     const ctx = context(state, []);
     const party = Object.values(state.actors).filter((actor) => actor.side === 'party');
     party.forEach((actor, index) => { actor.hp = 0; actor.mp = 7 + index; });
     finishEncounter(state, ctx);
-    expect(state.stopReason).toBe('wipe-limit');
-    for (const [index, actor] of party.entries()) {
-      expect(actor.hp).toBe(Math.max(1, Math.floor(actor.stats.maxHp / 10)));
-      expect(actor.mp).toBe(7 + index);
+    expect(state.stopReason).toBe('wipe');
+    for (const actor of party) {
+      expect(actor.hp).toBe(actor.stats.maxHp);
+      expect(actor.mp).toBe(actor.stats.maxMp);
       expect(actor.position).toBe(state.input.placement[actor.id]);
     }
-    // Rejoining is now possible: the checkpoint round-trips through validation.
+    // Rejoining is possible: the checkpoint round-trips through validation.
     expect(lab().decode(lab().encode(state)).actors.p0!.hp).toBeGreaterThan(0);
   });
 
-  test('the return to town revives the fallen like a won encounter (ruling R149): a player stop with one member dead', () => {
-    const state = fighting(1);
+  test('a player stop with one member dead heals the dead and the living alike (rulings R149, R155)', () => {
+    const state = fighting();
     const fallen = state.actors.p1!;
     fallen.hp = 0;
     fallen.mp = 11;
-    const others = { p0: { ...state.actors.p0! }, p2: { ...state.actors.p2! } };
+    state.actors.p0!.hp = 17;
+    state.actors.p2!.mp = 1;
     const stopped = lab().stop(state);
-    expect(stopped.actors.p1!.hp).toBe(Math.max(1, Math.floor(fallen.stats.maxHp / 10)));
-    expect(stopped.actors.p1!.mp).toBe(11);
-    // The living keep their exact resources; nothing else moves.
-    expect([stopped.actors.p0!.hp, stopped.actors.p0!.mp]).toEqual([others.p0.hp, others.p0.mp]);
-    expect([stopped.actors.p2!.hp, stopped.actors.p2!.mp]).toEqual([others.p2.hp, others.p2.mp]);
+    for (const id of ['p0', 'p1', 'p2']) {
+      const actor = stopped.actors[id]!;
+      expect([actor.hp, actor.mp]).toEqual([actor.stats.maxHp, actor.stats.maxMp]);
+    }
     expect(stopped.rng).toBe(state.rng);
     expect(stopped.metrics).toEqual(state.metrics);
     expect(stopped.progression).toEqual(state.progression);
   });
 
-  test('a single dead member after a won encounter revives at max(1, floor(maxHp / 10)) with MP preserved and no EXP', () => {
+  test('a single dead member after a won encounter stays dead, keeps its MP and earns no EXP (ruling R151)', () => {
     const state = fighting();
     const ctx = context(state, []);
     const cleric = state.actors.p1!;
@@ -270,7 +258,7 @@ describe('death regressions (Part 3 §5.5)', () => {
     const before = structuredClone(state.progression);
     finishEncounter(state, ctx);
     expect(state.metrics.wins).toBe(1);
-    expect(cleric.hp).toBe(Math.max(1, Math.floor(cleric.stats.maxHp / 10)));
+    expect(cleric.hp).toBe(0);
     expect(cleric.mp).toBe(7);
     expect(state.progression).toEqual(before);
   });

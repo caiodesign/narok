@@ -239,14 +239,12 @@ function place(bag: BagState, item: RewardItem): boolean {
     bag.usedSlots += 1;
     return true;
   }
-  let remaining = item.quantity;
-  const headroom = Object.hasOwn(bag.stackHeadroom, item.consumableId) ? bag.stackHeadroom[item.consumableId] : 0;
-  const slotsNeeded = Math.ceil(Math.max(0, remaining - headroom) / CONSUMABLE_STACK_MAX);
+  const before = Object.hasOwn(bag.held, item.consumableId) ? bag.held[item.consumableId] : 0;
+  const after = before + item.quantity;
+  const slotsNeeded = Math.ceil(after / CONSUMABLE_STACK_MAX) - Math.ceil(before / CONSUMABLE_STACK_MAX);
   if (bag.usedSlots + slotsNeeded > bag.capacity) return false;
-  const fromHeadroom = Math.min(headroom, remaining);
-  remaining -= fromHeadroom;
   bag.usedSlots += slotsNeeded;
-  bag.stackHeadroom[item.consumableId] = headroom - fromHeadroom + slotsNeeded * CONSUMABLE_STACK_MAX - remaining;
+  bag.held[item.consumableId] = after;
   return true;
 }
 
@@ -357,7 +355,7 @@ export function emptyDropMetrics(): DropMetrics {
 
 /** A laboratory run's bag: the default size, empty (layer-1 §7.5). */
 export function defaultBag(): BagState {
-  return { capacity: BAG_CAPACITY, usedSlots: 0, stackHeadroom: {} };
+  return { capacity: BAG_CAPACITY, usedSlots: 0, held: {} };
 }
 
 /** A laboratory run's filter: the starter filter (layer-1 §7.5). */

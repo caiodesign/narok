@@ -1,5 +1,5 @@
 {
-  "contentVersion": "659c31029e9979c6bfcd71c09ba2d691838ce2cd4629beb1995f560bec21caca",
+  "contentVersion": "2afa20bacd8473db84d2ef8043832507ecdd7467b1996499a7cbec1575013bdd",
   "gridHash": "c2c839371c6faddb0756adef80f3fcb3d17c841fef809acc419dea7ddb43e4b9",
   "simulationVersion": "b1",
   "untilMs": 3600000,
@@ -18,6 +18,7 @@
       },
       "p1": {
         "rules": [
+          { "skillId": "revive", "enabled": true, "condition": { "kind": "ally-dead" } },
           { "skillId": "heal", "enabled": true, "condition": { "kind": "ally-hp-below", "value": 60 } },
           { "skillId": "smite", "enabled": true, "condition": { "kind": "always" } }
         ],
@@ -31,8 +32,7 @@
         "target": { "kind": "lowest-hp" }
       }
     },
-    "rest": { "hpStart": 50, "mpStart": 30 },
-    "wipeLimit": 1
+    "rest": { "hpStart": 50, "mpStart": 30 }
   },
   "observed": {
     "nowMs": 3600000,
@@ -53,7 +53,6 @@
       "walkMs": 282000,
       "fightMs": 1160926,
       "restMs": 2157074,
-      "respawnMs": 0,
       "actors": {
         "p0": { "damageDealt": 21587, "damageReceived": 15055, "healingDone": 0 },
         "p1": { "damageDealt": 10895, "damageReceived": 1415, "healingDone": 12051 },
@@ -73,7 +72,8 @@
         "firstDropRarity": "common",
         "epicPlusWaits": [],
         "legendaryWaits": []
-      }
+      },
+      "consumed": {}
     }
   }
 }

@@ -46,7 +46,6 @@ function plan(): HuntPlan {
       placement: defaultPlacement([...classes]),
       strategies: Object.fromEntries(classes.map((id, index) => [`p${index}`, defaultStrategy(id)])),
       rest: { hpStart: 50, mpStart: 30 },
-      wipeLimit: 1,
     },
     activeStrategy: { presetId: crypto.randomUUID(), presetVersion: 1 },
     activeLoot: { presetId: crypto.randomUUID(), presetVersion: 1 },

@@ -36,7 +36,8 @@ import { notOwned } from '../errors';
 import type { SettlementWindow } from '../hunt/clock';
 import type { Settlement } from '../hunt/settle';
 
-export const AWAY_REPORT_VERSION = 1;
+/** 2: no wipe limit, and the consumables spent (owner decision 2026-09-30; R152, R154). */
+export const AWAY_REPORT_VERSION = 2;
 
 export type AwayStatus = 'running' | 'capped' | 'bag-full' | 'stopped';
 /** Navigation only: no action a report offers grants anything (part 4 §3.5). */
@@ -62,7 +63,7 @@ export interface AwayReportInput {
 export interface AwayOutcomes {
   readonly kills: number;
   readonly wins: number;
-  /** Wipes during this absence; `wipesThisHunt` is the hunt's running total. */
+  /** Wipes during this absence — one at most, since a wipe ends the hunt (R154); `wipesThisHunt` is the hunt's total. */
   readonly wipes: number;
   readonly rawExp: number;
   readonly rawGold: number;
@@ -74,6 +75,11 @@ export interface AwayOutcomes {
     readonly ignored: number;
     readonly lost: number;
   };
+  /**
+   * Resource consumption during this absence: units spent per consumable id —
+   * Idun's Apples (ruling R152). Ids with nothing spent are absent.
+   */
+  readonly consumed: Readonly<Record<string, number>>;
 }
 
 export interface AwayReport {
@@ -97,7 +103,6 @@ export interface AwayReport {
   readonly uncovered: Settlement['uncovered'];
   readonly outcomes: AwayOutcomes;
   readonly wipesThisHunt: number;
-  readonly wipeLimit: number;
   readonly rewardsCredited: number;
 }
 
@@ -126,11 +131,21 @@ const ACTIONS: Record<AwayStatus, readonly AwayAction[]> = {
   stopped: ['start-hunt'],
 };
 
+/** Units of each consumable spent between two committed states (ruling R152). */
+export function consumedDuring(before: SimState, after: SimState): Record<string, number> {
+  const spent: Record<string, number> = {};
+  for (const id of Object.keys(after.metrics.consumed).sort()) {
+    const units = after.metrics.consumed[id]! - (before.metrics.consumed[id] ?? 0);
+    if (units > 0) spent[id] = units;
+  }
+  return spent;
+}
+
 /** Builds a report from committed deltas. Pure: the same inputs give the same report, and nothing else. */
 export function buildAwayReport(input: AwayReportInput): AwayReport {
   const status = statusOf(input);
   const stopReason = status === 'stopped' ? (input.stop?.reason ?? input.after.stopReason) : null;
-  const delta = (key: Exclude<keyof AwayOutcomes, 'drops'>) => input.after.metrics[key] - input.before.metrics[key];
+  const delta = (key: Exclude<keyof AwayOutcomes, 'drops' | 'consumed'>) => input.after.metrics[key] - input.before.metrics[key];
   const drops = (key: 'kept' | 'autoSold' | 'ignored' | 'lost') =>
     input.after.metrics.drops[key] - input.before.metrics.drops[key];
   const rolled = (state: SimState) =>
@@ -164,9 +179,9 @@ export function buildAwayReport(input: AwayReportInput): AwayReport {
         ignored: drops('ignored'),
         lost: drops('lost'),
       },
+      consumed: consumedDuring(input.before, input.after),
     },
     wipesThisHunt: input.after.metrics.wipes,
-    wipeLimit: input.after.input.wipeLimit,
     rewardsCredited: input.rewardsCredited,
   };
 }

@@ -30,7 +30,6 @@ function labInput(overrides: Partial<LabInput> = {}): LabInput {
     placement: { p0: gridPosition(2, 3), p1: gridPosition(1, 4), p2: gridPosition(3, 4) },
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
     ...overrides,
   };
 }

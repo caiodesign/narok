@@ -209,7 +209,7 @@ const bagArb: fc.Arbitrary<BagState> = fc
   .chain((capacity) => fc.record({
     capacity: fc.constant(capacity),
     usedSlots: fc.integer({ min: 0, max: capacity }),
-    stackHeadroom: fc.constant({}),
+    held: fc.constant({}),
   }));
 const actionArb = fc.constantFrom('keep' as const, 'auto-sell' as const, 'ignore' as const);
 const presetArb: fc.Arbitrary<LootPreset> = fc.record({
@@ -247,8 +247,8 @@ describe('the roll never reads the account', () => {
   test('a whole hunt rolls the same drops under a full bag and an ignore-all filter as under an empty bag and keep-all', () => {
     const sim = simulation(rich);
     const input = labInput({ seed: 99 });
-    const open = runTo(sim, sim.start(input, { loot: KEEP_ALL, bag: { capacity: 1_000, usedSlots: 0, stackHeadroom: {} } }), 900_000);
-    const shut = runTo(sim, sim.start(input, { loot: IGNORE_ALL, bag: { capacity: 0, usedSlots: 0, stackHeadroom: {} }, dropProtection: { epicPlus: 50, legendary: 900 } }), 900_000);
+    const open = runTo(sim, sim.start(input, { loot: KEEP_ALL, bag: { capacity: 1_000, usedSlots: 0, held: {} } }), 900_000);
+    const shut = runTo(sim, sim.start(input, { loot: IGNORE_ALL, bag: { capacity: 0, usedSlots: 0, held: {} }, dropProtection: { epicPlus: 50, legendary: 900 } }), 900_000);
     expect(open.state.metrics.kills).toBeGreaterThan(20);
     expect(shut.state.rng).toBe(open.state.rng);
     expect(shut.state.metrics.drops.rolled).toEqual(open.state.metrics.drops.rolled);
@@ -356,7 +356,7 @@ describe('disposition', () => {
   });
 
   test('a Keep that does not fit is lost with a drop-lost event, and the hunt continues', () => {
-    const state = killState({ rng: 3, bag: { capacity: 1, usedSlots: 0, stackHeadroom: {} }, loot: KEEP_ALL });
+    const state = killState({ rng: 3, bag: { capacity: 1, usedSlots: 0, held: {} }, loot: KEEP_ALL });
     kill(state, rich);
     kill(state, rich);
     const rolled = state.pendingRewards.map((reward) => reward.rewardSeq);
@@ -371,7 +371,7 @@ describe('disposition', () => {
 
   test('a full bag never stops a hunt, and Auto-sell never takes a slot', () => {
     const sim = simulation(rich);
-    const full = runTo(sim, sim.start(labInput({ seed: 21 }), { bag: { capacity: 0, usedSlots: 0, stackHeadroom: {} } }), 900_000).state;
+    const full = runTo(sim, sim.start(labInput({ seed: 21 }), { bag: { capacity: 0, usedSlots: 0, held: {} } }), 900_000).state;
     expect(full.stopReason).not.toBe('operator');
     expect(full.metrics.drops.lost).toBeGreaterThan(0);
     expect(full.metrics.drops.autoSold).toBeGreaterThan(0);
@@ -384,7 +384,7 @@ describe('disposition', () => {
   });
 
   test('consumable overflow opens a new stack in a free slot, and is otherwise lost', () => {
-    const state = killState({ bag: { capacity: 2, usedSlots: 1, stackHeadroom: { 'small-hp-potion': 1 } }, loot: KEEP_ALL });
+    const state = killState({ bag: { capacity: 2, usedSlots: 1, held: { 'small-hp-potion': 998 } }, loot: KEEP_ALL });
     const push = () => {
       state.pendingRewards.push({
         rewardSeq: state.nextRewardSeq++, atSimMs: state.nowMs, monsterId: 'briar-boar', itemLevel: 10,
@@ -393,11 +393,11 @@ describe('disposition', () => {
     };
     push();
     settle(state);
-    expect(state.bagState).toEqual({ capacity: 2, usedSlots: 1, stackHeadroom: { 'small-hp-potion': 0 } });
+    expect(state.bagState).toEqual({ capacity: 2, usedSlots: 1, held: { 'small-hp-potion': 999 } });
     push();
     settle(state);
-    expect(state.bagState).toEqual({ capacity: 2, usedSlots: 2, stackHeadroom: { 'small-hp-potion': 998 } });
-    state.bagState.stackHeadroom['small-hp-potion'] = 0;
+    expect(state.bagState).toEqual({ capacity: 2, usedSlots: 2, held: { 'small-hp-potion': 1_000 } });
+    state.bagState.held['small-hp-potion'] = 1_998;
     push();
     const events = settle(state);
     expect(state.pendingRewards.at(-1)?.disposition?.outcome).toBe('lost');

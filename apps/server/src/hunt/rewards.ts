@@ -23,7 +23,7 @@
  * duplicates none of it, and `account_drop_protection` is an index of the
  * committed counters, rewritten from them in every commit's transaction.
  */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { Content } from '@narok/data';
 import type { DropProtection, PendingReward } from '@narok/sim';
 import * as schema from '../db/schema';
@@ -127,6 +127,35 @@ export const commitRewards: RewardSink = async (tx, rewards, commit) => {
     });
   }
 };
+
+/**
+ * Takes what the engine spent from the bag off the account's stacks, in the
+ * commit that settles it (ruling R152): `consumed` is the increase of the
+ * engine's cumulative `metrics.consumed` across the committed span, so a
+ * span is debited exactly once, as its drops are credited exactly once. One
+ * audit row records the span's spending under `sourceRef`.
+ */
+export async function commitConsumption(
+  tx: Tx,
+  accountId: string,
+  consumed: Readonly<Record<string, number>>,
+  sourceRef: string,
+  stateVersionAfter: number,
+): Promise<void> {
+  const ids = Object.keys(consumed).sort();
+  if (ids.length === 0) return;
+  for (const definitionId of ids) {
+    // The stack held at least this much when the hunt started; the check
+    // constraint refuses a negative total rather than clamping it.
+    await tx
+      .update(schema.stackItems)
+      .set({ quantity: sql`${schema.stackItems.quantity} - ${consumed[definitionId]!}` })
+      .where(and(eq(schema.stackItems.accountId, accountId), eq(schema.stackItems.definitionId, definitionId)));
+  }
+  await tx.insert(schema.resourceAudit).values({
+    accountId, reason: 'consumed', sourceRef, delta: { consumed: { ...consumed } }, stateVersionAfter,
+  });
+}
 
 /** The audit reason of each outcome; `overflow-lost` is part 3 §3.4's name. */
 export const AUDIT_REASON: Record<HuntReward['disposition']['outcome'], string> = {
