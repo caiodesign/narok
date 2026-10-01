@@ -14,7 +14,8 @@ import { drizzleStores } from '../src/db/repositories/accounts';
 import { loadBag } from '../src/db/repositories/inventory';
 import * as schema from '../src/db/schema';
 import { withAccountTx, type Tx } from '../src/db/tx';
-import { persistHunt } from '../src/hunt/lifecycle';
+import { persistHunt, stopHunt } from '../src/hunt/lifecycle';
+import { FIRST_WIN_MARKER } from '../src/hunt/progression';
 import { commitRewards, type HuntReward } from '../src/hunt/rewards';
 import { memoryStores } from '../src/store/memory';
 import { grantOnboardingOnce, grantStarterKitOnce } from '../src/town/grants';
@@ -195,38 +196,60 @@ describe('what a settlement writes back (ruling R148)', () => {
   });
 });
 
-describe('the onboarding grant (part 3 §6; ruling R146)', () => {
-  test('the first settlement after the first win grants p0\'s class item once, audited as a grant', async () => {
+describe('the onboarding grant (part 3 §6; rulings R146, R150)', () => {
+  async function firstWinMarker(accountId: string) {
+    return db.select().from(schema.accountGrants)
+      .where(and(eq(schema.accountGrants.accountId, accountId), eq(schema.accountGrants.grantKey, FIRST_WIN_MARKER)));
+  }
+
+  test('the first win is marked when settled, and the grant lands at the return to town — never mid-hunt', async () => {
     const me = await player();
     const rows = await roster(me);
     await start(me, rows.map((row) => row.id));
     await settleAfter(me.accountId, 5_000);
-    expect(await onboardingItems(me.accountId), 'no win yet, no grant').toHaveLength(0);
+    expect(await firstWinMarker(me.accountId), 'no win yet').toHaveLength(0);
 
     await settleAfter(me.accountId, 55_000);
+    expect((await engineState(me.accountId)).metrics.wins).toBeGreaterThan(0);
+    expect(await firstWinMarker(me.accountId), 'the first win is durable').toHaveLength(1);
+    expect(await onboardingItems(me.accountId), 'a mid-hunt settlement grants nothing').toHaveLength(0);
+
+    r.clock.now += 1_000;
+    await stopHunt(r.lifecycle, { accountId: me.accountId });
     const granted = await onboardingItems(me.accountId);
     expect(granted).toHaveLength(1);
     expect(granted[0]).toMatchObject({ baseItemId: validated.onboardingGrant.guardian.definitionId, rarity: 'uncommon', boundTo: null });
     const audit = await db.select().from(schema.resourceAudit).where(eq(schema.resourceAudit.sourceRef, ONBOARDING_GRANT_KEY));
     expect(audit.map((row) => row.reason)).toEqual(['grant']);
+    const [grant] = await db.select().from(schema.accountGrants)
+      .where(and(eq(schema.accountGrants.accountId, me.accountId), eq(schema.accountGrants.grantKey, ONBOARDING_GRANT_KEY)));
+    expect(grant.payload).toEqual({ itemIds: [granted[0].id] });
 
-    await settleAfter(me.accountId, 60_000);
+    // A later return grants nothing more.
+    r.clock.now += 20_000;
+    await start(me, rows.map((row) => row.id));
+    r.clock.now += 1_000;
+    await stopHunt(r.lifecycle, { accountId: me.accountId });
     expect((await onboardingItems(me.accountId)).map((row) => row.id)).toEqual([granted[0].id]);
-    const grants = await db.select().from(schema.accountGrants).where(eq(schema.accountGrants.accountId, me.accountId));
-    expect(grants.map((row) => [row.grantKey, row.payload])).toEqual([[ONBOARDING_GRANT_KEY, { itemIds: [granted[0].id] }]]);
   });
 
-  test('a full bag defers it, and the next settlement grants it', async () => {
+  test('a full bag at the return defers it; the next return grants it, even from a hunt with no win', async () => {
     const me = await player();
     const rows = await roster(me);
     await db.update(schema.accounts).set({ bagCapacity: 0 }).where(eq(schema.accounts.id, me.accountId));
     await start(me, rows.map((row) => row.id));
     await settleAfter(me.accountId, 60_000);
+    r.clock.now += 1_000;
+    await stopHunt(r.lifecycle, { accountId: me.accountId });
     expect(await onboardingItems(me.accountId)).toHaveLength(0);
-    expect(await db.select().from(schema.accountGrants)).toHaveLength(0);
+    expect(await firstWinMarker(me.accountId)).toHaveLength(1);
 
     await db.update(schema.accounts).set({ bagCapacity: 100 }).where(eq(schema.accounts.id, me.accountId));
-    await settleAfter(me.accountId, 1_000);
+    r.clock.now += 20_000;
+    await start(me, rows.map((row) => row.id));
+    r.clock.now += 1_000;
+    await stopHunt(r.lifecycle, { accountId: me.accountId });
+    expect((await engineState(me.accountId)).metrics.wins, 'this hunt won nothing').toBe(0);
     expect(await onboardingItems(me.accountId)).toHaveLength(1);
   });
 
@@ -235,14 +258,15 @@ describe('the onboarding grant (part 3 §6; ruling R146)', () => {
     const holding = await player();
     const a = await roster(granting);
     const b = await roster(holding);
-    // `holding` already has the grant, so nothing is granted during its hunt.
+    // `holding` already has the grant, so nothing is granted at its return.
     await db.insert(schema.accountGrants).values({
       accountId: holding.accountId, grantKey: ONBOARDING_GRANT_KEY, kind: 'onboarding', payload: { itemIds: [] }, grantedBy: 'system',
     });
     await start(granting, a.map((row) => row.id));
     await start(holding, b.map((row) => row.id));
-    await persistHunt(r.lifecycle, granting.accountId, { live: false, atWall: r.clock.now + 120_000 });
-    await persistHunt(r.lifecycle, holding.accountId, { live: false, atWall: r.clock.now + 120_000 });
+    r.clock.now += 120_000;
+    await stopHunt(r.lifecycle, { accountId: granting.accountId });
+    await stopHunt(r.lifecycle, { accountId: holding.accountId });
 
     expect(await onboardingItems(granting.accountId)).toHaveLength(1);
     const with_ = await engineState(granting.accountId);
@@ -254,6 +278,24 @@ describe('the onboarding grant (part 3 §6; ruling R146)', () => {
     expect(with_.bagState).toEqual(without.bagState);
     const drops = await db.select().from(schema.resourceAudit).where(eq(schema.resourceAudit.accountId, granting.accountId));
     expect(drops.filter((row) => row.sourceRef === ONBOARDING_GRANT_KEY).map((row) => row.reason)).toEqual(['grant']);
+  });
+});
+
+describe('the return to town (ruling R149)', () => {
+  test('a party stopped by its wipe limit comes home alive and can start again', async () => {
+    const me = await player();
+    const rows = await roster(me);
+    await start(me, rows.map((row) => row.id), rules({ wipeLimit: 1 }));
+    await settleAfter(me.accountId, 300_000);
+    const state = await engineState(me.accountId);
+    expect(state.stopReason).toBe('wipe-limit');
+    for (const row of rows) {
+      const [after] = await db.select().from(schema.characters).where(eq(schema.characters.id, row.id));
+      expect(after.hp).toBeGreaterThanOrEqual(1);
+      expect(after.dead).toBe(false);
+    }
+    r.clock.now += 60_000;
+    await start(me, rows.map((row) => row.id));
   });
 });
 

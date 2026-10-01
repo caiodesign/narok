@@ -227,6 +227,39 @@ describe('death regressions (Part 3 §5.5)', () => {
     }
   });
 
+  test('the return to town revives the fallen like a won encounter (ruling R149): after a wipe-limit wipe', () => {
+    const state = fighting(1);
+    const ctx = context(state, []);
+    const party = Object.values(state.actors).filter((actor) => actor.side === 'party');
+    party.forEach((actor, index) => { actor.hp = 0; actor.mp = 7 + index; });
+    finishEncounter(state, ctx);
+    expect(state.stopReason).toBe('wipe-limit');
+    for (const [index, actor] of party.entries()) {
+      expect(actor.hp).toBe(Math.max(1, Math.floor(actor.stats.maxHp / 10)));
+      expect(actor.mp).toBe(7 + index);
+      expect(actor.position).toBe(state.input.placement[actor.id]);
+    }
+    // Rejoining is now possible: the checkpoint round-trips through validation.
+    expect(lab().decode(lab().encode(state)).actors.p0!.hp).toBeGreaterThan(0);
+  });
+
+  test('the return to town revives the fallen like a won encounter (ruling R149): a player stop with one member dead', () => {
+    const state = fighting(1);
+    const fallen = state.actors.p1!;
+    fallen.hp = 0;
+    fallen.mp = 11;
+    const others = { p0: { ...state.actors.p0! }, p2: { ...state.actors.p2! } };
+    const stopped = lab().stop(state);
+    expect(stopped.actors.p1!.hp).toBe(Math.max(1, Math.floor(fallen.stats.maxHp / 10)));
+    expect(stopped.actors.p1!.mp).toBe(11);
+    // The living keep their exact resources; nothing else moves.
+    expect([stopped.actors.p0!.hp, stopped.actors.p0!.mp]).toEqual([others.p0.hp, others.p0.mp]);
+    expect([stopped.actors.p2!.hp, stopped.actors.p2!.mp]).toEqual([others.p2.hp, others.p2.mp]);
+    expect(stopped.rng).toBe(state.rng);
+    expect(stopped.metrics).toEqual(state.metrics);
+    expect(stopped.progression).toEqual(state.progression);
+  });
+
   test('a single dead member after a won encounter revives at max(1, floor(maxHp / 10)) with MP preserved and no EXP', () => {
     const state = fighting();
     const ctx = context(state, []);

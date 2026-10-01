@@ -29,7 +29,7 @@ export type GrantLedger = Readonly<Record<string, readonly string[]>>;
  * `granted` placed the grant; `existing` found its key and returns the first
  * instance it created; `deferred` could not fit it in the bag and placed
  * nothing — a grant is not a drop, so the bag-full loss rule (Part 3 §3.4)
- * does not reach it, and the caller attempts it again at the next settlement.
+ * does not reach it, and the caller attempts it again at the next return to town (ruling R150).
  * `refused` is any other placement failure (a duplicate instance id, another
  * account's bag): a caller fault, carried as `failure` so it surfaces as an
  * error instead of being retried as a deferral forever (ruling R146).
@@ -73,7 +73,7 @@ function fixedInstance(
  * The first-equipment grant (owner decision 2026-09-21; Part 3 §6, §8 #11):
  * `content.onboardingGrant[classId]` — one fixed Uncommon at item level 1 with
  * one fixed bonus, identical for every account of the class — attempted at the
- * first settlement after the account's first won encounter.
+ * first return to town after the account's first won encounter (ruling R150).
  */
 export function grantOnboarding(
   bag: Bag,

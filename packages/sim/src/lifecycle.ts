@@ -24,6 +24,44 @@ function enemyIds(state: SimState): ActorId[] {
 }
 
 /**
+ * A fallen member's revival: `max(1, floor(maxHp / 10))` HP, MP kept (milestone
+ * A spec §10). Shared by the won encounter and the return to town, so the two
+ * cannot drift. Returns whether anyone was revived.
+ */
+function reviveFallen(state: SimState): boolean {
+  let revived = false;
+  for (const id of partyIds(state)) {
+    const member = state.actors[id];
+    if (member.hp > 0) continue;
+    member.hp = Math.max(1, Math.floor(member.stats.maxHp / 10));
+    revived = true;
+  }
+  return revived;
+}
+
+/**
+ * Every transition into `stopped` — the operator's stop, the wipe limit, the
+ * stalemate deadline — is the party's return to town, and goes through here.
+ *
+ * Ruling R149 (controller ruling, Task 7b fix round 1): the return revives
+ * each dead member exactly as a won encounter does, `max(1, floor(maxHp/10))`
+ * HP with MP preserved. Layer-1 §4.5 forbids town granting recovery, but a
+ * member left at 0 HP could never hunt again — the engine refuses a party
+ * member below 1 HP and town has no other way back — so this is the least
+ * recovery possible. It draws nothing and touches no reward, pity or metric.
+ * A revived member is re-seated with the whole party at its input placement,
+ * as the encounter exit does (ruling R92), because a corpse may share a cell
+ * with a living ally.
+ */
+export function returnToTown(state: SimState, reason: NonNullable<SimState['stopReason']>): void {
+  state.phase = 'stopped';
+  state.stopReason = reason;
+  state.queue = [];
+  if (!reviveFallen(state)) return;
+  for (const id of partyIds(state)) state.actors[id].position = state.input.placement[id];
+}
+
+/**
  * Drops every queued entry whose `epoch` is non-null and no longer matches the
  * current epoch (ruling R45). Global entries (`epoch: null` — regen ticks, walking
  * and respawn transitions) always survive. Applied at encounter exit, right after
@@ -86,9 +124,7 @@ export function activatePending(state: SimState, ctx: Context): boolean {
   state.pendingRules = null;
 
   if (state.metrics.wipes >= state.input.wipeLimit) {
-    state.phase = 'stopped';
-    state.stopReason = 'wipe-limit';
-    state.queue = [];
+    returnToTown(state, 'wipe-limit');
     emitEvent(state, ctx, { kind: 'stop', reason: 'wipe-limit' });
     return true;
   }
@@ -360,9 +396,7 @@ export function finishEncounter(state: SimState, ctx: Context): void {
     // Kills made before the wipe still dropped: their rewards are dispositioned too.
     dispositionRewards(state, ctx);
     if (state.metrics.wipes >= state.input.wipeLimit) {
-      state.phase = 'stopped';
-      state.stopReason = 'wipe-limit';
-      state.queue = [];
+      returnToTown(state, 'wipe-limit');
       emitEvent(state, ctx, { kind: 'stop', reason: 'wipe-limit' });
     } else {
       state.phase = 'respawning';
@@ -381,10 +415,7 @@ export function finishEncounter(state: SimState, ctx: Context): void {
   emitEvent(state, ctx, { kind: 'win' });
   // Walk → fight → loot filter → rest (layer-1 §6.1): disposition, never at death.
   dispositionRewards(state, ctx);
-  for (const id of partyIds(state)) {
-    const member = state.actors[id];
-    if (member.hp <= 0) member.hp = Math.max(1, Math.floor(member.stats.maxHp / 10));
-  }
+  reviveFallen(state);
 
   const { hpStart, mpStart } = state.input.rest;
   const needsRest = partyIds(state).some((id) => {
@@ -422,8 +453,6 @@ export function deadline(state: SimState, ctx: Context): void {
   if (state.phase !== 'fighting') return;
   // The encounter ends here: kills already made keep their drops (ruling R127).
   dispositionRewards(state, ctx);
-  state.phase = 'stopped';
-  state.stopReason = 'stalemate';
-  state.queue = [];
+  returnToTown(state, 'stalemate');
   emitEvent(state, ctx, { kind: 'stop', reason: 'stalemate' });
 }

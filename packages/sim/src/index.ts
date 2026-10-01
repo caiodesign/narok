@@ -4,6 +4,7 @@ import type { LootPreset } from '@narok/loot';
 import { advance as runAdvance, cloneState } from './advance';
 import { SimError } from './errors';
 import { project as projectState } from './project';
+import { returnToTown } from './lifecycle';
 import { applyLoot, dispositionRewards } from './rewards';
 import { decodeSnapshot, encodeSnapshot } from './snapshot';
 import { startState, validateLoot, validatePendingRules } from './state';
@@ -43,7 +44,7 @@ export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
 export { decide, resolveCast } from './actions';
 export { expire } from './effects';
-export { transition, regenerate, finishEncounter, deadline, activatePending } from './lifecycle';
+export { transition, regenerate, finishEncounter, deadline, activatePending, returnToTown } from './lifecycle';
 export { advance } from './advance';
 export { project } from './project';
 
@@ -104,7 +105,8 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
 
     /**
      * Operator stop (ruling R43): the experiment keeps its exact time, metrics,
-     * RNG and actor conditions, drops all scheduled work, and emits nothing — no
+     * RNG and actor conditions — except that the return to town revives a dead
+     * member (ruling R149) — drops all scheduled work, and emits nothing — no
      * win, no wipe, no new reward. Drops the abandoned encounter's kills already
      * rolled are dispositioned silently, so none is left waiting for an
      * encounter end that will never come (ruling R127).
@@ -114,9 +116,8 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
         const stopped = cloneState(state);
         const silent: Context = { content: bound, battlefield, emit: () => undefined };
         dispositionRewards(stopped, silent);
-        stopped.phase = 'stopped';
-        stopped.stopReason = 'operator';
-        stopped.queue = [];
+        // The return to town, which revives the fallen (ruling R149).
+        returnToTown(stopped, 'operator');
         return stopped;
       });
     },
