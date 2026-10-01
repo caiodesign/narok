@@ -77,7 +77,10 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
   }, []);
 
   const strategyPresets = hunt.presets?.strategy ?? [];
-  const strategyName = strategyPresets.find((preset) => preset.id === hunt.selectedPresetId)?.name ?? null;
+  // While a hunt runs the Orders window names the strategy it is running, not
+  // the editor's selected tab, which is only what a start would use (§3.1).
+  const namedPresetId = status === 'running' ? (hunt.hunt?.activeStrategy.presetId ?? null) : hunt.selectedPresetId;
+  const strategyName = strategyPresets.find((preset) => preset.id === namedPresetId)?.name ?? null;
   const classes = hunt.characters.slice(0, 3).map((character) => character.classId as ClassId);
   const wallet =
     hunt.inventory === null
@@ -110,6 +113,8 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
         />
         <OrdersPanel
           status={status}
+          stopReason={hunt.stopReason}
+          faulted={hunt.faulted}
           canStart={hunt.canStart}
           pending={hunt.pending}
           strategyName={strategyName}

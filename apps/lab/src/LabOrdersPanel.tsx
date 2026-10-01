@@ -16,7 +16,7 @@
  * because the unit suite and the Playwright smoke locate them by name. All four
  * are always in the document and each is enabled exactly while its action is
  * legal — a button that vanished when illegal would take its name out of reach
- * of `getByRole`, which `apps/client/test/app.test.tsx` asserts at idle.
+ * of `getByRole`, which `apps/lab/test/app.test.tsx` asserts at idle.
  */
 import { useTranslation } from 'react-i18next';
 import { formatNumber, type Translate } from '@narok/client/src/i18n';

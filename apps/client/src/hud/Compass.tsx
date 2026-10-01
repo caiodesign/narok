@@ -55,7 +55,7 @@ export interface CompassProps {
 }
 
 /** Playback states worth naming over the phase: the frame on screen is not live. */
-const HELD: ReadonlySet<PlaybackStatus> = new Set(['buffering', 'resyncing', 'disconnected', 'faulted', 'error']);
+const HELD: ReadonlySet<PlaybackStatus> = new Set(['buffering', 'resyncing', 'disconnected', 'closed', 'faulted', 'error']);
 
 /**
  * The reference's minimap is a 200x200 viewBox clipped to a circle of radius 80

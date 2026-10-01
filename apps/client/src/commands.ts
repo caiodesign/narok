@@ -113,6 +113,8 @@ export interface ApplyStrategyBody extends PresetRef {
 export interface SavePresetBody {
   readonly payload: StrategyPresetPayload;
   readonly payloadSchemaVersion: number;
+  /** The preset version the draft was loaded from (ruling R176). */
+  readonly expectedPresetVersion: number;
   readonly expectedStateVersion: number;
 }
 

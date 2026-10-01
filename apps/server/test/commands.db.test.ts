@@ -241,9 +241,9 @@ describe('the command classes of part 2 §4', () => {
     const before = await huntRow(db, account.id);
 
     const outcome = await applyCommand(r.commands, account, {
-      command: { kind: 'save-strategy-preset', presetId: active.id, payload: rules({ rest: { hpStart: 60, mpStart: 20 } }) },
+      command: { kind: 'save-strategy-preset', presetId: active.id, expectedPresetVersion: 1, payload: rules({ rest: { hpStart: 60, mpStart: 20 } }) },
     });
-    expect(outcome.preset).toEqual({ presetId: active.id, presetVersion: 2 });
+    expect(outcome.preset).toMatchObject({ presetId: active.id, presetVersion: 2 });
 
     const after = await huntRow(db, account.id);
     expect(Buffer.from(after.checkpoint).equals(Buffer.from(before.checkpoint))).toBe(true);
@@ -257,7 +257,7 @@ describe('the command classes of part 2 §4', () => {
     expect(
       await rejection(() =>
         applyCommand(r.commands, account, {
-          command: { kind: 'save-strategy-preset', presetId: active.id, payload: { ...rules(), wipeLimit: 1 } },
+          command: { kind: 'save-strategy-preset', presetId: active.id, expectedPresetVersion: 1, payload: { ...rules(), wipeLimit: 1 } },
         }),
       ),
     ).toMatchObject({ code: 'VALIDATION' });
@@ -271,7 +271,7 @@ describe('the queued snapshot is the one that activates (B-L14, B-11)', () => {
     r.clock.now = T0 + 500;
     await applyCommand(r.commands, account, { command: { kind: 'apply-strategy', presetId: other.id, presetVersion: 1 } });
     await applyCommand(r.commands, account, {
-      command: { kind: 'save-strategy-preset', presetId: other.id, payload: rules({ rest: { hpStart: 10, mpStart: 10 } }) },
+      command: { kind: 'save-strategy-preset', presetId: other.id, expectedPresetVersion: 1, payload: rules({ rest: { hpStart: 10, mpStart: 10 } }) },
     });
 
     // The walk completes at 2,000 ms; settle past it.

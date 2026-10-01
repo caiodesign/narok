@@ -12,43 +12,16 @@
  */
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
-import type { ClientMessage, DomainEventWire, PublicStateWire, ServerMessage } from '@narok/protocol';
-import type { SocketLike, Timers } from '../src/transport';
-import { useHunt, type ClockDriver } from '../src/useHunt';
+import type { DomainEventWire, PublicStateWire, ServerMessage } from '@narok/protocol';
+import { useHunt } from '../src/useHunt';
+import { FakeSocket, manualDriver, manualTimers, wireState } from './hunt-fakes';
 
 afterEach(() => {
   cleanup();
 });
 
-const METRICS: PublicStateWire['metrics'] = {
-  kills: 0,
-  wins: 0,
-  wipes: 0,
-  rawExp: 0,
-  rawGold: 0,
-  damageDealt: 0,
-  effectiveHealing: 0,
-  walkMs: 0,
-  fightMs: 0,
-  restMs: 0,
-  actors: {},
-  drops: {
-    rolled: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-    consumables: 0,
-    kept: 0,
-    autoSold: 0,
-    ignored: 0,
-    lost: 0,
-    firstDropMs: null,
-    firstDropRarity: null,
-    epicPlusWaits: [],
-    legendaryWaits: [],
-  },
-  consumed: {},
-};
-
 function state(nowMs: number, phase: PublicStateWire['phase'] = 'fighting'): PublicStateWire {
-  return { nowMs, phase, stopReason: null, actors: [], metrics: METRICS };
+  return wireState(nowMs, phase);
 }
 
 function event(seq: number, at: number): DomainEventWire {
@@ -58,96 +31,6 @@ function event(seq: number, at: number): DomainEventWire {
 function frame(generation: number, firstSeq: number, lastSeq: number, at = 0): ServerMessage {
   const events = Array.from({ length: lastSeq - firstSeq + 1 }, (_, index) => event(firstSeq + index, at));
   return { type: 'frame', generation, firstSeq, lastSeq, events, state: state(at) };
-}
-
-/** The browser `WebSocket` surface the transport uses, and nothing more. */
-class FakeSocket implements SocketLike {
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: unknown }) => void) | null = null;
-  onclose: ((event: { code: number; reason: string }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  readonly sent: ClientMessage[] = [];
-  closedByClient = false;
-
-  constructor(readonly url: string) {}
-
-  send(data: string): void {
-    this.sent.push(JSON.parse(data) as ClientMessage);
-  }
-
-  close(): void {
-    this.closedByClient = true;
-    this.onclose?.({ code: 1000, reason: '' });
-  }
-
-  open(): void {
-    this.onopen?.();
-  }
-
-  deliver(message: ServerMessage | Record<string, unknown>): void {
-    this.onmessage?.({ data: JSON.stringify(message) });
-  }
-
-  drop(): void {
-    this.onclose?.({ code: 1006, reason: '' });
-  }
-}
-
-/** Timers the test fires by hand: the heartbeat interval and the reconnect backoff. */
-function manualTimers(): Timers & { fireTimeouts: () => void; fireIntervals: () => void; delays: number[] } {
-  let next = 1;
-  const timeouts = new Map<number, () => void>();
-  const intervals = new Map<number, () => void>();
-  const delays: number[] = [];
-  return {
-    delays,
-    setTimeout: (callback, ms) => {
-      delays.push(ms);
-      timeouts.set(next, callback);
-      return next++;
-    },
-    clearTimeout: (handle) => {
-      timeouts.delete(handle);
-    },
-    setInterval: (callback) => {
-      intervals.set(next, callback);
-      return next++;
-    },
-    clearInterval: (handle) => {
-      intervals.delete(handle);
-    },
-    fireTimeouts: () => {
-      const due = [...timeouts.values()];
-      timeouts.clear();
-      due.forEach((callback) => callback());
-    },
-    fireIntervals: () => {
-      [...intervals.values()].forEach((callback) => callback());
-    },
-  };
-}
-
-function manualDriver(): { driver: ClockDriver; setNow: (ms: number) => void; pump: () => void } {
-  let current = 0;
-  let pending: (() => void)[] = [];
-  return {
-    driver: {
-      now: () => current,
-      schedule: (callback) => {
-        pending.push(callback);
-        return pending.length;
-      },
-      cancel: () => undefined,
-    },
-    setNow: (ms) => {
-      current = ms;
-    },
-    pump: () => {
-      const due = pending;
-      pending = [];
-      due.forEach((callback) => callback());
-    },
-  };
 }
 
 /** No REST in these cases: every read answers "no hunt", as a server with none would. */

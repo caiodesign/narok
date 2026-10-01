@@ -160,19 +160,33 @@ export type StrategyPresetPayload = z.infer<typeof strategyPresetPayloadSchema>;
 
 /**
  * Save preset (part 1 §3, `PUT /api/presets/:id`; UI spec §5): the payload the
- * player saved and its schema version, guarded by the account version. It
- * names no preset version — the server allocates the next one — and, unlike
+ * player saved and its schema version, guarded by the preset version it was
+ * loaded from and sequenced by the account version. It never names the version
+ * to write — the server allocates the next one — and, unlike
  * `presetPayloadSchema`, no name: a save changes the rules, not the preset's
  * identity, so a smuggled rename is refused rather than ignored (ruling R171).
  *
  * Ruling R171: the client reads its presets from `GET /api/presets` and saves a
  * new version with `PUT /api/presets/:id`, sending payload and schema version
- * only, never a name or a version number — because part 1 §3 lists both
+ * only, never a name or a version to write — because part 1 §3 lists both
  * routes, the Strategy screen (part 4 §3.2) cannot exist without them, and the
  * server alone allocates versions.
+ *
+ * Ruling R176: a save also names `expectedPresetVersion`, the preset version
+ * the draft was loaded from, and the server refuses any other with
+ * `CONFLICT_STATE_VERSION` (field `expectedPresetVersion`). This supersedes
+ * R170/R171's account-version-only guard — because the client read the account
+ * version just before the PUT, that guard fired only in a sub-request race, so
+ * a tab holding v2 silently overwrote another tab's v3. The account version
+ * stays as the write sequencer; the preset version is the staleness guard.
  */
 export const savePresetCommandSchema = z
-  .object({ payload: z.unknown(), payloadSchemaVersion: positiveInt, expectedStateVersion: version })
+  .object({
+    payload: z.unknown(),
+    payloadSchemaVersion: positiveInt,
+    expectedPresetVersion: positiveInt,
+    expectedStateVersion: version,
+  })
   .strict();
 
 export const lootPreviewSchema = z.object({ payload: z.unknown(), payloadSchemaVersion: positiveInt }).strict();

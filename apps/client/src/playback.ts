@@ -44,6 +44,7 @@
  */
 import { horizon, reanchor, type PlaybackClock } from './clock';
 import { parseServerMessage, type DomainEventWire, type ProtocolFault, type PublicStateWire, type ServerMessage } from './protocol';
+import type { TerminalCloseCode } from './transport';
 
 /** The speeds `clock.ts` is exercised at (milestone A's `ALLOWED_SPEEDS`); production plays at 1×. */
 export const ALLOWED_SPEEDS = [1, 4, 16] as const;
@@ -54,8 +55,25 @@ export const PLAYBACK_BUFFER_MS = 2000;
 /** The visible history bound: a display buffer, not a record (A spec §11). */
 export const EVENT_HISTORY_LIMIT = 500;
 
-/** Part 4 §2's playback states, plus `idle` (no hunt) and `connecting` (before any message). */
-export type PlaybackStatus = 'connecting' | 'idle' | 'live' | 'buffering' | 'resyncing' | 'disconnected' | 'faulted' | 'error';
+/**
+ * Part 4 §2's playback states, plus `idle` (no hunt), `connecting` (before any
+ * message) and `closed`.
+ *
+ * Ruling R179: a socket the server closed with `UNAUTHENTICATED` or
+ * `FORBIDDEN_ORIGIN` is `closed` — a terminal state carrying that code, with
+ * its own copy — never `disconnected` — because the transport does not
+ * reconnect after either, so "Reconnecting" would promise what will not happen.
+ */
+export type PlaybackStatus =
+  | 'connecting'
+  | 'idle'
+  | 'live'
+  | 'buffering'
+  | 'resyncing'
+  | 'disconnected'
+  | 'closed'
+  | 'faulted'
+  | 'error';
 
 export interface PlaybackView {
   readonly status: PlaybackStatus;
@@ -84,7 +102,11 @@ export type Effect =
   | { readonly kind: 'ack'; readonly generation: number; readonly seq: number };
 
 /** Local signals the hook feeds the reducer; never on the wire. */
-export type PlaybackSignal = { readonly type: 'tick' } | { readonly type: 'disconnected' };
+export type PlaybackSignal =
+  | { readonly type: 'tick' }
+  | { readonly type: 'disconnected' }
+  /** A terminal close (R179): no reconnect follows. */
+  | { readonly type: 'closed'; readonly code: TerminalCloseCode };
 
 export interface Reduction {
   readonly view: PlaybackView;
@@ -118,7 +140,7 @@ function unchanged(view: PlaybackView): Reduction {
 function isSignal(message: unknown): message is PlaybackSignal {
   if (message === null || typeof message !== 'object') return false;
   const type = (message as { type?: unknown }).type;
-  return type === 'tick' || type === 'disconnected';
+  return type === 'tick' || type === 'disconnected' || type === 'closed';
 }
 
 function fail(view: PlaybackView, fault: ProtocolFault): Reduction {
@@ -254,12 +276,15 @@ function onFrame(view: PlaybackView, message: Extract<ServerMessage, { type: 'fr
  * cannot apply an unvalidated message by accident.
  */
 export function reduce(view: PlaybackView, message: unknown, nowMs: number): Reduction {
-  if (view.status === 'error') return unchanged(view);
+  if (view.status === 'error' || view.status === 'closed') return unchanged(view);
 
   if (isSignal(message)) {
     if (message.type === 'tick') {
       const next = flush(view, nowMs);
       return next === view ? unchanged(view) : { view: next, effects: NONE };
+    }
+    if (message.type === 'closed') {
+      return { view: { ...view, status: 'closed', error: { code: message.code, field: 'socket' } }, effects: NONE };
     }
     if (view.status === 'disconnected' || view.status === 'idle') return unchanged(view);
     return { view: { ...view, status: 'disconnected' }, effects: NONE };

@@ -109,7 +109,13 @@ export type HuntCommand =
   /** Apply loot filter (UI spec §6): that exact validated version, for drops after the cutoff. */
   | { readonly kind: 'apply-loot'; readonly presetId: string; readonly presetVersion: number }
   /** Save a preset: the row changes, a running hunt does not (UI spec §5). */
-  | { readonly kind: 'save-strategy-preset'; readonly presetId: string; readonly payload: unknown };
+  | {
+      readonly kind: 'save-strategy-preset';
+      readonly presetId: string;
+      /** The preset version the draft was loaded from (ruling R176). */
+      readonly expectedPresetVersion: number;
+      readonly payload: unknown;
+    };
 
 export interface CommandRequest {
   readonly command: HuntCommand;
@@ -124,7 +130,12 @@ export interface CommandOutcome extends CommandStamp {
   /** The hunt after the command, for every class that settles. */
   readonly view: HuntView | null;
   /** The saved preset's new version, for a save. */
-  readonly preset: PresetRef | null;
+  readonly preset: SavedPreset | null;
+}
+
+/** A save's answer: the new preset version and the account version it wrote. */
+export interface SavedPreset extends PresetRef {
+  readonly stateVersion: number;
 }
 
 /**
@@ -146,7 +157,7 @@ async function run(
   stamp: CommandStamp,
 ): Promise<CommandOutcome> {
   const { command } = request;
-  const stamped = (view: HuntView | null, preset: PresetRef | null = null): CommandOutcome => ({
+  const stamped = (view: HuntView | null, preset: SavedPreset | null = null): CommandOutcome => ({
     commandAtWall: stamp.commandAtWall,
     receiveSeq: stamp.receiveSeq,
     view,
@@ -361,7 +372,7 @@ async function savePreset(
   accountId: string,
   command: Extract<HuntCommand, { kind: 'save-strategy-preset' }>,
   request: CommandRequest,
-): Promise<PresetRef> {
+): Promise<SavedPreset> {
   await ownedPreset(deps, accountId, command.presetId);
   // The protocol's shape; the engine judges the rules against a party when
   // they are started or applied, the only moments a party exists.
@@ -379,10 +390,33 @@ async function savePreset(
           presetVersion: sql`${schema.strategyPresets.presetVersion} + 1`,
           updatedAt: new Date(),
         })
-        .where(and(eq(schema.strategyPresets.id, command.presetId), eq(schema.strategyPresets.accountId, accountId)))
+        .where(
+          and(
+            eq(schema.strategyPresets.id, command.presetId),
+            eq(schema.strategyPresets.accountId, accountId),
+            // Ruling R176: the bump is conditional on the version the draft
+            // was loaded from, in the same statement, so two saves from one
+            // base version cannot both land — because the account version
+            // alone is re-read by the client just before the PUT and so
+            // cannot tell a stale draft from a fresh one.
+            eq(schema.strategyPresets.presetVersion, command.expectedPresetVersion),
+          ),
+        )
         .returning({ presetId: schema.strategyPresets.id, presetVersion: schema.strategyPresets.presetVersion });
-      if (row === undefined) throw notOwned('presetId');
-      return row;
+      if (row === undefined) {
+        const [owned] = await tx
+          .select({ id: schema.strategyPresets.id })
+          .from(schema.strategyPresets)
+          .where(and(eq(schema.strategyPresets.id, command.presetId), eq(schema.strategyPresets.accountId, accountId)));
+        if (owned === undefined) throw notOwned('presetId');
+        // An answer, not contention: AppError is never retried, and throwing
+        // rolls the account bump back with the rest.
+        throw new AppError('CONFLICT_STATE_VERSION', 'expectedPresetVersion', expectedStateVersion);
+      }
+      // The account guard holds this transaction at exactly `expected`, and
+      // the write moves it by one; recorded with the idempotency result, so a
+      // replay reports the version the first attempt wrote.
+      return { ...row, stateVersion: expectedStateVersion + 1 };
     },
   );
 }

@@ -13,36 +13,10 @@ import { describe, expect, test } from 'vitest';
 import type { DomainEventWire, PublicStateWire } from '@narok/protocol';
 import { horizon } from '../src/clock';
 import { initialView, reduce, type PlaybackView } from '../src/playback';
-
-const METRICS: PublicStateWire['metrics'] = {
-  kills: 0,
-  wins: 0,
-  wipes: 0,
-  rawExp: 0,
-  rawGold: 0,
-  damageDealt: 0,
-  effectiveHealing: 0,
-  walkMs: 0,
-  fightMs: 0,
-  restMs: 0,
-  actors: {},
-  drops: {
-    rolled: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-    consumables: 0,
-    kept: 0,
-    autoSold: 0,
-    ignored: 0,
-    lost: 0,
-    firstDropMs: null,
-    firstDropRarity: null,
-    epicPlusWaits: [],
-    legendaryWaits: [],
-  },
-  consumed: {},
-};
+import { wireState } from './hunt-fakes';
 
 function state(nowMs: number): PublicStateWire {
-  return { nowMs, phase: 'fighting', stopReason: null, actors: [], metrics: METRICS };
+  return wireState(nowMs);
 }
 
 function event(seq: number, at: number): DomainEventWire {
@@ -262,6 +236,16 @@ describe('starvation (rule 7)', () => {
     expect(dropped.status).toBe('disconnected');
     expect(dropped.state).toBe(live.state);
     expect(dropped.events).toBe(live.events);
+  });
+
+  test('a terminal close is `closed` with its code, keeps the last frame, and nothing reopens it (R179)', () => {
+    const live = reduce(view, frame({ generation: 7, firstSeq: 1, lastSeq: 1, at: () => 0 }), 3000).view;
+    const closed = reduce(live, { type: 'closed', code: 'UNAUTHENTICATED' }, 4000).view;
+    expect(closed.status).toBe('closed');
+    expect(closed.error).toEqual({ code: 'UNAUTHENTICATED', field: 'socket' });
+    expect(closed.state).toBe(live.state);
+    expect(reduce(closed, { type: 'disconnected' }, 5000).view).toBe(closed);
+    expect(reduce(closed, frame({ generation: 7, firstSeq: 2, lastSeq: 2, at: () => 1000 }), 5000).view).toBe(closed);
   });
 });
 

@@ -137,7 +137,7 @@ describe('PUT /api/presets/:id (Save preset)', () => {
     const expected = await version(me.accountId);
     const payload = strategyPayload({ hpStart: 70, mpStart: 40 });
 
-    const response = await save(me, refs.strategyPresetId, { payload, payloadSchemaVersion: 1, expectedStateVersion: expected });
+    const response = await save(me, refs.strategyPresetId, { payload, payloadSchemaVersion: 1, expectedPresetVersion: 1, expectedStateVersion: expected });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ presetId: refs.strategyPresetId, presetVersion: 2, stateVersion: expected + 1 });
 
@@ -160,6 +160,7 @@ describe('PUT /api/presets/:id (Save preset)', () => {
     await save(me, refs.strategyPresetId, {
       payload: strategyPayload({ hpStart: 10, mpStart: 10 }),
       payloadSchemaVersion: 1,
+      expectedPresetVersion: 1,
       expectedStateVersion: await version(me.accountId),
     });
 
@@ -176,10 +177,41 @@ describe('PUT /api/presets/:id (Save preset)', () => {
     const response = await save(me, refs.strategyPresetId, {
       payload: strategyPayload(),
       payloadSchemaVersion: 1,
+      expectedPresetVersion: 1,
       expectedStateVersion: current + 3,
     });
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({ code: 'CONFLICT_STATE_VERSION', stateVersion: current });
+  });
+
+  test('two saves from the same preset version: the second is a recoverable conflict naming the preset version', async () => {
+    const me = await player();
+    const refs = await setup(me);
+    // Two tabs loaded preset v1; the first saves v2.
+    const first = await save(me, refs.strategyPresetId, {
+      payload: strategyPayload({ hpStart: 70, mpStart: 40 }),
+      payloadSchemaVersion: 1,
+      expectedPresetVersion: 1,
+      expectedStateVersion: await version(me.accountId),
+    });
+    expect(first.json()).toMatchObject({ presetVersion: 2 });
+
+    // The second still holds v1 and a fresh account version: the account
+    // guard alone would pass, so only the preset guard can refuse it.
+    const current = await version(me.accountId);
+    const second = await save(me, refs.strategyPresetId, {
+      payload: strategyPayload({ hpStart: 10, mpStart: 10 }),
+      payloadSchemaVersion: 1,
+      expectedPresetVersion: 1,
+      expectedStateVersion: current,
+    });
+    expect(second.statusCode).toBe(409);
+    expect(second.json()).toMatchObject({ code: 'CONFLICT_STATE_VERSION', field: 'expectedPresetVersion', stateVersion: current });
+
+    const [row] = await db.select().from(schema.strategyPresets).where(eq(schema.strategyPresets.id, refs.strategyPresetId));
+    expect(row.presetVersion).toBe(2);
+    expect(row.payload).toEqual(strategyPayload({ hpStart: 70, mpStart: 40 }));
+    expect(await version(me.accountId)).toBe(current);
   });
 
   test('another account’s preset, an absent one and a malformed id all answer NOT_OWNED', async () => {
@@ -189,7 +221,7 @@ describe('PUT /api/presets/:id (Save preset)', () => {
     const theirs = await setup(other);
     const expected = await version(me.accountId);
     for (const id of [theirs.strategyPresetId, crypto.randomUUID(), 'not-a-uuid']) {
-      const response = await save(me, id, { payload: strategyPayload(), payloadSchemaVersion: 1, expectedStateVersion: expected });
+      const response = await save(me, id, { payload: strategyPayload(), payloadSchemaVersion: 1, expectedPresetVersion: 1, expectedStateVersion: expected });
       expect(response.json(), id).toMatchObject({ code: 'NOT_OWNED', field: 'presetId' });
     }
   });
@@ -199,10 +231,11 @@ describe('PUT /api/presets/:id (Save preset)', () => {
     const refs = await setup(me);
     const expected = await version(me.accountId);
     for (const body of [
-      { payload: { ...strategyPayload(), wipeLimit: 3 }, payloadSchemaVersion: 1, expectedStateVersion: expected },
-      { payload: strategyPayload(), payloadSchemaVersion: 2, expectedStateVersion: expected },
-      { payload: strategyPayload(), payloadSchemaVersion: 1, expectedStateVersion: expected, seed: 1 },
-      { payload: strategyPayload(), payloadSchemaVersion: 1 },
+      { payload: { ...strategyPayload(), wipeLimit: 3 }, payloadSchemaVersion: 1, expectedPresetVersion: 1, expectedStateVersion: expected },
+      { payload: strategyPayload(), payloadSchemaVersion: 2, expectedPresetVersion: 1, expectedStateVersion: expected },
+      { payload: strategyPayload(), payloadSchemaVersion: 1, expectedPresetVersion: 1, expectedStateVersion: expected, seed: 1 },
+      { payload: strategyPayload(), payloadSchemaVersion: 1, expectedPresetVersion: 1 },
+      { payload: strategyPayload(), payloadSchemaVersion: 1, expectedStateVersion: expected },
     ]) {
       const response = await save(me, refs.strategyPresetId, body);
       expect(response.json(), JSON.stringify(Object.keys(body))).toMatchObject({ code: 'VALIDATION' });
@@ -215,7 +248,7 @@ describe('PUT /api/presets/:id (Save preset)', () => {
   test('a replayed save answers the same and saves once', async () => {
     const me = await player();
     const refs = await setup(me);
-    const body = { payload: strategyPayload({ hpStart: 60, mpStart: 20 }), payloadSchemaVersion: 1, expectedStateVersion: await version(me.accountId) };
+    const body = { payload: strategyPayload({ hpStart: 60, mpStart: 20 }), payloadSchemaVersion: 1, expectedPresetVersion: 1, expectedStateVersion: await version(me.accountId) };
     const first = await save(me, refs.strategyPresetId, body, 'same-key');
     const second = await save(me, refs.strategyPresetId, body, 'same-key');
     expect(second.json()).toEqual(first.json());

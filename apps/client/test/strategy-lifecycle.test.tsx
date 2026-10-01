@@ -29,7 +29,7 @@ const FOURTH = '10000000-0000-4000-8000-000000000004';
 const CLASSES: ClassId[] = ['guardian', 'cleric', 'ranger'];
 
 interface Held {
-  saves: { presetId: string; payload: unknown; gate: Gate<PresetRef> }[];
+  saves: { presetId: string; payload: unknown; expectedPresetVersion: number; gate: Gate<PresetRef> }[];
   applies: { ref: PresetRef; gate: Gate<{ active: PresetRef | null; pending: PresetRef | null }> }[];
 }
 
@@ -37,9 +37,9 @@ function heldCommands(): StrategyCommands & Held {
   const held: Held = { saves: [], applies: [] };
   return {
     ...held,
-    save: (presetId, payload) => {
+    save: (presetId, payload, expectedPresetVersion) => {
       const answer = gate<PresetRef>();
-      held.saves.push({ presetId, payload, gate: answer });
+      held.saves.push({ presetId, payload, expectedPresetVersion, gate: answer });
       return answer.promise;
     },
     apply: (ref) => {
@@ -58,6 +58,8 @@ function Harness(props: {
   initialPending?: PresetRef | null;
   onClose?: () => void;
   serverReport?: (set: (active: PresetRef | null, pending: PresetRef | null) => void) => void;
+  /** The list re-read from the server, as after another tab's save. */
+  serverPresets?: (set: (list: StrategyPresetRecord[]) => void) => void;
 }) {
   const [presets, setPresets] = useState(props.presets ?? [presetRecord(SUSTAIN, 'Sustain'), presetRecord(BURST, 'Burst')]);
   const [active, setActive] = useState<PresetRef | null>(props.initialActive ?? { presetId: SUSTAIN, presetVersion: 1 });
@@ -67,9 +69,10 @@ function Harness(props: {
     setActive(nextActive);
     setPending(nextPending);
   });
+  props.serverPresets?.(setPresets);
   const commands: StrategyCommands = {
-    async save(presetId, payload) {
-      const ref = await props.commands.save(presetId, payload);
+    async save(presetId, payload, expectedPresetVersion) {
+      const ref = await props.commands.save(presetId, payload, expectedPresetVersion);
       setPresets((list) =>
         list.map((preset) => (preset.id === presetId ? { ...preset, payload, presetVersion: ref.presetVersion } : preset)),
       );
@@ -291,6 +294,101 @@ describe('Close with unsaved changes', () => {
   });
 });
 
+describe('Discard drops only this tab’s draft', () => {
+  test('another preset’s draft survives a Discard and is still unsaved when its tab is opened', () => {
+    const commands = heldCommands();
+    const onClose = vi.fn();
+    render(<Harness commands={commands} onClose={onClose} />);
+    edit(64);
+    fireEvent.click(screen.getByRole('tab', { name: /Burst/ }));
+    edit(70);
+
+    fireEvent.click(screen.getByRole('button', { name: en.strategy.close }));
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: en.strategy.discard }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(restHp().value).toBe('50');
+
+    fireEvent.click(screen.getByRole('tab', { name: /Sustain/ }));
+    expect(restHp().value).toBe('64');
+    expect(dirtyNote()).toHaveTextContent(en.strategy.unsavedDraft);
+    expect(commands.saves).toHaveLength(0);
+  });
+});
+
+describe('a stale tab (R176)', () => {
+  test('the draft sends the version it was loaded from; a newer saved version is a recoverable conflict', async () => {
+    const commands = heldCommands();
+    let replace: (list: StrategyPresetRecord[]) => void = () => undefined;
+    render(<Harness commands={commands} serverPresets={(set) => (replace = set)} />);
+    edit(66);
+    // Another tab saved v2 meanwhile, and this tab's list was re-read.
+    act(() => replace([presetRecord(SUSTAIN, 'Sustain', 2), presetRecord(BURST, 'Burst')]));
+
+    fireEvent.click(screen.getByRole('button', { name: en.strategy.save }));
+    expect(commands.saves[0]!.expectedPresetVersion).toBe(1);
+    await act(async () =>
+      commands.saves[0]!.gate.reject(new CommandError('CONFLICT_STATE_VERSION', 'expectedPresetVersion', 9)),
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(en.serverError.CONFLICT_STATE_VERSION);
+    expect(alert).toHaveTextContent(en.strategy.presetConflictHelp);
+    // The draft survives, still unsaved, measured against the version now saved.
+    expect(restHp().value).toBe('66');
+    expect(dirtyNote()).toHaveTextContent(en.strategy.unsavedDraft);
+
+    // Saving again is the player's explicit choice to replace v2.
+    fireEvent.click(screen.getByRole('button', { name: en.strategy.save }));
+    expect(commands.saves[1]!.expectedPresetVersion).toBe(2);
+    await act(async () => commands.saves[1]!.gate.resolve({ presetId: SUSTAIN, presetVersion: 3 }));
+    expect(dirtyNote()).toHaveTextContent('Saved v3');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test('Revert after a conflict takes the version the other tab saved', async () => {
+    const commands = heldCommands();
+    let replace: (list: StrategyPresetRecord[]) => void = () => undefined;
+    render(<Harness commands={commands} serverPresets={(set) => (replace = set)} />);
+    edit(66);
+    act(() => replace([presetRecord(SUSTAIN, 'Sustain', 2), presetRecord(BURST, 'Burst')]));
+    fireEvent.click(screen.getByRole('button', { name: en.strategy.save }));
+    await act(async () =>
+      commands.saves[0]!.gate.reject(new CommandError('CONFLICT_STATE_VERSION', 'expectedPresetVersion', 9)),
+    );
+    fireEvent.click(screen.getByRole('button', { name: en.strategy.revert }));
+    expect(restHp().value).toBe('50');
+    expect(dirtyNote()).toHaveTextContent('Saved v2');
+    // A fresh edit is based on v2.
+    edit(55);
+    fireEvent.click(screen.getByRole('button', { name: en.strategy.save }));
+    expect(commands.saves[1]!.expectedPresetVersion).toBe(2);
+  });
+
+  test('useHunt sends the draft’s version and re-reads the list when a save conflicts', async () => {
+    const api = fakeApi();
+    const harness = huntHarness(api);
+    const { result } = renderHook(() => useHunt(harness.options));
+    await waitFor(() => expect(result.current.presets).not.toBeNull());
+    const reads = api.presetReads;
+    api.strategyPresets = [presetRecord(SUSTAIN, 'Sustain', 2)];
+
+    let outcome: Promise<PresetRef> = Promise.resolve({ presetId: SUSTAIN, presetVersion: 0 });
+    act(() => {
+      outcome = result.current.strategy.save(SUSTAIN, presetRecord(SUSTAIN, 'Sustain').payload, 1);
+    });
+    await waitFor(() => expect(api.saves).toHaveLength(1));
+    expect(api.saves[0]!.body).toMatchObject({ expectedPresetVersion: 1, expectedStateVersion: 7 });
+    const settled = outcome.then(
+      () => null,
+      (error: unknown) => error,
+    );
+    await act(async () => api.saves[0]!.gate.reject(new CommandError('CONFLICT_STATE_VERSION', 'expectedPresetVersion', 7)));
+    expect(await settled).toMatchObject({ code: 'CONFLICT_STATE_VERSION', field: 'expectedPresetVersion' });
+    await waitFor(() => expect(result.current.presets?.strategy[0]?.presetVersion).toBe(2));
+    expect(api.presetReads).toBeGreaterThan(reads);
+  });
+});
+
 describe('conflict', () => {
   test('CONFLICT_STATE_VERSION is a recoverable conflict, localised from the code', async () => {
     const commands = heldCommands();
@@ -340,32 +438,26 @@ describe('tabs and the ported board (R111, R112, R113)', () => {
   });
 });
 
-describe('pending survives a reconnect', () => {
-  test('after a drop and a resynchronising snapshot the server still reports the pending version', async () => {
-    const api = fakeApi();
+describe('pending survives a reload', () => {
+  test('a fresh useHunt against a server holding a pending version shows it pending, from the server alone', async () => {
+    const api = fakeApi([presetRecord(SUSTAIN, 'Sustain', 2)]);
     const queued = { presetId: SUSTAIN, presetVersion: 2 };
     api.current = { ...huntResponse(1, 'fighting', { presetId: SUSTAIN, presetVersion: 1 }, queued), status: 'running', mapId: 'prototype' };
+
+    // The page that queued it is gone: nothing of a previous mount survives but the server.
     const harness = huntHarness(api);
     const { result } = renderHook(() => useHunt(harness.options));
+    expect(result.current.hunt).toBeNull();
     await waitFor(() => expect(result.current.hunt?.pendingStrategy).toEqual(queued));
-
     act(() => harness.sockets[0]!.open());
-    act(() => harness.sockets[0]!.deliver({ type: 'snapshot', generation: 1, seq: 1, state: wireState(0) }));
-    act(() => harness.sockets[0]!.drop());
-    expect(result.current.playback).toBe('disconnected');
-    act(() => harness.timers.fireTimeouts());
-    act(() => harness.sockets[1]!.open());
-    // Recovery re-anchored the hunt: a newer generation, so the record is re-read.
-    api.current = { ...api.current, generation: 2 };
-    act(() => harness.sockets[1]!.deliver({ type: 'snapshot', generation: 2, seq: 1, state: wireState(5000) }));
-    await waitFor(() => expect(result.current.hunt?.generation).toBe(2));
-    expect(result.current.hunt?.pendingStrategy).toEqual(queued);
+    act(() => harness.sockets[0]!.deliver({ type: 'snapshot', generation: 1, seq: 1, state: wireState(5000) }));
+    expect(result.current.status).toBe('running');
 
     render(
       <StrategyScreen
         open
         content={content}
-        presets={[presetRecord(SUSTAIN, 'Sustain', 2)]}
+        presets={result.current.presets!.strategy}
         classes={CLASSES}
         selectedPresetId={null}
         onSelectPreset={() => undefined}
@@ -376,6 +468,7 @@ describe('pending survives a reconnect', () => {
         onClose={() => undefined}
       />,
     );
+    expect(screen.getByTestId('strategy-active')).toHaveTextContent('Sustain v1');
     expect(screen.getByTestId('strategy-pending')).toHaveTextContent('Sustain v2');
   });
 });

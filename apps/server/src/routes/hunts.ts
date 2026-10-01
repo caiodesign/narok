@@ -311,12 +311,17 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
 
     try {
       const outcome = await applyCommand(commands, account, {
-        command: { kind: 'save-strategy-preset', presetId: id.data, payload: body.payload },
+        command: {
+          kind: 'save-strategy-preset',
+          presetId: id.data,
+          expectedPresetVersion: body.expectedPresetVersion,
+          payload: body.payload,
+        },
         expectedStateVersion: body.expectedStateVersion,
         idempotency: { key: `preset.save:${key}`, requestHash: await hashRequest({ id: id.data, body }) },
       });
       const saved = outcome.preset!;
-      return { presetId: saved.presetId, presetVersion: saved.presetVersion, stateVersion: body.expectedStateVersion + 1 };
+      return { presetId: saved.presetId, presetVersion: saved.presetVersion, stateVersion: saved.stateVersion };
     } catch (error) {
       throw asAppError(error);
     }

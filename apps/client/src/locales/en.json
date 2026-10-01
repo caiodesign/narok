@@ -369,7 +369,15 @@
     "strategy": "Strategy",
     "idleHelp": "Start a hunt with your party and the selected strategy preset.",
     "runningHelp": "Stop returns the party to town and abandons the current encounter.",
-    "stoppedHelp": "The previous encounter was abandoned. The return to town took travel time, and the whole party arrived fully healed.",
+    "stoppedHelp": {
+      "operator": "You stopped the hunt. The encounter in progress was abandoned, the return to town took travel time, and the whole party arrived fully healed.",
+      "wipe": "The whole party fell. It was returned to town, and the town fully healed everyone.",
+      "stalemate": "The encounter reached a stalemate: neither side could defeat the other. The party returned to town and arrived fully healed.",
+      "retreat": "The party retreated from its encounter and returned to town, where it arrived fully healed.",
+      "potion-floor": "Health potions fell below the set minimum, so the party returned to town and arrived fully healed.",
+      "unknown": "The hunt has stopped. The party is in town, fully healed."
+    },
+    "faultedHelp": "The hunt is faulted. It needs an explicit recovery before a new hunt can start.",
     "unavailable": "A hunt needs a character, a strategy preset and a loot preset on this account.",
     "report": "An away report is ready."
   },
@@ -381,6 +389,7 @@
     "buffering": "Buffering",
     "resyncing": "Resynchronising",
     "disconnected": "Reconnecting",
+    "closed": "Disconnected",
     "faulted": "Hunt faulted",
     "error": "Connection error"
   },
@@ -426,6 +435,7 @@
     "keepEditing": "Keep editing",
     "discard": "Discard",
     "conflictHelp": "Your draft is still here. Save or apply again against the current version.",
+    "presetConflictHelp": "This preset was saved elsewhere since you opened it. Your draft is still here: save again to replace that version, or revert to load it.",
     "noPresets": "No strategy preset is saved on this account.",
     "savedNote": "{{name}} saved as v{{version}}. Hunt rules unchanged. Apply when ready.",
     "queuedNote": "{{name}} v{{version}} saved and queued. It takes effect at the next encounter; the current fight keeps its rules.",

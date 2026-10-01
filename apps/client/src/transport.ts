@@ -59,6 +59,13 @@ export const RECONNECT_MAX_MS = 30_000;
  */
 const TERMINAL_REASONS: ReadonlySet<string> = new Set(['UNAUTHENTICATED', 'FORBIDDEN_ORIGIN']);
 
+/** A close after which this transport will not reconnect. */
+export type TerminalCloseCode = 'UNAUTHENTICATED' | 'FORBIDDEN_ORIGIN';
+
+export function isTerminalClose(reason: string): reason is TerminalCloseCode {
+  return TERMINAL_REASONS.has(reason);
+}
+
 export interface Cursor {
   readonly lastGeneration?: number;
   readonly lastSeq?: number;
@@ -152,7 +159,7 @@ export function createTransport(options: TransportOptions): Transport {
         stopHeartbeat();
       }
       options.onClose?.(event.reason);
-      if (TERMINAL_REASONS.has(event.reason)) {
+      if (isTerminalClose(event.reason)) {
         ended = true;
         return;
       }

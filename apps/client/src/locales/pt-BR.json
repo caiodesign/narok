@@ -369,7 +369,15 @@
     "strategy": "Estratégia",
     "idleHelp": "Inicie uma caçada com o seu grupo e o preset de estratégia selecionado.",
     "runningHelp": "Parar leva o grupo de volta à cidade e abandona o encontro atual.",
-    "stoppedHelp": "O encontro anterior foi abandonado. A volta à cidade levou o tempo da viagem, e o grupo inteiro chegou com a vida restaurada.",
+    "stoppedHelp": {
+      "operator": "Você parou a caçada. O encontro em andamento foi abandonado, a volta à cidade levou o tempo da viagem, e o grupo inteiro chegou com a vida restaurada.",
+      "wipe": "O grupo inteiro caiu. Ele voltou à cidade, e a cidade restaurou a vida de todos.",
+      "stalemate": "O encontro chegou a um impasse: nenhum lado conseguia derrotar o outro. O grupo voltou à cidade e chegou com a vida restaurada.",
+      "retreat": "O grupo recuou do encontro e voltou à cidade, onde chegou com a vida restaurada.",
+      "potion-floor": "As poções de vida ficaram abaixo do mínimo definido, então o grupo voltou à cidade e chegou com a vida restaurada.",
+      "unknown": "A caçada parou. O grupo está na cidade, com a vida restaurada."
+    },
+    "faultedHelp": "A caçada está com falha. Ela precisa de uma recuperação explícita antes que uma nova caçada possa começar.",
     "unavailable": "Uma caçada precisa de um personagem, um preset de estratégia e um preset de saque nesta conta.",
     "report": "Um relatório de ausência está pronto."
   },
@@ -381,6 +389,7 @@
     "buffering": "Carregando",
     "resyncing": "Ressincronizando",
     "disconnected": "Reconectando",
+    "closed": "Desconectado",
     "faulted": "Caçada com falha",
     "error": "Erro de conexão"
   },
@@ -426,6 +435,7 @@
     "keepEditing": "Continuar editando",
     "discard": "Descartar",
     "conflictHelp": "Seu rascunho continua aqui. Salve ou aplique de novo sobre a versão atual.",
+    "presetConflictHelp": "Este preset foi salvo em outro lugar depois que você o abriu. Seu rascunho continua aqui: salve de novo para substituir essa versão, ou reverta para carregá-la.",
     "noPresets": "Nenhum preset de estratégia está salvo nesta conta.",
     "savedNote": "{{name}} salvo como v{{version}}. As regras da caçada não mudaram. Aplique quando quiser.",
     "queuedNote": "{{name}} v{{version}} salvo e na fila. Vale a partir do próximo encontro; a luta atual mantém as regras.",

@@ -50,12 +50,14 @@ export function wireState(nowMs: number, phase: PublicStateWire['phase'] = 'figh
   return { nowMs, phase, stopReason: null, actors: [], metrics: METRICS };
 }
 
+/** The browser `WebSocket` surface the transport uses, and nothing more. */
 export class FakeSocket implements SocketLike {
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: unknown }) => void) | null = null;
   onclose: ((event: { code: number; reason: string }) => void) | null = null;
   onerror: (() => void) | null = null;
   readonly sent: ClientMessage[] = [];
+  closedByClient = false;
 
   constructor(readonly url: string) {}
 
@@ -64,6 +66,7 @@ export class FakeSocket implements SocketLike {
   }
 
   close(): void {
+    this.closedByClient = true;
     this.onclose?.({ code: 1000, reason: '' });
   }
 
@@ -71,32 +74,51 @@ export class FakeSocket implements SocketLike {
     this.onopen?.();
   }
 
-  deliver(message: ServerMessage): void {
+  /** A server message; a test may also deliver one the protocol forbids. */
+  deliver(message: ServerMessage | Record<string, unknown>): void {
     this.onmessage?.({ data: JSON.stringify(message) });
   }
 
   drop(): void {
     this.onclose?.({ code: 1006, reason: '' });
   }
+
+  /** The server closing with a taxonomy code as the reason (`apps/server/src/ws/socket.ts`). */
+  closeWith(reason: string): void {
+    this.onclose?.({ code: 4001, reason });
+  }
 }
 
-export function manualTimers(): Timers & { fireTimeouts: () => void } {
+/** Timers the test fires by hand: the heartbeat interval and the reconnect backoff. */
+export function manualTimers(): Timers & { fireTimeouts: () => void; fireIntervals: () => void; delays: number[] } {
   let next = 1;
   const timeouts = new Map<number, () => void>();
+  const intervals = new Map<number, () => void>();
+  const delays: number[] = [];
   return {
-    setTimeout: (callback) => {
+    delays,
+    setTimeout: (callback, ms) => {
+      delays.push(ms);
       timeouts.set(next, callback);
       return next++;
     },
     clearTimeout: (handle) => {
       timeouts.delete(handle);
     },
-    setInterval: () => next++,
-    clearInterval: () => undefined,
+    setInterval: (callback) => {
+      intervals.set(next, callback);
+      return next++;
+    },
+    clearInterval: (handle) => {
+      intervals.delete(handle);
+    },
     fireTimeouts: () => {
       const due = [...timeouts.values()];
       timeouts.clear();
       due.forEach((callback) => callback());
+    },
+    fireIntervals: () => {
+      [...intervals.values()].forEach((callback) => callback());
     },
   };
 }
@@ -159,6 +181,12 @@ export function presetRecord(id: string, name: string, presetVersion = 1): Strat
 
 export const SUSTAIN = '10000000-0000-4000-8000-000000000001';
 
+/** The server's record of a hunt that stopped for `reason`. */
+export function stoppedHunt(reason: NonNullable<PublicStateWire['stopReason']>, active: PresetRef): HuntResponse {
+  const record = huntResponse(2, 'stopped', active);
+  return { ...record, state: { ...record.state, stopReason: reason }, status: 'stopped', mapId: 'prototype' };
+}
+
 export function huntResponse(generation: number, phase: PublicStateWire['phase'], active: PresetRef, pending: PresetRef | null = null): HuntResponse {
   return {
     huntId: '20000000-0000-4000-8000-000000000001',
@@ -178,6 +206,10 @@ export interface FakeApi extends Api {
   readonly applies: { body: unknown; gate: Gate<HuntResponse> }[];
   current: HuntResponse | null;
   inventoryResponse: InventoryResponse | null;
+  /** What `GET /api/presets` answers now; a test may replace it, as another tab's save would. */
+  strategyPresets: readonly StrategyPresetRecord[];
+  /** How many times the preset list was read. */
+  presetReads: number;
 }
 
 export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord(SUSTAIN, 'Sustain')]): FakeApi {
@@ -188,6 +220,8 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
     applies: [],
     current: null,
     inventoryResponse: null,
+    strategyPresets: presets,
+    presetReads: 0,
     me: async () => ({ id: 'a', email: 'a@narok.test', stateVersion: 7, premium: false }),
     characters: async () => ({
       characters: [
@@ -197,11 +231,14 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
       ],
       stateVersion: 7,
     }),
-    presets: async (): Promise<PresetsResponse> => ({
-      strategy: presets,
-      loot: [{ id: '30000000-0000-4000-8000-000000000001', name: 'Default', presetVersion: 1 }],
-      stateVersion: 7,
-    }),
+    presets: async (): Promise<PresetsResponse> => {
+      api.presetReads += 1;
+      return {
+        strategy: api.strategyPresets,
+        loot: [{ id: '30000000-0000-4000-8000-000000000001', name: 'Default', presetVersion: 1 }],
+        stateVersion: 7,
+      };
+    },
     inventory: async () => {
       if (api.inventoryResponse === null) throw new CommandError('NOT_FOUND', 'inventory');
       return api.inventoryResponse;

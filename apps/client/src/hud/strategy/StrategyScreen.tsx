@@ -46,7 +46,7 @@ import { useTranslation } from 'react-i18next';
 import type { ClassId, Content } from '@narok/data';
 import type { ExperimentStatus } from '../../status';
 import { ExperimentControls, type EditorDraft } from '../../ExperimentControls';
-import { faultOf, type PresetRef, type StrategyPresetRecord } from '../../commands';
+import { CommandError, faultOf, type PresetRef, type StrategyPresetRecord } from '../../commands';
 import type { ProtocolFault } from '../../protocol';
 import type { StrategyCommands } from '../../useHunt';
 import { draftFromPreset, payloadOf, PRESET_TAB_LIMIT, samePayload, unsavedActorsOf } from './presets';
@@ -102,6 +102,17 @@ export function StrategyScreen({
 
   const [drafts, setDrafts] = useState<Readonly<Record<string, EditorDraft>>>({});
   const [baselines, setBaselines] = useState<Readonly<Record<string, Baseline>>>({});
+  /**
+   * The preset version each draft was loaded from, taken at its first edit.
+   *
+   * Ruling R176: a save sends the version its draft was loaded from, not the
+   * newest one this screen has seen, and a refusal on that version (field
+   * `expectedPresetVersion`) keeps the draft and forgets its base, so the next
+   * Save is the player's explicit replace of the version now shown — because a
+   * base taken at save time would let a tab holding v2 overwrite another tab's
+   * v3 without either player seeing it.
+   */
+  const [bases, setBases] = useState<Readonly<Record<string, number>>>({});
   const [busy, setBusy] = useState<Busy>(null);
   const [fault, setFault] = useState<ProtocolFault | null>(null);
   const [notice, setNotice] = useState<{ key: Notice; name?: string; version?: number }>({ key: 'applyNote' });
@@ -133,22 +144,49 @@ export function StrategyScreen({
     [draft, saved, dirty],
   );
 
+  const savedVersion = saved?.version ?? null;
   const onDraftEdit = useCallback(
     (next: EditorDraft) => {
-      if (selected === null) return;
+      if (selected === null || savedVersion === null) return;
       setDrafts((current) => ({ ...current, [selected.id]: next }));
+      setBases((current) => (selected.id in current ? current : { ...current, [selected.id]: savedVersion }));
       setNotice({ key: 'applyNote' });
     },
-    [selected],
+    [selected, savedVersion],
   );
+
+  const forget = (presetId: string) => {
+    const without = <T,>(current: Readonly<Record<string, T>>): Readonly<Record<string, T>> => {
+      const rest = { ...current };
+      delete rest[presetId];
+      return rest;
+    };
+    setDrafts(without);
+    setBases(without);
+  };
 
   const nameOf = (ref: PresetRef): string => presets.find((preset) => preset.id === ref.presetId)?.name ?? ref.presetId;
 
   /** Saves one preset's draft; resolves with the acknowledged version. */
   const saveDraft = async (record: StrategyPresetRecord, edited: EditorDraft): Promise<PresetRef> => {
-    const ref = await commands.save(record.id, payloadOf(edited));
-    // The marker clears here, on the server's acknowledgement.
+    const base = bases[record.id] ?? savedOf(record).version;
+    let ref: PresetRef;
+    try {
+      ref = await commands.save(record.id, payloadOf(edited), base);
+    } catch (error) {
+      // A newer version was saved elsewhere (R176): keep the draft, drop its base.
+      if (error instanceof CommandError && error.field === 'expectedPresetVersion') {
+        setBases((current) => {
+          const rest = { ...current };
+          delete rest[record.id];
+          return rest;
+        });
+      }
+      throw error;
+    }
+    // The marker clears here, on the server's acknowledgement; the draft is now based on that version.
     setBaselines((current) => ({ ...current, [record.id]: { draft: edited, version: ref.presetVersion } }));
+    setBases((current) => ({ ...current, [record.id]: ref.presetVersion }));
     return ref;
   };
 
@@ -187,11 +225,7 @@ export function StrategyScreen({
 
   const onRevert = () => {
     if (selected === null) return;
-    setDrafts((current) => {
-      const rest = { ...current };
-      delete rest[selected.id];
-      return rest;
-    });
+    forget(selected.id);
     setFault(null);
     setNotice({ key: 'revertedNote' });
   };
@@ -203,8 +237,14 @@ export function StrategyScreen({
     else onClose();
   };
 
+  /**
+   * Ruling R178: Discard drops only the open tab's draft; another tab's draft
+   * survives, still marked unsaved — because the prompt says "This preset has
+   * unsaved changes", and a draft the player was not looking at must never be
+   * lost silently.
+   */
   const onDiscard = () => {
-    setDrafts({});
+    if (selected !== null) forget(selected.id);
     setPrompt(false);
     setFault(null);
     setNotice({ key: 'applyNote' });
@@ -346,7 +386,8 @@ export function StrategyScreen({
         {fault !== null && (
           <p className="apply-note" role="alert" data-testid="strategy-fault">
             {t(`serverError.${fault.code}`)}
-            {fault.code === 'CONFLICT_STATE_VERSION' && ` ${t('strategy.conflictHelp')}`}
+            {fault.code === 'CONFLICT_STATE_VERSION' &&
+              ` ${t(fault.field === 'expectedPresetVersion' ? 'strategy.presetConflictHelp' : 'strategy.conflictHelp')}`}
           </p>
         )}
         {prompt && (

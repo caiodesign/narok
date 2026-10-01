@@ -22,8 +22,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DomainEvent, PublicState } from '@narok/sim';
-import { STRATEGY_PAYLOAD_SCHEMA_VERSION, type StrategyPresetPayload } from '@narok/protocol';
+import { STRATEGY_PAYLOAD_SCHEMA_VERSION, type PublicStateWire, type StrategyPresetPayload } from '@narok/protocol';
 import {
+  CommandError,
   createApi,
   faultOf,
   type Api,
@@ -32,11 +33,20 @@ import {
   type InventoryResponse,
   type PresetRef,
   type PresetsResponse,
+  type SavePresetResponse,
 } from './commands';
 import { initialView, reduce, type PlaybackStatus, type PlaybackView } from './playback';
 import type { ProtocolFault } from './protocol';
 import type { ExperimentStatus } from './status';
-import { createTransport, socketUrl, type Cursor, type SocketLike, type Timers, type Transport } from './transport';
+import {
+  createTransport,
+  isTerminalClose,
+  socketUrl,
+  type Cursor,
+  type SocketLike,
+  type Timers,
+  type Transport,
+} from './transport';
 
 /** The one map milestone B ships (spec §2.2; `apps/server/src/routes/hunts.ts` MAPS). */
 export const HUNT_MAP_ID = 'prototype';
@@ -65,6 +75,9 @@ export interface UseHuntOptions {
 
 export type HuntCommandPending = 'start' | 'stop' | null;
 
+/** Why a hunt stopped, as the wire names it. */
+export type StopReason = NonNullable<PublicStateWire['stopReason']>;
+
 /**
  * What the strategy editor needs from the server, already guarded.
  *
@@ -74,9 +87,12 @@ export type HuntCommandPending = 'start' | 'stop' | null;
  * because the account version moves at every settled encounter, so a guard
  * taken at open would refuse nearly every save during a hunt, and a pending
  * version activates at the next spawn without a new generation to signal it.
+ * For Save, R176 supersedes this as the staleness guard: the account version
+ * read now only sequences the write, and `expectedPresetVersion` — the
+ * version the draft was loaded from — is what refuses a stale draft.
  */
 export interface StrategyCommands {
-  save(presetId: string, payload: StrategyPresetPayload): Promise<PresetRef>;
+  save(presetId: string, payload: StrategyPresetPayload, expectedPresetVersion: number): Promise<PresetRef>;
   apply(ref: PresetRef): Promise<{ active: PresetRef | null; pending: PresetRef | null }>;
 }
 
@@ -84,6 +100,10 @@ export interface UseHuntResult {
   state: PublicState | null;
   events: DomainEvent[];
   status: ExperimentStatus;
+  /** Why the hunt stopped, from the same source as `status`; `null` while it runs or when unknown. */
+  stopReason: StopReason | null;
+  /** The server reported the hunt faulted: no normal start is offered (part 4 §2). */
+  faulted: boolean;
   start: () => void;
   stop: () => void;
   canStart: boolean;
@@ -105,7 +125,7 @@ export interface UseHuntResult {
 
 function cursorOf(view: PlaybackView): Cursor {
   if (view.generation < 0 || view.lastSeq < 0) return {};
-  if (view.status === 'resyncing' || view.status === 'idle' || view.status === 'error') return {};
+  if (view.status === 'resyncing' || view.status === 'idle' || view.status === 'error' || view.status === 'closed') return {};
   return { lastGeneration: view.generation, lastSeq: view.lastSeq };
 }
 
@@ -159,7 +179,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
       createSocket: config.createSocket ?? defaultSocket,
       cursor: () => cursorOf(viewRef.current),
       onMessage: apply,
-      onClose: () => apply({ type: 'disconnected' }),
+      onClose: (reason) => apply(isTerminalClose(reason) ? { type: 'closed', code: reason } : { type: 'disconnected' }),
       timers: config.timers,
       heartbeatMs: config.heartbeatMs,
     });
@@ -312,15 +332,23 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
 
   const strategy = useMemo<StrategyCommands>(
     () => ({
-      async save(presetId, payload) {
-        // Guarded by the account version read now (ruling R170): the intent is
-        // this payload for this preset, formed in the editor, not a stale read.
+      async save(presetId, payload, expectedPresetVersion) {
+        // Sequenced by the account version read now (R170) and guarded by the
+        // preset version the draft was loaded from (R176).
         const me = await api.me();
-        const saved = await api.savePreset(presetId, {
-          payload,
-          payloadSchemaVersion: STRATEGY_PAYLOAD_SCHEMA_VERSION,
-          expectedStateVersion: me.stateVersion,
-        });
+        let saved: SavePresetResponse;
+        try {
+          saved = await api.savePreset(presetId, {
+            payload,
+            payloadSchemaVersion: STRATEGY_PAYLOAD_SCHEMA_VERSION,
+            expectedPresetVersion,
+            expectedStateVersion: me.stateVersion,
+          });
+        } catch (error) {
+          // Another tab or device saved first: show the player what it saved.
+          if (error instanceof CommandError && error.field === 'expectedPresetVersion') void refreshAccount();
+          throw error;
+        }
         if (mounted.current) {
           setPresets((current) =>
             current === null
@@ -346,24 +374,33 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
         return { active: applied.activeStrategy, pending: applied.pendingStrategy };
       },
     }),
-    [api],
+    [api, refreshAccount],
   );
 
   // -- the authoritative status ---------------------------------------------
 
+  // Whichever source has seen the newer generation speaks for the hunt.
+  const spoken = useMemo<PublicStateWire | null>(() => {
+    const socketIsNewer = hunt === null || view.generation >= hunt.generation;
+    return socketIsNewer ? latest : hunt.state;
+  }, [view.generation, latest, hunt]);
+
   const status = useMemo<ExperimentStatus>(() => {
     if (view.status === 'error' || view.status === 'faulted') return 'error';
-    // Whichever source has seen the newer generation speaks for the hunt.
     const socketIsNewer = hunt === null || view.generation >= hunt.generation;
-    const phase = socketIsNewer ? (latest?.phase ?? null) : hunt.state.phase;
+    const phase = spoken?.phase ?? null;
     if (phase === null && hunt === null) return 'idle';
     if (phase === 'stopped') return 'stopped';
     if (!socketIsNewer && hunt.status === 'stopped') return 'stopped';
     if (view.status === 'idle' && hunt === null) return 'idle';
     return 'running';
-  }, [view.status, view.generation, latest, hunt]);
+  }, [view.status, view.generation, spoken, hunt]);
+
+  const stopReason = status === 'stopped' ? (spoken?.stopReason ?? null) : null;
+  const faulted = view.status === 'faulted';
 
   const canStart =
+    !faulted &&
     pending === null &&
     status !== 'running' &&
     strategyPreset !== null &&
@@ -376,6 +413,8 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     state: view.state as PublicState | null,
     events: view.events as unknown as DomainEvent[],
     status,
+    stopReason,
+    faulted,
     start,
     stop,
     canStart,
