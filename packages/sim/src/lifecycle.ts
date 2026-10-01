@@ -4,6 +4,7 @@ import { gridPosition } from './battlefield/grid';
 import { compareIds, emitEvent, livingActors } from './effects';
 import { dispositionRewards } from './rewards';
 import { SimError } from './errors';
+import { actorLoadout } from './loadout';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
 import type { Actor, ActorId, Context, Phase, PositionId, SimState } from './types';
@@ -330,7 +331,8 @@ function regenMultiplier(phase: Phase): [numerator: number, denominator: number]
 /**
  * Global 5,000 ms regen tick (ruling R35). Always reschedules its successor unless
  * the experiment is stopped; applies no regeneration while `stopped`. Only
- * living party members regenerate, HP before MP, in id order.
+ * living party members regenerate, HP before MP, in id order, each adding its
+ * loadout's flat regen to the base (ruling R161).
  * While resting, reevaluates the (fixed 90%/80%) exit thresholds after applying
  * regeneration and may resume walking on this same tick.
  */
@@ -350,10 +352,17 @@ export function regenerate(state: SimState, ctx: Context): void {
   const party = livingActors(state).filter((entry) => entry.side === 'party');
 
   for (const member of party) {
+    // Ruling R161 (Task 7d, requirement 4): Part 3 states no order for the
+    // loadout's flat regen, so `hpRegenFlat`/`mpRegenFlat` add to the tick's
+    // base — after its floor of one, before the phase multiplier — making
+    // equipment regen a rate that fighting halves and resting quadruples like
+    // the rest; the gain is still clamped to the missing HP/MP. Only the
+    // living reach this loop, so the dead gain nothing whatever they wear.
+    const loadout = actorLoadout(state, member, ctx.content);
     const hpBase = Math.max(
       1,
       Math.floor(member.stats.maxHp / 100) + Math.floor(member.attributes.vit / 5),
-    );
+    ) + (loadout?.hpRegenFlat ?? 0);
     const hpGain = Math.min(
       member.stats.maxHp - member.hp,
       Math.max(1, Math.floor((hpBase * numerator) / denominator)),
@@ -367,7 +376,7 @@ export function regenerate(state: SimState, ctx: Context): void {
       const mpBase = Math.max(
         1,
         Math.floor(member.stats.maxMp / 100) + Math.floor(member.attributes.int / 6),
-      );
+      ) + (loadout?.mpRegenFlat ?? 0);
       const mpGain = Math.min(
         member.stats.maxMp - member.mp,
         Math.max(1, Math.floor((mpBase * numerator) / denominator)),

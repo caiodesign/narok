@@ -15,7 +15,7 @@ import { clampResources } from '@narok/progression';
 import type { Character, MaximaOf } from '@narok/progression';
 import { SimError } from './errors';
 import { derive, scale } from './math';
-import type { Actor, DerivedStats, HuntCharacter } from './types';
+import type { Actor, DerivedStats, HuntCharacter, SimState } from './types';
 
 /**
  * One character's equipped items resolved against pinned content (Part 3
@@ -257,4 +257,43 @@ export function refreshPartyActor(actor: Actor, character: HuntCharacter, conten
   if (!clamped.ok) throw new SimError('INVALID_STATE', `actors.${actor.id}.${clamped.field}`, 'impossible resources');
   actor.hp = clamped.next.hp;
   actor.mp = clamped.next.mp;
+}
+
+/**
+ * Resolved loadouts by worn-item list, per pinned content. A hunt's worn lists
+ * are never mutated in place — a checkpoint decode or an `advance` copy makes
+ * new arrays — so an entry can only go stale by being unreachable.
+ */
+const loadoutCache = new WeakMap<Content, WeakMap<readonly ItemInstance[], ResolvedLoadout>>();
+
+/**
+ * The resolved loadout a party actor fights with, or `null` when it carries
+ * none: an enemy, or a laboratory run's fixed character (ruling R162).
+ *
+ * Ruling R162 (Task 7d, requirement 5): the combat factors are re-derived from
+ * the pinned content and the actor's checkpointed items
+ * (`state.progression[id].equipped`), never stored as numbers of their own —
+ * the same source `refreshPartyActor` derives stats from. Those items already
+ * round-trip through `encode`/`decode` and are validated there by
+ * `validateHuntCharacter` → `validateEquipped` → `resolveLoadout`
+ * (`validate-state.ts`), so the checkpoint shape does not change and a factor
+ * can never disagree with the items it came from. The simulation has no
+ * mid-hunt equipment path: worn items change only in town, between hunts
+ * (Part 3 §4), and a hunt starts from them afresh.
+ */
+export function actorLoadout(state: SimState, actor: Actor, content: Content): ResolvedLoadout | null {
+  if (actor.side !== 'party') return null;
+  const equipped = state.progression?.[actor.id]?.equipped;
+  if (equipped === undefined) return null;
+  let byItems = loadoutCache.get(content);
+  if (byItems === undefined) {
+    byItems = new WeakMap();
+    loadoutCache.set(content, byItems);
+  }
+  let loadout = byItems.get(equipped);
+  if (loadout === undefined) {
+    loadout = resolveLoadout(equipped, content);
+    byItems.set(equipped, loadout);
+  }
+  return loadout;
 }

@@ -10,7 +10,8 @@ import {
   recoveryMs,
 } from './effects';
 import { reviveMember } from './lifecycle';
-import { damage, effectiveHeal } from './math';
+import { actorLoadout, offenseBonusFor, resistFor } from './loadout';
+import { damage, effectiveHeal, scale } from './math';
 import { awardKillExp, rollKill } from './rewards';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
@@ -26,6 +27,8 @@ const SMITE_FAMILY_BP = 15_000;
 const NEUTRAL_FAMILY_BP = 10_000;
 /** Basic attacks carry full power and no elemental identity. */
 const BASIC_POWER_BP = 10_000;
+/** A loadout factor's neutral value: `scale(x, 10_000) === x` (Part 3 §1.4). */
+const NEUTRAL_FACTOR_BP = 10_000;
 /** Variance is an integer in `[9000, 11000]`, drawn as `9000 + drawBelow(2001)`. */
 const VARIANCE_FLOOR_BP = 9_000;
 const VARIANCE_SPAN = 2_001;
@@ -201,6 +204,22 @@ function performHit(
   state.rng = variance.state;
 
   const element = skill === null ? 'neutral' : skill.element;
+  // Ruling R158 (Task 7d, requirement 1): a party attacker's equipment reaches
+  // this hit as `offenseBonusFor(loadout, defender family, attack element)`,
+  // the defender's family being the actor's own `family` (a monster's from
+  // its definition) and the attack element the one already used for the
+  // element chart. A basic attack has no element of its own; it is the
+  // content's `neutral` element, as it already is for the chart, so only a
+  // `neutral` element-damage bonus could ever reach a basic — and the content
+  // defines none. Enemies carry no loadout and stay at the neutral factor.
+  // Ruling R159 (requirement 2): a party defender's resistance to that same
+  // incoming element is `resistFor(loadout, element)`; an enemy defender stays
+  // neutral. Both are read from the checkpointed items (ruling R162).
+  const attackerLoadout = actorLoadout(state, attacker, ctx.content);
+  const defenderLoadout = actorLoadout(state, defender, ctx.content);
+  const offenseBonusBp = attackerLoadout === null
+    ? NEUTRAL_FACTOR_BP : offenseBonusFor(attackerLoadout, defender.family, element);
+  const resistBp = defenderLoadout === null ? NEUTRAL_FACTOR_BP : resistFor(defenderLoadout, element);
   const familyBp =
     skill?.id === 'smite' && (defender.family === 'undead' || defender.family === 'demon')
       ? SMITE_FAMILY_BP
@@ -214,6 +233,8 @@ function performHit(
     critical,
     defense: kind === 'physical' ? defender.stats.def : defender.stats.mdef,
     hit: landed,
+    offenseBonusBp,
+    resistBp,
   });
 
   if (!landed) {
@@ -297,7 +318,14 @@ function resolveHeal(
     fizzle(state, ctx, caster, cast);
     return;
   }
-  const restored = effectiveHeal(target.hp, target.stats.maxHp, 50 + 2 * caster.attributes.int);
+  // Ruling R160 (Task 7d, requirement 3): Part 3 §1.4 names no step for heal
+  // power, so it is one final floored `scale` of Heal's requested amount by
+  // the caster's `healPowerBp`, before `effectiveHeal` clamps it to the
+  // target's missing HP. Revive never comes here: its restoration is fixed at
+  // half Max HP (owner decision 2026-09-30, rulings R151–R156) and unscaled.
+  const casterLoadout = actorLoadout(state, caster, ctx.content);
+  const requested = scale(50 + 2 * caster.attributes.int, casterLoadout?.healPowerBp ?? NEUTRAL_FACTOR_BP);
+  const restored = effectiveHeal(target.hp, target.stats.maxHp, requested);
   target.hp += restored;
   emitEvent(state, ctx, {
     kind: 'heal', actorId: caster.id, targetId: target.id, amount: restored, reason: skill.id,
