@@ -11,7 +11,7 @@ import type {
   SkillDefinition,
   SkillId,
 } from '@narok/data';
-import { RARITY_RULES } from '@narok/data';
+import { RARITY_RULES, content } from '@narok/data';
 import { createGrid, gridPosition } from '../src/battlefield/grid';
 import type { Battlefield } from '../src/battlefield/types';
 import { schedule } from '../src/scheduler';
@@ -157,6 +157,11 @@ function buildFillerContent(): Content {
     rarities: structuredClone(RARITY_RULES),
     onboardingGrant: {} as Content['onboardingGrant'],
     pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
+    // Inert too: the stress fight carries no progression and drinks nothing.
+    progression: structuredClone(content.progression),
+    consumables: {},
+    potionCooldownMs: content.potionCooldownMs,
+    starterKit: {} as Content['starterKit'],
   };
 }
 
@@ -276,6 +281,7 @@ export function buildStressFixture(seed = 1): StressFixture {
     lootPresetSnapshot: starterLoot(),
     pendingLoot: [],
     bagState: defaultBag(),
+    progression: null,
     actors,
     queue: [],
     metrics: {

@@ -19,7 +19,9 @@ import {
 } from '@narok/data';
 import type { MonsterDefinition, PityConfig, Rarity, RolledBonus } from '@narok/data';
 import { evaluate, STARTER_LOOT_PRESET, validateLootPreset, type DropDescriptor, type LootPreset } from '@narok/loot';
-import { emitEvent } from './effects';
+import { autoSpend, gainExp, splitExp } from '@narok/progression';
+import { compareIds, emitEvent } from './effects';
+import { refreshPartyActor } from './loadout';
 import { drawBelow } from './rng';
 import type {
   BagState,
@@ -361,4 +363,32 @@ export function defaultBag(): BagState {
 /** A laboratory run's filter: the starter filter (layer-1 §7.5). */
 export function starterLoot(): LootPreset {
   return validateLootPreset(STARTER_LOOT_PRESET);
+}
+
+/**
+ * Party EXP for one kill (layer-1 §5.3; Part 3 §5.1–§5.2; rulings R135, R140).
+ * Every party member counts in the divisor; only those alive at the kill
+ * receive a share, so a dead member's share is destroyed — no EXP is ever
+ * taken away and nothing de-levels (assumes Part 3 §8 #13 option (b)). Each
+ * share is floored with the remainder carried in `expCarry`. A level-up grants
+ * its points once, runs auto-spend from the template checkpointed at hunt
+ * start, and re-derives the actor at once under the one HP/MP rule. Draws
+ * nothing, so the drop stream is untouched; a laboratory run (no progression)
+ * banks `rawExp` only.
+ */
+export function awardKillExp(state: SimState, ctx: Context, rawExp: number): void {
+  const progression = state.progression;
+  if (progression === null) return;
+  const tables = ctx.content.progression;
+  const party = Object.keys(progression).sort(compareIds);
+  for (const id of party) {
+    const actor = state.actors[id];
+    if (actor.hp <= 0) continue;
+    const before = progression[id];
+    const share = splitExp(rawExp, party.length, before.expCarry);
+    let next = gainExp({ ...before, expCarry: share.carry }, share.exp, tables);
+    if (next.level !== before.level) next = autoSpend(next, tables);
+    progression[id] = next;
+    if (next.level !== before.level) refreshPartyActor(actor, next, ctx.content);
+  }
 }

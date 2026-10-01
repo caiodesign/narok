@@ -107,6 +107,12 @@ export interface ItemInstance {
   locked: boolean;                         // user flag; excluded from bulk sale (UI §6)
   protected: boolean;                      // assigned at acquisition; Legendary => true
   equipped: { characterId: string; slot: Slot } | null;
+  /**
+   * The only character that may equip this instance, or `null` for any of the
+   * account's characters. A bound item is also never sellable: the starter
+   * weapon is bound so it cannot be cycled for value (Part 3 §8 #10; ruling R141).
+   */
+  boundTo: string | null;
   source: { huntId: string; rewardSeq: number } | { grantId: string };
 }
 
@@ -117,6 +123,38 @@ export interface ItemInstance {
  */
 export interface OnboardingGrant {
   definitionId: string; rarity: Rarity; itemLevel: number; bonuses: RolledBonus[];
+}
+
+/**
+ * The compiled levelling tables (layer-1 §4.2, §5.3, §5.4; Part 3 §5.1; ruling
+ * R134). Built by `packages/data/scripts/build-content.ts` and never computed at
+ * runtime: `expToNext[level - 1]` is the EXP from `level` to `level + 1`
+ * (length `levelCap - 1`), and `statPoints[level - 1]`/`skillPoints[level - 1]`
+ * are the points granted on reaching `level` — index 0 being the creation grant
+ * (length `levelCap`).
+ */
+export interface ProgressionTables {
+  levelCap: number; expToNext: number[]; statPoints: number[]; skillPoints: number[];
+  /** Highest rank of any one skill (layer-1 §5.2–§5.3: four skills x five ranks = 20). */
+  maxSkillRank: number;
+  /** Highest allocated value of any one attribute (layer-1 §5.4). */
+  attributeCap: number;
+}
+
+/** A potion definition (layer-1 §7.6): restores a share of a maximum, in basis points. */
+export interface ConsumableDefinition { id: string; resource: 'hp' | 'mp'; restoreBp: number }
+
+/** One fixed instance granted rather than rolled: a definition, rarity, item level and bonuses. */
+export interface StarterWeapon { definitionId: string; rarity: Rarity; itemLevel: number; bonuses: RolledBonus[] }
+
+/**
+ * The starter kit (layer-1 §7.6; Part 3 §8 #10, spec §4.1 recommendation;
+ * ruling R141): potions granted with the first character slot only, and one
+ * character-bound weapon per slot.
+ */
+export interface StarterKit {
+  potions: { consumableId: string; quantity: number }[];
+  weapons: Record<ClassId, StarterWeapon>;
 }
 
 export interface Content {
@@ -141,4 +179,9 @@ export interface Content {
   rarities: Record<Rarity, RarityDefinition>;
   onboardingGrant: Record<ClassId, OnboardingGrant>;
   pity: PityConfig;
+  progression: ProgressionTables;
+  consumables: Record<string, ConsumableDefinition>;
+  /** The shared per-character potion cooldown (layer-1 §6.6). */
+  potionCooldownMs: number;
+  starterKit: StarterKit;
 }

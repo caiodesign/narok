@@ -1,9 +1,12 @@
-import { CONSUMABLE_STACK_MAX } from '@narok/data';
-import type { ClassId, Content, RecipeId, SkillId } from '@narok/data';
+import { CONSUMABLE_STACK_MAX, RARITIES } from '@narok/data';
+import type { ClassId, Content, ItemInstance, RecipeId, RolledBonus, SkillId, Slot } from '@narok/data';
+import { EXP_SHARE_DENOMINATOR, expToNext, validateAutoSpendTemplate } from '@narok/progression';
+import type { Progress } from '@narok/progression';
 import { LootPresetError, validateLootPreset, type LootPreset } from '@narok/loot';
 import { SimError, type SimErrorCode } from './errors';
 import { defaultBag, emptyDropMetrics, starterLoot } from './rewards';
 import { schedule } from './scheduler';
+import { refreshPartyActor, resolveLoadout } from './loadout';
 import { derive } from './math';
 import type { Battlefield } from './battlefield/types';
 import type {
@@ -12,6 +15,7 @@ import type {
   BagState,
   Condition,
   DropProtection,
+  HuntCharacter,
   HuntSetup,
   LabInput,
   Metrics,
@@ -204,12 +208,20 @@ export function validateLabInput(value: unknown, content: Content, battlefield: 
     mpStart: requireInt(restRecord.mpStart, 'input.rest.mpStart', 0, 79),
   };
 
-  const wipeLimit = requireInt(record.wipeLimit, 'input.wipeLimit', 1, 5);
+  const wipeLimit = requireInt(record.wipeLimit, 'input.wipeLimit', WIPE_LIMIT_RANGE[0], WIPE_LIMIT_RANGE[1]);
   const seed = requireInt(record.seed, 'input.seed', 1, 4294967295);
   const recipe = requireOneOf(record.recipe, 'input.recipe', RECIPE_IDS);
 
   return { seed, classes, recipe, placement, strategies, rest, wipeLimit };
 }
+
+/**
+ * The wipe limit (layer-1 §5.6; Part 3 §5.5): the total number of wipes a hunt
+ * allows — not retries on top of one — one to five, and one for a strategy
+ * preset that has not chosen (ruling R140). `validateLabInput` enforces the range.
+ */
+export const DEFAULT_WIPE_LIMIT = 1;
+export const WIPE_LIMIT_RANGE: readonly [number, number] = [1, 5];
 
 /** The four fields a strategy preset holds (owner decision 2026-09-25), and nothing else. */
 const PENDING_RULE_KEYS: readonly (keyof PendingRules)[] = ['placement', 'strategies', 'rest', 'wipeLimit'];
@@ -363,6 +375,178 @@ export function validateLoot(value: unknown, field: string, code: SimErrorCode):
   }
 }
 
+const SLOTS: readonly Slot[] = ['weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2'];
+const ATTRIBUTES = ['str', 'agi', 'vit', 'int', 'dex', 'luk'] as const;
+
+function checkString(value: unknown, field: string, code: SimErrorCode): string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 200) {
+    throw new SimError(code, field, 'expected a non-empty string');
+  }
+  return value;
+}
+
+function checkBoolean(value: unknown, field: string, code: SimErrorCode): boolean {
+  if (typeof value !== 'boolean') throw new SimError(code, field, 'expected a boolean');
+  return value;
+}
+
+/**
+ * A character's progression (Part 3 §5; ruling R140) against pinned content:
+ * a level within the cap, EXP short of the next level (none at the cap), a
+ * carry below its denominator, attributes within 1..cap, ranks only of the
+ * class's skills, awarded levels never past the level, and a valid template.
+ * Shared by `start` (`INVALID_INPUT`) and snapshot decoding (`INVALID_STATE`);
+ * returns a fresh copy.
+ */
+export function validateProgress(
+  value: unknown, field: string, code: SimErrorCode, classId: ClassId, content: Content,
+): Progress {
+  const record = checkRecord(value, field, code);
+  const tables = content.progression;
+  const level = checkInt(record.level, `${field}.level`, code, 1, tables.levelCap);
+  const needed = expToNext(level, tables);
+  const exp = checkInt(record.exp, `${field}.exp`, code, 0, needed === null ? 0 : needed - 1);
+  const expCarry = checkInt(record.expCarry, `${field}.expCarry`, code, 0, EXP_SHARE_DENOMINATOR - 1);
+  const attributesRecord = checkRecord(record.attributes, `${field}.attributes`, code);
+  if (Object.keys(attributesRecord).length !== ATTRIBUTES.length) {
+    throw new SimError(code, `${field}.attributes`, 'expected exactly the six attributes');
+  }
+  const attributes = { str: 0, agi: 0, vit: 0, int: 0, dex: 0, luk: 0 };
+  for (const key of ATTRIBUTES) {
+    attributes[key] = checkInt(attributesRecord[key], `${field}.attributes.${key}`, code, 1, tables.attributeCap);
+  }
+  const statPoints = checkInt(record.statPoints, `${field}.statPoints`, code, 0, MAX_COUNT);
+  const skillPoints = checkInt(record.skillPoints, `${field}.skillPoints`, code, 0, MAX_COUNT);
+  const ranksRecord = checkRecord(record.skillRanks, `${field}.skillRanks`, code);
+  const skillRanks: Partial<Record<SkillId, number>> = {};
+  for (const skillId of Object.keys(ranksRecord).sort()) {
+    if (!content.classes[classId].skills.includes(skillId as SkillId)) {
+      throw new SimError(code, `${field}.skillRanks.${skillId}`, `not a skill of ${classId}`);
+    }
+    skillRanks[skillId as SkillId] = checkInt(
+      ranksRecord[skillId], `${field}.skillRanks.${skillId}`, code, 0, tables.maxSkillRank,
+    );
+  }
+  const awardedLevels = checkInt(record.awardedLevels, `${field}.awardedLevels`, code, 1, level);
+  const template = validateAutoSpendTemplate(record.autoSpendTemplate, tables.attributeCap);
+  if (!template.ok) {
+    throw new SimError(code, `${field}.autoSpendTemplate${template.field.slice('template'.length)}`, 'invalid auto-spend template');
+  }
+  return {
+    level, exp, expCarry, attributes, statPoints, skillPoints, skillRanks, awardedLevels,
+    autoSpendTemplate: template.next,
+  };
+}
+
+function validateBonuses(value: unknown, field: string, code: SimErrorCode): RolledBonus[] {
+  if (!Array.isArray(value)) throw new SimError(code, field, 'expected an array');
+  return value.map((raw, index) => {
+    const bonus = checkRecord(raw, `${field}.${index}`, code);
+    return {
+      bonusId: checkString(bonus.bonusId, `${field}.${index}.bonusId`, code),
+      value: checkInt(bonus.value, `${field}.${index}.value`, code, 0, MAX_COUNT),
+    };
+  });
+}
+
+/** One worn instance's shape; its content legality is `resolveLoadout`'s to judge. */
+function validateInstance(value: unknown, field: string, code: SimErrorCode): ItemInstance {
+  const record = checkRecord(value, field, code);
+  if (!(RARITIES as readonly unknown[]).includes(record.rarity)) throw new SimError(code, `${field}.rarity`, 'unknown rarity');
+  if (record.tradeable !== false) throw new SimError(code, `${field}.tradeable`, 'beta equipment is not tradeable');
+  const equippedRecord = checkRecord(record.equipped, `${field}.equipped`, code);
+  if (!(SLOTS as readonly unknown[]).includes(equippedRecord.slot)) {
+    throw new SimError(code, `${field}.equipped.slot`, 'unknown slot');
+  }
+  const sourceRecord = checkRecord(record.source, `${field}.source`, code);
+  const source = Object.hasOwn(sourceRecord, 'grantId')
+    ? { grantId: checkString(sourceRecord.grantId, `${field}.source.grantId`, code) }
+    : {
+      huntId: checkString(sourceRecord.huntId, `${field}.source.huntId`, code),
+      rewardSeq: checkInt(sourceRecord.rewardSeq, `${field}.source.rewardSeq`, code, 0, MAX_COUNT),
+    };
+  return {
+    id: checkString(record.id, `${field}.id`, code),
+    accountId: checkString(record.accountId, `${field}.accountId`, code),
+    definitionId: checkString(record.definitionId, `${field}.definitionId`, code),
+    contentVersion: checkString(record.contentVersion, `${field}.contentVersion`, code),
+    rarity: record.rarity as ItemInstance['rarity'],
+    itemLevel: checkInt(record.itemLevel, `${field}.itemLevel`, code, 1, MAX_COUNT),
+    bonuses: validateBonuses(record.bonuses, `${field}.bonuses`, code),
+    tradeable: false,
+    locked: checkBoolean(record.locked, `${field}.locked`, code),
+    protected: checkBoolean(record.protected, `${field}.protected`, code),
+    equipped: {
+      characterId: checkString(equippedRecord.characterId, `${field}.equipped.characterId`, code),
+      slot: equippedRecord.slot as Slot,
+    },
+    boundTo: record.boundTo === null ? null : checkString(record.boundTo, `${field}.boundTo`, code),
+    source,
+  };
+}
+
+/**
+ * The items one character wears (ruling R140): well-formed instances, all
+ * worn by that character and bound to no one else, composing into a legal
+ * loadout under pinned content (`resolveLoadout`, Part 3 §1.4).
+ */
+export function validateEquipped(
+  value: unknown, field: string, code: SimErrorCode, characterId: string, content: Content,
+): ItemInstance[] {
+  if (!Array.isArray(value) || value.length > SLOTS.length) {
+    throw new SimError(code, field, 'expected at most one item per slot');
+  }
+  const items = value.map((raw, index) => validateInstance(raw, `${field}.${index}`, code));
+  items.forEach((item, index) => {
+    if (item.equipped!.characterId !== characterId) {
+      throw new SimError(code, `${field}.${index}.equipped.characterId`, 'worn by another character');
+    }
+    if (item.boundTo !== null && item.boundTo !== characterId) {
+      throw new SimError(code, `${field}.${index}.boundTo`, 'bound to another character');
+    }
+  });
+  try {
+    resolveLoadout(items, content);
+  } catch (error) {
+    if (error instanceof SimError) {
+      throw new SimError(code, `${field}${error.field.slice('items'.length)}`, error.message);
+    }
+    throw error;
+  }
+  return items;
+}
+
+/** A checkpointed {@link HuntCharacter} (ruling R140); returns a fresh copy. */
+export function validateHuntCharacter(
+  value: unknown, field: string, code: SimErrorCode, classId: ClassId, content: Content,
+): HuntCharacter {
+  const record = checkRecord(value, field, code);
+  const characterId = checkString(record.characterId, `${field}.characterId`, code);
+  const progress = validateProgress(record, field, code, classId, content);
+  const equipped = validateEquipped(record.equipped, `${field}.equipped`, code, characterId, content);
+  return { ...progress, characterId, equipped };
+}
+
+/**
+ * A party record keyed by exactly the roster ids, each naming a distinct
+ * character (ruling R140). Shared by `start` and snapshot decoding.
+ */
+export function checkPartyKeys(
+  record: Record<string, unknown>, field: string, code: SimErrorCode, rosterIds: readonly string[],
+  characterIdOf: (entry: unknown) => unknown,
+): void {
+  const keys = Object.keys(record);
+  if (keys.length !== rosterIds.length || !rosterIds.every((id) => Object.hasOwn(record, id))) {
+    throw new SimError(code, field, 'expected exactly the roster ids');
+  }
+  const seen = new Set<unknown>();
+  for (const id of rosterIds) {
+    const characterId = characterIdOf(record[id]);
+    if (seen.has(characterId)) throw new SimError(code, `${field}.${id}.characterId`, 'duplicate character');
+    seen.add(characterId);
+  }
+}
+
 /**
  * Builds a fresh experiment `SimState` (ruling R21): validates `input` (also
  * yielding a deep clone independent of the caller's object graph), creates
@@ -385,6 +569,33 @@ export function startState(
   const dropProtection = setupRecord.dropProtection === undefined
     ? { epicPlus: 0, legendary: 0 }
     : validateProtection(setupRecord.dropProtection, 'setup.dropProtection', 'INVALID_INPUT');
+
+  // R140: a hunt with characters checkpoints their progression; a lab run has none.
+  const rosterIds = validatedInput.classes.map((_, index) => `p${index}`);
+  let progression: Record<ActorId, HuntCharacter> | null = null;
+  const resources: Record<ActorId, { hp: number; mp: number }> = {};
+  if (setupRecord.party !== undefined) {
+    const partyRecord = checkRecord(setupRecord.party, 'setup.party', 'INVALID_INPUT');
+    checkPartyKeys(partyRecord, 'setup.party', 'INVALID_INPUT', rosterIds,
+      (entry) => (typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>).characterId : entry));
+    const characters: Record<ActorId, HuntCharacter> = {};
+    rosterIds.forEach((id, index) => {
+      const field = `setup.party.${id}`;
+      const member = checkRecord(partyRecord[id], field, 'INVALID_INPUT');
+      const characterId = checkString(member.characterId, `${field}.characterId`, 'INVALID_INPUT');
+      const classId = validatedInput.classes[index];
+      characters[id] = {
+        ...validateProgress(member.progress, `${field}.progress`, 'INVALID_INPUT', classId, content),
+        characterId,
+        equipped: validateEquipped(member.equipped, `${field}.equipped`, 'INVALID_INPUT', characterId, content),
+      };
+      resources[id] = {
+        hp: checkInt(member.hp, `${field}.hp`, 'INVALID_INPUT', 1, MAX_COUNT),
+        mp: checkInt(member.mp, `${field}.mp`, 'INVALID_INPUT', 0, MAX_COUNT),
+      };
+    });
+    progression = characters;
+  }
 
   const actors: Record<ActorId, Actor> = {};
   const metricsActors: Metrics['actors'] = {};
@@ -415,6 +626,12 @@ export function startState(
       pendingCast: null,
       actionToken: 0,
     };
+    if (progression !== null) {
+      // A hunt starts from the character's absolute resources, never a free refill (layer-1 §4.5).
+      actors[id].hp = resources[id].hp;
+      actors[id].mp = resources[id].mp;
+      refreshPartyActor(actors[id], progression[id], content);
+    }
     metricsActors[id] = { damageDealt: 0, damageReceived: 0, healingDone: 0 };
   });
 
@@ -458,6 +675,7 @@ export function startState(
     lootPresetSnapshot,
     pendingLoot: [],
     bagState,
+    progression,
   };
 
   schedule(state, { at: content.walkMs, kind: 'transition', actorId: '', epoch: null, token: null });

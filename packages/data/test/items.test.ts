@@ -5,11 +5,13 @@ import { BASE_BAND_PPM, bonusCount, stackBonuses, valueTier } from '../src/items
 import { prototypeDefinition } from '../src/prototype';
 import type { BonusDefinition, Content, RolledBonus } from '../src/types';
 import { ContentError, validateContent } from '../src/validate';
+import { compileProgression } from '../scripts/progression';
 
 /** A structurally complete `Content` built from the prototype table, deep-cloned per test. */
 function baseContent(): Content {
   return structuredClone({
     ...prototypeDefinition,
+    progression: compileProgression(),
     version: 'test-version',
     gridHash: 'test-grid-hash',
   });

@@ -1,13 +1,16 @@
 import { expect, test } from 'vitest';
 
+import { content } from '../src/generated/content';
 import { mapId, prototypeDefinition, shapeOffsets } from '../src/prototype';
 import type { Content } from '../src/types';
 import { ContentError, validateContent } from '../src/validate';
+import { compileProgression } from '../scripts/progression';
 
 /** A structurally complete `Content` built from the prototype table, deep-cloned per test. */
 function baseContent(): Content {
   return structuredClone({
     ...prototypeDefinition,
+    progression: compileProgression(),
     version: 'test-version',
     gridHash: 'test-grid-hash',
   });
@@ -100,3 +103,48 @@ test.each([0, -1, 1.5, '60000', undefined])(
     expectInvalidContent(value, 'townReturnTravelMs');
   },
 );
+
+// Ruling R134: the levelling tables are compiled at build time and only indexed at runtime.
+test('the compiled levelling tables carry the layer-1 curves exactly', () => {
+  const tables = compileProgression();
+  expect(tables.levelCap).toBe(50);
+  expect(tables.expToNext).toHaveLength(49);
+  expect(tables.expToNext.slice(0, 3)).toEqual([50, 229, 560]);
+  expect(tables.statPoints[0]).toBe(30);
+  expect(tables.statPoints.reduce((sum, points) => sum + points, 0)).toBe(412);
+  expect(tables.skillPoints.reduce((sum, points) => sum + points, 0)).toBe(13);
+  expect(tables.skillPoints.flatMap((points, index) => (points === 1 ? [index + 1] : [])))
+    .toEqual([1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48]);
+  expect(content.progression).toEqual(tables);
+});
+
+test('rejects a levelling table that does not rise or has the wrong length', () => {
+  const flat = baseContent();
+  flat.progression.expToNext[5] = flat.progression.expToNext[4]!;
+  expectInvalidContent(flat, 'progression.expToNext.5');
+  const short = baseContent();
+  short.progression.statPoints.pop();
+  expectInvalidContent(short, 'progression.statPoints');
+});
+
+test('the two potions, their shared cooldown and the starter kit are layer-1 §6.6 and §7.6', () => {
+  const value = validateContent(baseContent());
+  expect(value.consumables['small-hp-potion']).toEqual({ id: 'small-hp-potion', resource: 'hp', restoreBp: 2_500 });
+  expect(value.consumables['small-mp-potion']).toEqual({ id: 'small-mp-potion', resource: 'mp', restoreBp: 2_000 });
+  expect(value.potionCooldownMs).toBe(10_000);
+  expect(value.starterKit.potions).toEqual([{ consumableId: 'small-hp-potion', quantity: 20 }]);
+  expect(value.starterKit.weapons.ranger).toEqual({ definitionId: 'ranger-bow', rarity: 'common', itemLevel: 1, bonuses: [] });
+  expect(JSON.stringify(value.consumables)).not.toMatch(/price/i);
+});
+
+test('rejects a monster consumable drop that names no consumable definition', () => {
+  const value = baseContent();
+  value.monsters.mossling.consumables = [{ consumableId: 'elixir', ppm: 10 }];
+  expectInvalidContent(value, 'monsters.mossling.consumables.0.consumableId');
+});
+
+test('rejects a starter weapon its class cannot equip', () => {
+  const value = baseContent();
+  value.starterKit.weapons.guardian.definitionId = 'ranger-bow';
+  expectInvalidContent(value, 'starterKit.weapons.guardian.definitionId');
+});

@@ -25,6 +25,7 @@ import { defaultBag, emptyDropMetrics, starterLoot } from '../src/rewards';
 export function rewardFields(): Pick<
   SimState,
   'nextRewardSeq' | 'pendingRewards' | 'dropProtection' | 'lootPresetSnapshot' | 'pendingLoot' | 'bagState'
+  | 'progression'
 > {
   return {
     nextRewardSeq: 0,
@@ -33,6 +34,7 @@ export function rewardFields(): Pick<
     lootPresetSnapshot: starterLoot(),
     pendingLoot: [],
     bagState: defaultBag(),
+    progression: null,
   };
 }
 

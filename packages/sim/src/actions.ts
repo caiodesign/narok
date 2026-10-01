@@ -10,7 +10,7 @@ import {
   recoveryMs,
 } from './effects';
 import { damage, effectiveHeal } from './math';
-import { rollKill } from './rewards';
+import { awardKillExp, rollKill } from './rewards';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
 import { selectDecision } from './strategy';
@@ -166,6 +166,7 @@ function processDeath(state: SimState, ctx: Context, dead: Actor, killer: Actor)
     state.metrics.kills += 1;
     state.metrics.rawExp += monster.rawExp;
     rollKill(state, monster, ctx);
+    awardKillExp(state, ctx, monster.rawExp);
   }
 }
 

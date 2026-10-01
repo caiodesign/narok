@@ -130,6 +130,12 @@ importers:
         specifier: workspace:*
         version: link:../data
 
+  packages/progression:
+    dependencies:
+      '@narok/data':
+        specifier: workspace:*
+        version: link:../data
+
   packages/protocol:
     dependencies:
       zod:
@@ -148,6 +154,9 @@ importers:
       '@narok/loot':
         specifier: workspace:*
         version: link:../loot
+      '@narok/progression':
+        specifier: workspace:*
+        version: link:../progression
 
   tools/balance:
     dependencies:

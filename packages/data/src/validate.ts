@@ -7,6 +7,7 @@ import type {
   BonusKind,
   ClassDefinition,
   ClassId,
+  ConsumableDefinition,
   ConsumableDrop,
   Content,
   DamageKind,
@@ -18,6 +19,7 @@ import type {
   MonsterDefinition,
   OnboardingGrant,
   PityConfig,
+  ProgressionTables,
   Rarity,
   RarityDefinition,
   RecipeDefinition,
@@ -26,6 +28,7 @@ import type {
   SkillDefinition,
   SkillId,
   Slot,
+  StarterKit,
 } from './types';
 
 /** Thrown by {@link validateContent} for any structurally invalid content value. */
@@ -266,8 +269,8 @@ function validateDropMultiplier(value: unknown, field: string): number {
 
 /**
  * A monster's separate consumable roll (layer-1 §7.2), one `ppm` chance per
- * consumable id, together at most 1,000,000 (ruling R126). Consumable
- * definitions do not exist yet, so ids are checked for shape only.
+ * consumable id, together at most 1,000,000 (ruling R126). Each id must name
+ * a consumable definition; `validateContent` checks that once both are read.
  */
 function validateConsumables(value: unknown, field: string): ConsumableDrop[] {
   let total = 0;
@@ -588,6 +591,101 @@ export function validateItemContent(
 }
 
 /**
+ * The compiled levelling tables (ruling R134). Checked for shape and order
+ * only — recomputing `level^2.2` here would put the exponent back at runtime.
+ * EXP requirements strictly rise, every grant is a non-negative integer, and
+ * the creation grant (index 0) is part of the table.
+ */
+function validateProgression(value: unknown, field: string): ProgressionTables {
+  const record = requireRecord(value, field);
+  const levelCap = requireSafeInt(record.levelCap, `${field}.levelCap`, 2, 1_000);
+  const table = (key: 'expToNext' | 'statPoints' | 'skillPoints', length: number, min: number): number[] => {
+    const list = requireArray(record[key], `${field}.${key}`);
+    if (list.length !== length) fail(`${field}.${key}`, `expected ${length} entries`);
+    return list.map((entry, index) => requireSafeInt(entry, `${field}.${key}.${index}`, min, 1_000_000_000_000));
+  };
+  const expToNext = table('expToNext', levelCap - 1, 1);
+  expToNext.forEach((amount, index) => {
+    if (index > 0 && amount <= expToNext[index - 1]!) fail(`${field}.expToNext.${index}`, 'expected a rising requirement');
+  });
+  return {
+    levelCap,
+    expToNext,
+    statPoints: table('statPoints', levelCap, 0),
+    skillPoints: table('skillPoints', levelCap, 0),
+    maxSkillRank: requireSafeInt(record.maxSkillRank, `${field}.maxSkillRank`, 1, 100),
+    attributeCap: requireSafeInt(record.attributeCap, `${field}.attributeCap`, 1, 999),
+  };
+}
+
+/** Potion definitions (layer-1 §7.6): ids are content ids, the restore a share in (0, 100%]. */
+function validateConsumableDefinitions(value: unknown, field: string): Record<string, ConsumableDefinition> {
+  const record = requireRecord(value, field);
+  const result: Record<string, ConsumableDefinition> = {};
+  for (const id of Object.keys(record).sort()) {
+    const entryField = `${field}.${id}`;
+    const entry = requireRecord(record[id], entryField);
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) fail(entryField, 'expected a lowercase content id');
+    if (entry.id !== id) fail(`${entryField}.id`, 'id must match its key');
+    result[id] = {
+      id,
+      resource: requireOneOf(entry.resource, `${entryField}.resource`, ['hp', 'mp'] as const),
+      restoreBp: requireSafeInt(entry.restoreBp, `${entryField}.restoreBp`, 1, 10_000),
+    };
+  }
+  return result;
+}
+
+/**
+ * The starter kit (ruling R141): potions that exist, and one fixed weapon per
+ * class that its class may equip, rolled by nothing — so its bonuses are
+ * exactly its rarity's count, at legal values.
+ */
+function validateStarterKit(
+  value: unknown,
+  field: string,
+  consumables: Record<string, ConsumableDefinition>,
+  items: Record<string, ItemDefinition>,
+  bonuses: Record<string, BonusDefinition>,
+): StarterKit {
+  const record = requireRecord(value, field);
+  const potions = requireArray(record.potions, `${field}.potions`).map((entry, index) => {
+    const entryField = `${field}.potions.${index}`;
+    const potion = requireRecord(entry, entryField);
+    const consumableId = requireString(potion.consumableId, `${entryField}.consumableId`);
+    if (!Object.hasOwn(consumables, consumableId)) fail(`${entryField}.consumableId`, `unknown consumable ${consumableId}`);
+    return { consumableId, quantity: requireSafeInt(potion.quantity, `${entryField}.quantity`, 1, 999) };
+  });
+  const weapons = requireKeyedRecord(record.weapons, `${field}.weapons`, CLASS_IDS, (raw, entryField, classId) => {
+    const weapon = requireRecord(raw, entryField);
+    const definitionId = requireString(weapon.definitionId, `${entryField}.definitionId`);
+    const definition = items[definitionId];
+    if (definition === undefined || definition.slot !== 'weapon') fail(`${entryField}.definitionId`, 'expected a weapon');
+    if (definition.classes !== null && !definition.classes.includes(classId)) {
+      fail(`${entryField}.definitionId`, `item ${definitionId} is not usable by ${classId}`);
+    }
+    const rarity = requireOneOf(weapon.rarity, `${entryField}.rarity`, RARITIES);
+    const itemLevel = requireSafeInt(weapon.itemLevel, `${entryField}.itemLevel`, 1, 1_000);
+    const list = requireArray(weapon.bonuses, `${entryField}.bonuses`);
+    if (list.length !== bonusCount(rarity)) fail(`${entryField}.bonuses`, `expected ${bonusCount(rarity)} bonuses`);
+    const span = valueTier(itemLevel) - 1;
+    const rolled = list.map((entry, index) => {
+      const bonusField = `${entryField}.bonuses.${index}`;
+      const bonusRecord = requireRecord(entry, bonusField);
+      const bonusId = requireString(bonusRecord.bonusId, `${bonusField}.bonusId`);
+      const bonus = bonuses[bonusId];
+      const range = bonus?.spans[span];
+      if (bonus === undefined || range === undefined || !bonus.slots.includes('weapon')) {
+        fail(`${bonusField}.bonusId`, `bonus ${bonusId} is not in the weapon pool`);
+      }
+      return { bonusId, value: requireSafeInt(bonusRecord.value, `${bonusField}.value`, range.min, range.max) };
+    });
+    return { definitionId, rarity, itemLevel, bonuses: rolled };
+  });
+  return { potions, weapons };
+}
+
+/**
  * Bad-luck protection (Part 3 §2.4). The thresholds are an open input: a
  * disabled guarantee carries none, and an enabled one requires both, so no
  * threshold can be substituted for a missing decision.
@@ -643,6 +741,18 @@ export function validateContent(value: unknown): Content {
     : requireSafeInt(root.townReturnTravelMs, 'townReturnTravelMs', 1, 100_000_000);
   const equipment = validateItemContent(root, monsters);
   const pity = validatePity(root.pity, 'pity');
+  const progression = validateProgression(root.progression, 'progression');
+  const consumables = validateConsumableDefinitions(root.consumables, 'consumables');
+  // Now that potions exist, a monster may drop only a defined consumable (ruling R126).
+  for (const monster of Object.values(monsters)) {
+    monster.consumables.forEach((entry, index) => {
+      if (!Object.hasOwn(consumables, entry.consumableId)) {
+        fail(`monsters.${monster.id}.consumables.${index}.consumableId`, `unknown consumable ${entry.consumableId}`);
+      }
+    });
+  }
+  const potionCooldownMs = requireSafeInt(root.potionCooldownMs, 'potionCooldownMs', 1, 1_000_000);
+  const starterKit = validateStarterKit(root.starterKit, 'starterKit', consumables, equipment.items, equipment.bonuses);
   return {
     version,
     gridHash,
@@ -660,5 +770,9 @@ export function validateContent(value: unknown): Content {
     townReturnTravelMs,
     ...equipment,
     pity,
+    progression,
+    consumables,
+    potionCooldownMs,
+    starterKit,
   };
 }

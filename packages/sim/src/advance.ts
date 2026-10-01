@@ -7,6 +7,7 @@ import { compareScheduled, isStale, takeNext } from './scheduler';
 import { compareIds } from './effects';
 import type { Battlefield } from './battlefield/types';
 import type { LootPreset } from '@narok/loot';
+import { cloneProgress } from '@narok/progression';
 import type {
   Actor,
   ActorId,
@@ -20,6 +21,7 @@ import type {
   PendingRules,
   ScheduledEvent,
   SimState,
+  HuntCharacter,
 } from './types';
 
 /** Contract §5 default work budget: popped entries per `advance` call, stale included. */
@@ -165,7 +167,24 @@ export function cloneState(state: SimState): SimState {
     lootPresetSnapshot: cloneLoot(state.lootPresetSnapshot),
     pendingLoot: state.pendingLoot.map((pending) => ({ preset: cloneLoot(pending.preset), fromRewardSeq: pending.fromRewardSeq })),
     bagState: { ...state.bagState, stackHeadroom: { ...state.bagState.stackHeadroom } },
+    progression: state.progression === null ? null : cloneProgression(state.progression),
   };
+}
+
+/** Deep-copies the checkpointed characters (ruling R140), worn items included. */
+function cloneProgression(progression: Record<ActorId, HuntCharacter>): Record<ActorId, HuntCharacter> {
+  const copy: Record<ActorId, HuntCharacter> = {};
+  for (const id of Object.keys(progression)) {
+    const character = cloneProgress(progression[id]);
+    character.equipped = character.equipped.map((item) => ({
+      ...item,
+      bonuses: item.bonuses.map((bonus) => ({ ...bonus })),
+      equipped: item.equipped === null ? null : { ...item.equipped },
+      source: { ...item.source },
+    }));
+    copy[id] = character;
+  }
+  return copy;
 }
 
 /**

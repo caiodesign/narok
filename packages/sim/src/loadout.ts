@@ -11,9 +11,11 @@ import type {
   RolledBonus,
   Slot,
 } from '@narok/data';
+import { clampResources } from '@narok/progression';
+import type { Character, MaximaOf } from '@narok/progression';
 import { SimError } from './errors';
 import { derive, scale } from './math';
-import type { DerivedStats } from './types';
+import type { Actor, DerivedStats, HuntCharacter } from './types';
 
 /**
  * One character's equipped items resolved against pinned content (Part 3
@@ -217,4 +219,42 @@ export function offenseBonusFor(loadout: ResolvedLoadout, family: Family, elemen
  */
 export function resistFor(loadout: ResolvedLoadout, element: Element): number {
   return Math.max(0, 10_000 - (loadout.resistBp[element] ?? 0));
+}
+
+/**
+ * The Max HP/MP derivation the town rules clamp with (ruling R138): the one
+ * `resolveLoadout` + `deriveCharacter` path, bound to pinned content, so an
+ * equip, an unequip and a respec in town compute exactly the maxima a hunt
+ * would.
+ */
+export function characterMaxima(content: Content): MaximaOf {
+  return (character: Character, equipped: readonly ItemInstance[]) => {
+    const stats = deriveCharacter({
+      classId: character.classId, level: character.level, allocated: character.attributes,
+      loadout: resolveLoadout(equipped, content), content,
+    });
+    return { maxHp: stats.maxHp, maxMp: stats.maxMp };
+  };
+}
+
+/**
+ * Re-derives a party actor from its checkpointed progression (ruling R140):
+ * level, effective attributes (allocated plus item bonuses, which regeneration
+ * reads), derived stats and the basic attack, then HP and MP by the one rule —
+ * absolute values kept, clamped to the new maxima, never raised (spec §4.1
+ * option (a)). Draws nothing.
+ */
+export function refreshPartyActor(actor: Actor, character: HuntCharacter, content: Content): void {
+  const classId = actor.definitionId as ClassId;
+  const definition = content.classes[classId];
+  const loadout = resolveLoadout(character.equipped, content);
+  actor.level = character.level;
+  actor.attributes = addAttributes(character.attributes, loadout.attributeBonus);
+  actor.stats = deriveCharacter({ classId, level: character.level, allocated: character.attributes, loadout, content });
+  actor.basicKind = loadout.basicKind ?? definition.basicKind;
+  actor.basicRange = loadout.basicRange ?? definition.basicRange;
+  const clamped = clampResources(actor, actor.stats);
+  if (!clamped.ok) throw new SimError('INVALID_STATE', `actors.${actor.id}.${clamped.field}`, 'impossible resources');
+  actor.hp = clamped.next.hp;
+  actor.mp = clamped.next.mp;
 }

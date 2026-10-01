@@ -5,12 +5,14 @@ import type {
   DamageKind,
   Element,
   Family,
+  ItemInstance,
   Rarity,
   RecipeId,
   RolledBonus,
   SkillId,
 } from '@narok/data';
 import type { Disposition, LootPreset } from '@narok/loot';
+import type { Progress } from '@narok/progression';
 import type { Battlefield } from './battlefield/types';
 
 export type ActorId = string;
@@ -135,7 +137,25 @@ export interface PendingReward {
  */
 export interface HuntSetup {
   loot?: LootPreset; bag?: BagState; dropProtection?: DropProtection;
+  /**
+   * The roster's characters (Part 3 §5; ruling R140), keyed by roster id:
+   * progression, worn items and absolute current HP/MP. Without it the hunt is
+   * a laboratory run of milestone A's fixed level-10 characters and nothing
+   * levels.
+   */
+  party?: Record<ActorId, HuntPartyMember>;
 }
+/** One character as a hunt receives it. `hp`/`mp` are clamped to the derived maxima at start. */
+export interface HuntPartyMember {
+  characterId: string; progress: Progress; equipped: ItemInstance[]; hp: number; mp: number;
+}
+/**
+ * One character's checkpointed progression (Part 3 §5.1–§5.2; ruling R140):
+ * EXP, carry, points, awarded levels and the auto-spend template snapshotted at
+ * hunt start — never a live account read — plus the worn items its stats are
+ * re-derived from at each level-up. Current HP/MP live on the actor.
+ */
+export interface HuntCharacter extends Progress { characterId: string; equipped: ItemInstance[] }
 export interface SimState {
   schemaVersion: 1; simulationVersion: 'b1'; contentVersion: string; gridHash: string;
   nowMs: number; rng: number; nextQueueSeq: number; nextDomainSeq: number;
@@ -154,6 +174,8 @@ export interface SimState {
   /** Applied filters still waiting for earlier drops, ascending by cutoff; empty when none (R131). */
   pendingLoot: PendingLoot[];
   bagState: BagState;
+  /** Per roster id; `null` for a laboratory run, which carries none (R140). */
+  progression: Record<ActorId, HuntCharacter> | null;
 }
 export interface DomainEvent {
   seq: number; at: number; encounter: number;

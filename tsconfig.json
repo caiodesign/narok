@@ -18,7 +18,8 @@
       "@narok/data": ["./packages/data/src/index.ts"],
       "@narok/sim": ["./packages/sim/src/index.ts"],
       "@narok/protocol": ["./packages/protocol/src/index.ts"],
-      "@narok/loot": ["./packages/loot/src/index.ts"]
+      "@narok/loot": ["./packages/loot/src/index.ts"],
+      "@narok/progression": ["./packages/progression/src/index.ts"]
     }
   },
   "include": [

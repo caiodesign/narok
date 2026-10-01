@@ -4,6 +4,7 @@ import type {
   BonusKind,
   ClassDefinition,
   ClassId,
+  ConsumableDefinition,
   Content,
   Element,
   Family,
@@ -17,6 +18,8 @@ import type {
   SkillDefinition,
   SkillId,
   Slot,
+  StarterKit,
+  StarterWeapon,
 } from './types';
 
 /** Prototype map identifier. Not a {@link Content} field; the map is fixed for milestone A. */
@@ -369,6 +372,36 @@ export const OPEN_CONTENT_INPUTS = {
    * distributions before expanded beta, not before B ships.
    */
   pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
+  /**
+   * The starter kit's weapon (Part 3 §8 #10; ruling R141): layer-1 §7.6 names
+   * only "class starter weapon". Each class's tier-1 weapon as a Common at item
+   * level 1 — no bonus, so the onboarding Uncommon is strictly better than it
+   * (Part 3 §6) — is a reading, not a stated value.
+   */
+  starterWeapon: { rarity: 'common', itemLevel: 1 },
+} as const;
+
+/**
+ * The levelling rules the build compiles into `content.progression` (ruling
+ * R134). Every value is stated, not chosen: beta cap 50 and EXP to next
+ * `floor(50 * level^2.2)` (layer-1 §5.3, Part 3 §5.1), one skill point at
+ * creation and one at every fourth level (layer-1 §5.3), 30 stat points at
+ * creation and `3 + floor(L / 5)` on reaching `L > 1`, allocation cap 99
+ * (layer-1 §5.4), and five ranks per skill (layer-1 §5.2). The exponent is
+ * evaluated by `packages/data/scripts/progression.ts` only; nothing at runtime
+ * reads this object.
+ */
+export const PROGRESSION_SOURCE = {
+  levelCap: 50,
+  expBase: 50,
+  expExponent: 2.2,
+  creationStatPoints: 30,
+  levelStatPoints: 3,
+  levelStatDivisor: 5,
+  creationSkillPoints: 1,
+  skillPointEveryLevels: 4,
+  attributeCap: 99,
+  maxSkillRank: 5,
 } as const;
 
 const ATTRIBUTE_KEYS = ['str', 'agi', 'vit', 'int', 'dex', 'luk'] as const;
@@ -484,7 +517,8 @@ const monsters: Record<string, MonsterDefinition> = Object.fromEntries(
   Object.entries(monsterBases).map(([id, base]) => [id, {
     ...base,
     equipment: itemList.map((entry) => entry.id).sort(),
-    // No consumable definitions exist until potions arrive (ruling R126).
+    // No drop chance is stated for any potion (layer-1 §7.2 names the roll only),
+    // so no monster drops one yet (ruling R126).
     consumables: [],
     dropMultiplier: OPEN_CONTENT_INPUTS.dropMultiplier,
     goldMin: base.rawGold,
@@ -506,6 +540,30 @@ function onboarding(classId: ClassId): OnboardingGrant {
 const onboardingGrant = Object.fromEntries(
   CLASS_IDS.map((classId) => [classId, onboarding(classId)]),
 ) as Record<ClassId, OnboardingGrant>;
+
+/**
+ * The two potions (layer-1 §7.6): Small HP Potion heals 25% of Max HP, Small
+ * MP Potion restores 20% of Max MP. No price: prices are deferred (spec §4.0).
+ */
+const consumables: Record<string, ConsumableDefinition> = {
+  'small-hp-potion': { id: 'small-hp-potion', resource: 'hp', restoreBp: 2_500 },
+  'small-mp-potion': { id: 'small-mp-potion', resource: 'mp', restoreBp: 2_000 },
+};
+
+function starterWeapon(classId: ClassId): StarterWeapon {
+  return {
+    definitionId: CLASS_WEAPONS[classId],
+    rarity: OPEN_CONTENT_INPUTS.starterWeapon.rarity,
+    itemLevel: OPEN_CONTENT_INPUTS.starterWeapon.itemLevel,
+    bonuses: [],
+  };
+}
+
+/** Layer-1 §7.6's proposed kit: 20 Small HP Potions (first slot only) and a class weapon per slot. */
+const starterKit: StarterKit = {
+  potions: [{ consumableId: 'small-hp-potion', quantity: 20 }],
+  weapons: Object.fromEntries(CLASS_IDS.map((classId) => [classId, starterWeapon(classId)])) as Record<ClassId, StarterWeapon>,
+};
 
 const recipes: Record<RecipeId, RecipeDefinition> = {
   melee: {
@@ -551,9 +609,10 @@ const elements: Record<Element, Record<Element, number>> = {
  * Source content definitions, minus the digest fields computed by
  * `packages/data/scripts/build-content.ts`. See the milestone A spec for provenance
  * of every milestone A numeric value, and {@link OPEN_CONTENT_INPUTS} for the
- * provisional equipment values milestone B adds.
+ * provisional equipment values milestone B adds. `progression` is absent: the
+ * build compiles it from {@link PROGRESSION_SOURCE} (ruling R134).
  */
-export const prototypeDefinition: Omit<Content, 'version' | 'gridHash'> = {
+export const prototypeDefinition: Omit<Content, 'version' | 'gridHash' | 'progression'> = {
   grid: {
     width: 5,
     height: 5,
@@ -579,4 +638,8 @@ export const prototypeDefinition: Omit<Content, 'version' | 'gridHash'> = {
   rarities: structuredClone(RARITY_RULES),
   onboardingGrant,
   pity: { ...OPEN_CONTENT_INPUTS.pity },
+  consumables,
+  // Layer-1 §6.6: one shared 10-second potion cooldown per character.
+  potionCooldownMs: 10_000,
+  starterKit,
 };

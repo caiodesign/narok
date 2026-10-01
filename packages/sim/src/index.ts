@@ -29,11 +29,15 @@ export { createGrid, gridCoordinates, gridPosition, defaultPlacement } from './b
 export type { Battlefield } from './battlefield/types';
 export { derive, damage, effectiveHeal } from './math';
 export type { DamageInput } from './math';
-export { resolveLoadout, deriveCharacter, offenseBonusFor, resistFor } from './loadout';
+export { resolveLoadout, deriveCharacter, offenseBonusFor, resistFor, characterMaxima, refreshPartyActor } from './loadout';
 export type { ResolvedLoadout } from './loadout';
-export { startState, defaultStrategy, validatePendingRules, validateBag, validateLoot, validateProtection } from './state';
+export {
+  startState, defaultStrategy, validatePendingRules, validateBag, validateLoot, validateProtection,
+  DEFAULT_WIPE_LIMIT, WIPE_LIMIT_RANGE, validateProgress, validateEquipped, validateHuntCharacter,
+} from './state';
 export {
   bandFor, rollReward, rollKill, dispositionRewards, raiseToGuarantee, emptyDropMetrics, defaultBag, starterLoot,
+  awardKillExp,
 } from './rewards';
 export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';

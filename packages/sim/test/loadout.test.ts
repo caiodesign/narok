@@ -26,7 +26,7 @@ function instance(definitionId: string, slot: Slot, overrides: Partial<Instance>
     id: `item-${definitionId}-${slot}`, accountId: 'account-1', definitionId,
     contentVersion: pinned.version, rarity: 'common', itemLevel: 1, bonuses: [],
     tradeable: false, locked: false, protected: false,
-    equipped: { characterId: 'character-1', slot }, source: { grantId: 'test' },
+    equipped: { characterId: 'character-1', slot }, boundTo: null, source: { grantId: 'test' },
     ...overrides,
   };
 }

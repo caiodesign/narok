@@ -4,13 +4,17 @@ import { LOOT_ACTIONS, type LootMatch } from '@narok/loot';
 import { SimError, type SimErrorCode } from './errors';
 import { compareScheduled, isStale } from './scheduler';
 import { maxPendingLoot } from './rewards';
-import { validateBag, validateLabInput, validateLoot, validatePendingRules, validateProtection } from './state';
+import {
+  checkPartyKeys, validateBag, validateHuntCharacter, validateLabInput, validateLoot, validatePendingRules, validateProtection,
+} from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
   Actor,
   ActorId,
   DerivedStats,
   DropMetrics,
+  HuntCharacter,
+  LabInput,
   Metrics,
   PendingLoot,
   PendingReward,
@@ -604,6 +608,7 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   const lootPresetSnapshot = validateLoot(root.lootPresetSnapshot, 'lootPresetSnapshot', 'INVALID_STATE');
   const pendingLoot = validatePendingLoot(root.pendingLoot, nextRewardSeq, content);
   const bagState = validateBag(root.bagState, 'bagState', 'INVALID_STATE');
+  const progression = validateProgression(root.progression, input, actors, content);
 
   return {
     schemaVersion: 1,
@@ -630,5 +635,33 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
     lootPresetSnapshot,
     pendingLoot,
     bagState,
+    progression,
   };
+}
+
+/**
+ * The checkpointed characters (ruling R140): `null` for a laboratory run, or
+ * exactly one valid character per roster id whose actor carries its level.
+ * A missing key is refused like every other B field.
+ */
+function validateProgression(
+  value: unknown,
+  input: LabInput,
+  actors: Record<ActorId, Actor>,
+  content: Content,
+): Record<ActorId, HuntCharacter> | null {
+  if (value === null) return null;
+  const record = requireRecord(value, 'progression');
+  const rosterIds = input.classes.map((_, index) => `p${index}`);
+  checkPartyKeys(record, 'progression', 'INVALID_STATE', rosterIds,
+    (entry) => (typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>).characterId : entry));
+  const result: Record<ActorId, HuntCharacter> = {};
+  rosterIds.forEach((id, index) => {
+    const character = validateHuntCharacter(record[id], `progression.${id}`, 'INVALID_STATE', input.classes[index], content);
+    if (actors[id].level !== character.level) {
+      fail('INVALID_STATE', `progression.${id}.level`, 'the actor and its progression disagree on the level');
+    }
+    result[id] = character;
+  });
+  return result;
 }

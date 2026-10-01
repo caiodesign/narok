@@ -67,7 +67,7 @@ export interface HuntPlan {
    * (part 3 §2.5): the active loot preset's validated payload, the bag, and the
    * account's bad-luck counters. Copied into the checkpoint at start.
    */
-  readonly setup: Required<HuntSetup>;
+  readonly setup: Required<Omit<HuntSetup, 'party'>>;
 }
 
 /** Test-only seams for injecting a crash at the two instants that matter. */
