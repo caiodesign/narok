@@ -16,8 +16,10 @@
  * — "no code outside the table reaches a client" — a property of the server
  * rather than of each route's discipline.
  */
+import { CommandSequencer } from './hunt/commands';
 import { registerHuntRoutes, type HuntServices } from './routes/hunts';
 import { registerReportRoutes } from './routes/reports';
+import { registerTownRoutes } from './routes/town';
 import cookie from '@fastify/cookie';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -131,8 +133,12 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerAuthRoutes(app, ctx);
   registerAccountRoutes(app, ctx, { huntsWired: deps.hunts !== undefined });
   if (deps.hunts !== undefined) {
-    registerHuntRoutes(app, ctx, deps.hunts);
+    // One command order per account for the hunt and the town commands alike
+    // (R116, R144): a town write can never interleave with a settlement.
+    const sequencer = deps.hunts.sequencer ?? new CommandSequencer(deps.hunts.lifecycle.now);
+    registerHuntRoutes(app, ctx, { ...deps.hunts, sequencer });
     registerReportRoutes(app, ctx, deps.hunts.lifecycle.db);
+    registerTownRoutes(app, ctx, { lifecycle: deps.hunts.lifecycle, sequencer });
   }
 
   /**

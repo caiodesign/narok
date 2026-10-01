@@ -24,6 +24,7 @@
  * committed counters, rewritten from them in every commit's transaction.
  */
 import { eq, sql } from 'drizzle-orm';
+import type { Content } from '@narok/data';
 import type { DropProtection, PendingReward } from '@narok/sim';
 import * as schema from '../db/schema';
 import type { Database, Tx } from '../db/tx';
@@ -60,6 +61,8 @@ export interface RewardCommit {
   readonly stateVersionAfter: number;
   /** The hunt's pinned content, which an item instance resolves its definition under (B-29). */
   readonly contentVersion: string;
+  /** That content itself: a kept item's handedness is copied from it (ruling R145). */
+  readonly content: Content;
 }
 
 /**
@@ -99,8 +102,11 @@ export const commitRewards: RewardSink = async (tx, rewards, commit) => {
         bonuses: item.bonuses,
         protected: disposition.matched === 'protected',
         sourceRef: reward.rewardId,
+        twoHanded: commit.content.items[item.definitionId]?.handedness === 'two-handed',
       });
     } else if (disposition.outcome === 'kept' && item.kind === 'consumable') {
+      // One total per consumable (ruling R137): past 999 it is several stacks,
+      // each taking a slot, never a refused commit.
       await tx
         .insert(schema.stackItems)
         .values({ accountId: commit.accountId, definitionId: item.consumableId, quantity: item.quantity })

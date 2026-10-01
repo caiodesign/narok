@@ -15,6 +15,13 @@
       "when": 1790732945928,
       "tag": "0001_mushy_blob",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790820895527,
+      "tag": "0002_chunky_ego",
+      "breakpoints": true
     }
   ]
 }

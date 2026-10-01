@@ -10,6 +10,7 @@
     "zod": "4.1.13"
   },
   "devDependencies": {
+    "@narok/data": "workspace:*",
     "@narok/sim": "workspace:*"
   }
 }

@@ -49,6 +49,7 @@ import {
   type PresetRef,
 } from './envelope';
 import { lootVersions, strategyVersions } from './pending';
+import { commitProgression } from './progression';
 import { commitRewards, identifyRewards, indexDropProtection, type HuntReward, type RewardSink } from './rewards';
 import { settle, type Settlement } from './settle';
 
@@ -67,7 +68,7 @@ export interface HuntPlan {
    * (part 3 §2.5): the active loot preset's validated payload, the bag, and the
    * account's bad-luck counters. Copied into the checkpoint at start.
    */
-  readonly setup: Required<Omit<HuntSetup, 'party'>>;
+  readonly setup: Required<Omit<HuntSetup, 'party'>> & Pick<HuntSetup, 'party'>;
 }
 
 /** Test-only seams for injecting a crash at the two instants that matter. */
@@ -265,7 +266,9 @@ export function view(sim: Simulation, envelope: CheckpointEnvelope, state: SimSt
  * Commits drained rewards and the bad-luck index inside a checkpoint's own
  * transaction (P-27; rulings R128, R132): no reward exists without the commit
  * that produced it, and `account_drop_protection` always equals the counters
- * the committed checkpoint carries.
+ * the committed checkpoint carries. The party's progression and the
+ * onboarding grant follow, after the rewards, in the same transaction (R146,
+ * R148).
  */
 async function commitHuntRewards(
   deps: LifecycleDeps,
@@ -276,9 +279,11 @@ async function commitHuntRewards(
   stateVersionAfter: number,
 ): Promise<void> {
   await indexDropProtection(tx, accountId, state.dropProtection);
-  if (rewards.length === 0) return;
-  const sink = deps.rewardSink ?? commitRewards;
-  await sink(tx, rewards, { accountId, stateVersionAfter, contentVersion: state.contentVersion });
+  if (rewards.length > 0) {
+    const sink = deps.rewardSink ?? commitRewards;
+    await sink(tx, rewards, { accountId, stateVersionAfter, contentVersion: state.contentVersion, content: deps.content });
+  }
+  await commitProgression(tx, deps.content, accountId, state, stateVersionAfter);
 }
 
 /**
@@ -396,7 +401,7 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
 }
 
 /** When the previous hunt's party reaches town; `-Infinity` when nothing is in transit. */
-function inTownAt(checkpoint: Uint8Array): number {
+export function inTownAt(checkpoint: Uint8Array): number {
   try {
     const stop = decodeCheckpoint(Buffer.from(checkpoint).toString('utf8')).stopContext;
     return stop?.inTownAtWallMs ?? Number.NEGATIVE_INFINITY;

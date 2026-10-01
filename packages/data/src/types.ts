@@ -48,8 +48,16 @@ export interface RecipeDefinition {
 // Equipment model, exactly as Part 3 §1.2 declares it (layer-1 §7.1), except
 // that `basePrice` is `number | null`: prices are deferred (spec §4.0), so every
 // definition carries `null` and validation refuses a number (ruling R126).
-export type Slot = 'weapon' | 'offhand' | 'head' | 'body' | 'cloak' | 'shoes'
-  | 'accessory1' | 'accessory2';
+/**
+ * The eight equipment slots of layer-1 §7.1, in its order: the one list every
+ * package reads (ruling R142). The protocol mirrors it as a literal tuple —
+ * it may not import content at runtime — pinned to this one by its type and
+ * by a test.
+ */
+export const EQUIPMENT_SLOTS = [
+  'weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2',
+] as const;
+export type Slot = (typeof EQUIPMENT_SLOTS)[number];
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 export type Handedness = 'one-handed' | 'two-handed' | 'offhand' | 'none';
 

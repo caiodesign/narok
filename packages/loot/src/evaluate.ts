@@ -8,6 +8,7 @@
  * bundle never reaches a client through this package, which is why the rarity
  * ladder is restated here and a test pins it to the content rules.
  */
+import { EQUIPMENT_SLOTS } from '@narok/data';
 import type { Rarity, Slot } from '@narok/data';
 import type {
   Disposition,
@@ -28,7 +29,7 @@ export const LOOT_RARITIES: readonly Rarity[] = ['common', 'uncommon', 'rare', '
 const PROTECTED_RARITY: Rarity = 'legendary';
 export const LOOT_CATEGORIES: readonly LootCategory[] = ['equipment', 'consumable'];
 export const LOOT_ACTIONS: readonly LootAction[] = ['keep', 'auto-sell', 'ignore'];
-const SLOTS: readonly Slot[] = ['weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2'];
+const SLOTS: readonly Slot[] = EQUIPMENT_SLOTS;
 const CONDITION_KEYS: readonly (keyof LootCondition)[] = [
   'category', 'slot', 'minRarity', 'minBonusCount', 'bonusId', 'minItemLevel',
 ];

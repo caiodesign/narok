@@ -1,4 +1,4 @@
-import { CONSUMABLE_STACK_MAX, RARITIES } from '@narok/data';
+import { CONSUMABLE_STACK_MAX, EQUIPMENT_SLOTS, RARITIES } from '@narok/data';
 import type { ClassId, Content, ItemInstance, RecipeId, RolledBonus, SkillId, Slot } from '@narok/data';
 import { EXP_SHARE_DENOMINATOR, expToNext, validateAutoSpendTemplate } from '@narok/progression';
 import type { Progress } from '@narok/progression';
@@ -375,7 +375,7 @@ export function validateLoot(value: unknown, field: string, code: SimErrorCode):
   }
 }
 
-const SLOTS: readonly Slot[] = ['weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2'];
+const SLOTS: readonly Slot[] = EQUIPMENT_SLOTS;
 const ATTRIBUTES = ['str', 'agi', 'vit', 'int', 'dex', 'luk'] as const;
 
 function checkString(value: unknown, field: string, code: SimErrorCode): string {

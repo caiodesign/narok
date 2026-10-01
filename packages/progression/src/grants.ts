@@ -1,7 +1,7 @@
 import { RARITY_RULES } from '@narok/data';
 import type { ClassId, Content, ItemInstance, StarterWeapon } from '@narok/data';
 import { bagPlace, bagPlaceConsumable } from './bag';
-import type { Bag } from './types';
+import type { Bag, Failure, Result } from './types';
 
 /**
  * One-time grants (Part 3 §6, §8 #10, #11; spec §4.0, §4.1; ruling R141):
@@ -30,8 +30,19 @@ export type GrantLedger = Readonly<Record<string, readonly string[]>>;
  * instance it created; `deferred` could not fit it in the bag and placed
  * nothing — a grant is not a drop, so the bag-full loss rule (Part 3 §3.4)
  * does not reach it, and the caller attempts it again at the next settlement.
+ * `refused` is any other placement failure (a duplicate instance id, another
+ * account's bag): a caller fault, carried as `failure` so it surfaces as an
+ * error instead of being retried as a deferral forever (ruling R146).
  */
-export interface GrantOutcome { outcome: 'granted' | 'existing' | 'deferred'; bag: Bag; itemId: string | null }
+export type GrantOutcome =
+  | { outcome: 'granted' | 'existing' | 'deferred'; bag: Bag; itemId: string | null }
+  | { outcome: 'refused'; bag: Bag; itemId: null; failure: Failure };
+
+/** Only a full bag defers; every other failure refuses the grant. */
+function unplaced(bag: Bag, placed: Extract<Result<Bag>, { ok: false }>): GrantOutcome {
+  if (placed.code === 'RULE_VIOLATION' && placed.field === 'BAG_FULL') return { outcome: 'deferred', bag, itemId: null };
+  return { outcome: 'refused', bag, itemId: null, failure: placed };
+}
 
 function fixedInstance(
   bag: Bag,
@@ -75,7 +86,7 @@ export function grantOnboarding(
   if (existing !== undefined) return { outcome: 'existing', bag, itemId: existing[0] ?? null };
   const instance = fixedInstance(bag, itemId, content.onboardingGrant[classId], ONBOARDING_GRANT_KEY, null, content);
   const placed = bagPlace(bag, instance);
-  if (!placed.ok) return { outcome: 'deferred', bag, itemId: null };
+  if (!placed.ok) return unplaced(bag, placed);
   return { outcome: 'granted', bag: placed.next, itemId };
 }
 
@@ -97,12 +108,12 @@ export function grantStarterKit(
   if (existing !== undefined) return { outcome: 'existing', bag, itemId: existing[0] ?? null };
   const weapon = fixedInstance(bag, grant.itemId, content.starterKit.weapons[grant.classId], key, grant.characterId, content);
   const placed = bagPlace(bag, weapon);
-  if (!placed.ok) return { outcome: 'deferred', bag, itemId: null };
+  if (!placed.ok) return unplaced(bag, placed);
   let next = placed.next;
   if (grant.characterSlot === 0) {
     for (const potion of content.starterKit.potions) {
       const stocked = bagPlaceConsumable(next, potion.consumableId, potion.quantity, content);
-      if (!stocked.ok) return { outcome: 'deferred', bag, itemId: null };
+      if (!stocked.ok) return unplaced(bag, stocked);
       next = stocked.next;
     }
   }

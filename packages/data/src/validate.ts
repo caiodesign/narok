@@ -1,6 +1,7 @@
 import {
   BAND_DRAW_SPACE, BASE_BAND_PPM, RARITIES, RARITY_RULES, TIER_LEVEL_REQUIREMENTS, bonusCount, valueTier,
 } from './items';
+import { EQUIPMENT_SLOTS } from './types';
 import type {
   Attributes,
   BonusDefinition,
@@ -337,9 +338,7 @@ function validateRecipe(
 // Equipment content (Part 3 §1.5)
 // ---------------------------------------------------------------------------
 
-const SLOTS: readonly Slot[] = [
-  'weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2',
-];
+const SLOTS: readonly Slot[] = EQUIPMENT_SLOTS;
 const HANDEDNESS: readonly Handedness[] = ['one-handed', 'two-handed', 'offhand', 'none'];
 const ATTRIBUTE_KEYS: readonly (keyof Attributes)[] = ['str', 'agi', 'vit', 'int', 'dex', 'luk'];
 /**

@@ -12,6 +12,7 @@
     "@fastify/websocket": "11.0.2",
     "@narok/data": "workspace:*",
     "@narok/loot": "workspace:*",
+    "@narok/progression": "workspace:*",
     "@narok/protocol": "workspace:*",
     "@narok/sim": "workspace:*",
     "@node-rs/argon2": "2.0.2",

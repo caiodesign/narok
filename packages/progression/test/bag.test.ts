@@ -162,3 +162,15 @@ test('the starter kit: potions on the first slot only, a bound weapon per slot, 
   expect(recreated).toEqual({ outcome: 'existing', bag: second.bag, itemId: 'sk-0' });
   expect(starterKitKey(2)).toBe('starter-kit:2');
 });
+
+test('only a full bag defers a grant: any other placement failure is refused, never retried as a deferral', () => {
+  // A duplicate instance id is a caller fault, not a full bag (Task 7a review; ruling R146).
+  const held = bag([item('dup')]);
+  expect(grantOnboarding(held, {}, 'ranger', 'dup', content)).toEqual({
+    outcome: 'refused', bag: held, itemId: null, failure: { ok: false, code: 'VALIDATION', field: 'instance.id' },
+  });
+  expect(grantStarterKit(held, {}, { characterId: 'c1', characterSlot: 1, classId: 'guardian', itemId: 'dup' }, content))
+    .toEqual({ outcome: 'refused', bag: held, itemId: null, failure: { ok: false, code: 'VALIDATION', field: 'instance.id' } });
+  // A full bag is still a deferral.
+  expect(grantOnboarding(bag([item('x')], 1), {}, 'ranger', 'g', content).outcome).toBe('deferred');
+});

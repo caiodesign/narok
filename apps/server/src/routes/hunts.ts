@@ -8,27 +8,21 @@
  * The client names no seed, no time and no state; the plan is built here from
  * the account's own records and handed to the lifecycle (P-02).
  */
-import { and, count, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { CONSUMABLE_STACK_MAX } from '@narok/data';
-import {
-  applyLootCommandSchema,
-  applyStrategyCommandSchema,
-  startHuntCommandSchema,
-  STRATEGY_PAYLOAD_SCHEMA_VERSION,
-  strategyPresetPayloadSchema,
-} from '@narok/protocol';
-import type { ClassId } from '@narok/data';
-import type { PositionId, Strategy } from '@narok/sim';
+import { bagState } from '@narok/progression';
+import { applyLootCommandSchema, applyStrategyCommandSchema, startHuntCommandSchema } from '@narok/protocol';
+import { loadBag } from '../db/repositories/inventory';
 import * as schema from '../db/schema';
 import { ConflictError } from '../db/tx';
 import { AppError, notOwned } from '../errors';
 import { applyCommand, CommandSequencer, type CommandDeps } from '../hunt/commands';
 import type { LifecycleFeed } from '../hunt/feed';
 import { readHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../hunt/lifecycle';
-import { lootVersions, presetLoot, strategyVersions } from '../hunt/pending';
+import { lootVersions, presetLoot, presetRules, strategyVersions } from '../hunt/pending';
 import { readDropProtection } from '../hunt/rewards';
 import { requireSession } from '../plugins/session';
+import { loadParty } from '../town/party';
 import type { RouteContext } from './context';
 
 export interface HuntServices {
@@ -45,7 +39,7 @@ export interface HuntServices {
  */
 const MAPS: Readonly<Record<string, 'mixed'>> = { prototype: 'mixed' };
 
-function requireIdempotencyKey(request: FastifyRequest): string {
+export function requireIdempotencyKey(request: FastifyRequest): string {
   const key = request.headers['idempotency-key'];
   if (typeof key !== 'string' || key.length === 0 || key.length > 200) {
     throw new AppError('VALIDATION', 'idempotency-key');
@@ -54,7 +48,7 @@ function requireIdempotencyKey(request: FastifyRequest): string {
 }
 
 /** The request hash an idempotency key is bound to (P-25). */
-async function hashRequest(value: unknown): Promise<string> {
+export async function hashRequest(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Buffer.from(digest).toString('hex');
@@ -84,14 +78,9 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
     const key = requireIdempotencyKey(request);
     const body = parse(startHuntCommandSchema, request.body);
 
-    // 1. Ownership, for everything named, before any rule.
-    const characters = await db
-      .select({ id: schema.characters.id, classId: schema.characters.classId })
-      .from(schema.characters)
-      .where(and(eq(schema.characters.accountId, account.id), inArray(schema.characters.id, body.characterIds)));
-    if (characters.length !== new Set(body.characterIds).size || characters.length !== body.characterIds.length) {
-      throw notOwned('characterIds');
-    }
+    // 1. Ownership, for everything named, before any rule. The characters
+    // come back as the engine's party: progression and worn items (R148).
+    const party = await loadParty(db, account.id, body.characterIds);
     const [strategy] = await db
       .select()
       .from(schema.strategyPresets)
@@ -106,59 +95,27 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
     // 2. The rules.
     const recipe = MAPS[body.mapId];
     if (recipe === undefined) throw new AppError('VALIDATION', 'mapId');
-    if (strategy.payloadSchemaVersion !== STRATEGY_PAYLOAD_SCHEMA_VERSION) {
-      throw new AppError('VALIDATION', 'strategyPreset.payloadSchemaVersion');
-    }
-    const payload = strategyPresetPayloadSchema.safeParse(strategy.payload);
-    if (!payload.success) {
-      const path = payload.error.issues[0]?.path.join('.') ?? '';
-      throw new AppError('VALIDATION', path === '' ? 'strategyPreset' : `strategyPreset.${path}`);
-    }
+    // The preset's rules, with the engine's default wipe limit when it names none.
+    const rules = presetRules(strategy.payload, strategy.payloadSchemaVersion);
 
     // The filter that will run at encounter end is a validated copy of the
     // named preset, checked by the evaluator's own validator (part 3 §3.3).
     const lootPreset = presetLoot(loot.payload, loot.payloadSchemaVersion);
 
-    // Party order is the order named: the first character is p0.
-    const byId = new Map(characters.map((row) => [row.id, row.classId]));
-    // The bag the engine may assume (part 3 §2.5): unequipped items and
-    // consumable stacks each take a slot; equipped items take none.
-    const [bag] = await db
-      .select({ used: count() })
-      .from(schema.items)
-      .where(and(eq(schema.items.accountId, account.id), isNull(schema.items.equippedCharacterId)));
-    const stacks = await db
-      .select({ definitionId: schema.stackItems.definitionId, quantity: schema.stackItems.quantity })
-      .from(schema.stackItems)
-      .where(eq(schema.stackItems.accountId, account.id));
-    const [accountRow] = await db
-      .select({ bagCapacity: schema.accounts.bagCapacity })
-      .from(schema.accounts)
-      .where(eq(schema.accounts.id, account.id));
+    // The bag the engine may assume (part 3 §2.5), counted by the one rule
+    // the town commands use: each unequipped item a slot, each consumable
+    // total ceil(n / 999) slots (ruling R137).
+    const bag = bagState(await loadBag(db, account.id));
 
     const plan: HuntPlan = {
       mapId: body.mapId,
-      input: {
-        classes: body.characterIds.map((id) => byId.get(id) as ClassId),
-        recipe,
-        placement: payload.data.placement as Record<string, PositionId>,
-        strategies: payload.data.strategies as Record<string, Strategy>,
-        rest: payload.data.rest,
-        wipeLimit: payload.data.wipeLimit,
-      },
+      input: { classes: party.classes, recipe, ...rules },
       activeStrategy: { presetId: strategy.id, presetVersion: strategy.presetVersion },
       activeLoot: { presetId: loot.id, presetVersion: loot.presetVersion },
       setup: {
         loot: lootPreset,
-        bag: {
-          capacity: accountRow?.bagCapacity ?? 0,
-          usedSlots: (bag?.used ?? 0) + stacks.filter((stack) => stack.quantity > 0).length,
-          stackHeadroom: Object.fromEntries(
-            stacks
-              .filter((stack) => stack.quantity > 0)
-              .map((stack) => [stack.definitionId, CONSUMABLE_STACK_MAX - stack.quantity]),
-          ),
-        },
+        bag,
+        party: party.party,
         // The account's counters outlive every hunt (layer-1 §4.5).
         dropProtection: await readDropProtection(db, account.id),
       },

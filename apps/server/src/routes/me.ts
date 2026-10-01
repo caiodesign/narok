@@ -53,7 +53,9 @@ export function registerAccountRoutes(
     };
   });
 
-  app.post('/api/inventory/lock', async (request) => {
+  // With the database wired, `routes/town.ts` owns this route and does the
+  // guard and the increment inside the write's own transaction (R144).
+  if (options.huntsWired !== true) app.post('/api/inventory/lock', async (request) => {
     const { account } = await caller(request);
     requireIdempotencyKey(request);
     const body = parse(lockCommandSchema, request.body);
@@ -62,8 +64,8 @@ export function registerAccountRoutes(
     const item = await stores.items.byId(body.itemId);
     if (item === undefined || item.accountId !== account.id) throw notOwned('itemId');
 
-    // P-20's guard. Task 2 moves this inside the transaction that also does the
-    // version increment; here it decides the same answer over the same read.
+    // P-20's guard, over the in-memory stores: the same answer over the same
+    // read. The database route checks it inside the write's transaction.
     if (body.expectedStateVersion !== account.stateVersion) {
       throw new AppError('CONFLICT_STATE_VERSION', 'expectedStateVersion', account.stateVersion);
     }

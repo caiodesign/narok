@@ -93,6 +93,9 @@ importers:
       '@narok/loot':
         specifier: workspace:*
         version: link:../../packages/loot
+      '@narok/progression':
+        specifier: workspace:*
+        version: link:../../packages/progression
       '@narok/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -142,6 +145,9 @@ importers:
         specifier: 4.1.13
         version: 4.1.13
     devDependencies:
+      '@narok/data':
+        specifier: workspace:*
+        version: link:../data
       '@narok/sim':
         specifier: workspace:*
         version: link:../sim

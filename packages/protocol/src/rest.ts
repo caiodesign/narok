@@ -16,6 +16,7 @@
  *   client forgot it.
  */
 import { z } from 'zod';
+import type { Slot } from '@narok/data';
 
 const uuid = z.uuid();
 const positiveInt = z.number().int().positive();
@@ -57,17 +58,27 @@ export const meResponseSchema = z
   })
   .strict();
 
-/** The eight equipment slots of layer-1 §7.1. */
+/**
+ * The eight equipment slots of layer-1 §7.1 — weapon, off-hand, head, body,
+ * cloak, shoes and two accessories — which content declares once as
+ * `@narok/data`'s `EQUIPMENT_SLOTS` (ruling R142: this list said `hands` and
+ * `feet`, which no other package knew). The protocol may not import content
+ * at runtime (P-01's boundary), so the tuple is repeated here and pinned to
+ * content's `Slot` both ways at compile time, and to its order by test.
+ */
 export const EQUIPMENT_SLOTS = [
   'weapon',
   'offhand',
   'head',
   'body',
-  'hands',
-  'feet',
+  'cloak',
+  'shoes',
   'accessory1',
   'accessory2',
-] as const;
+] as const satisfies readonly Slot[];
+type ProtocolSlot = (typeof EQUIPMENT_SLOTS)[number];
+/** Compiles only while the two lists name the same slots. */
+export const SLOTS_MATCH_CONTENT: [Slot] extends [ProtocolSlot] ? true : never = true;
 export const equipmentSlotSchema = z.enum(EQUIPMENT_SLOTS);
 
 export const createCharacterSchema = z
@@ -79,14 +90,36 @@ export const createCharacterSchema = z
  * amounts are the delta the player staged, never the resulting total, so a
  * stale draft cannot overwrite a newer one with an absolute value.
  */
+const attributeKey = z.enum(['str', 'agi', 'vit', 'int', 'dex', 'luk']);
 export const allocateAttributesSchema = z
   .object({
-    spend: z.record(z.enum(['str', 'agi', 'vit', 'int', 'dex', 'luk']), z.number().int().nonnegative()),
+    spend: z.record(attributeKey, z.number().int().nonnegative()),
+    /**
+     * The total the client's staging showed (part 3 §5.3 step 5): the server
+     * replays the cost point by point and refuses a mismatch with
+     * `COST_MISMATCH` rather than charging a number the player never saw.
+     */
+    quotedCost: z.number().int().nonnegative(),
   })
   .strict();
 
 export const upgradeSkillSchema = z.object({ skillId: z.string(), targetRank: positiveInt }).strict();
 export const respecSchema = z.object({ scope: z.enum(['attributes', 'skills', 'both']) }).strict();
+
+/**
+ * The stat auto-spend template (layer-1 §5.5; part 3 §5.2): ordered build
+ * targets and a remainder attribute, or `null` to switch auto-spend off. The
+ * attribute cap and the one-target-per-attribute rule are content and rule
+ * checks, made by `@narok/progression` against the pinned content.
+ */
+export const autoSpendTemplateSchema = z
+  .object({
+    targets: z.array(z.object({ attribute: attributeKey, value: positiveInt }).strict()).max(6),
+    remainder: attributeKey.nullable(),
+  })
+  .strict()
+  .nullable();
+export const autoSpendSchema = z.object({ template: autoSpendTemplateSchema }).strict();
 
 export const equipRequestSchema = z
   .object({ itemId: uuid, characterId: uuid, slot: equipmentSlotSchema })
@@ -119,8 +152,12 @@ export const strategyPresetPayloadSchema = z
   .object({
     placement: z.record(partySlot, z.string().min(1).max(16)),
     strategies: z.record(partySlot, z.unknown()),
-    /** A total, not extra retries: 1 by default, configurable to 5 (layer-1 §6.6). */
-    wipeLimit: z.number().int().min(1).max(5),
+    /**
+     * A total, not extra retries: 1 by default, configurable to 5 (layer-1
+     * §6.6). Optional: absent, the server applies the engine's
+     * `DEFAULT_WIPE_LIMIT` (ruling R148), so the default lives in one place.
+     */
+    wipeLimit: z.number().int().min(1).max(5).optional(),
     rest: z.object({ hpStart: z.number().int(), mpStart: z.number().int() }).strict(),
   })
   .strict();
@@ -170,6 +207,12 @@ export function guardedSchema<T extends z.ZodObject>(schema: T) {
  */
 export const lockCommandSchema = lockRequestSchema.extend({ expectedStateVersion: version });
 export const equipCommandSchema = equipRequestSchema.extend({ expectedStateVersion: version });
+export const unequipCommandSchema = unequipRequestSchema.extend({ expectedStateVersion: version });
+export const createCharacterCommandSchema = createCharacterSchema.extend({ expectedStateVersion: version });
+export const allocateAttributesCommandSchema = allocateAttributesSchema.extend({ expectedStateVersion: version });
+export const upgradeSkillCommandSchema = upgradeSkillSchema.extend({ expectedStateVersion: version });
+export const respecCommandSchema = respecSchema.extend({ expectedStateVersion: version });
+export const autoSpendCommandSchema = autoSpendSchema.extend({ expectedStateVersion: version });
 export const sellCommandSchema = sellRequestSchema.extend({ expectedStateVersion: version });
 export const startHuntCommandSchema = startHuntSchema.extend({ expectedStateVersion: version });
 /**
@@ -211,6 +254,10 @@ export const ROUTES: readonly RouteSpec[] = [
   { method: 'POST', path: '/api/characters/:id/attributes', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/characters/:id/skills', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/characters/:id/respec', auth: 'session', guarded: true, idempotent: true },
+  // Task 7b (ruling R143): the town-only auto-spend template edit part 3 §4's
+  // table lists and §5.2 relies on, which part 1 §3 lacked. Guarded and
+  // idempotent like every other character command.
+  { method: 'PUT', path: '/api/characters/:id/auto-spend', auth: 'session', guarded: true, idempotent: true },
   { method: 'GET', path: '/api/inventory', auth: 'session', guarded: false, idempotent: false },
   { method: 'POST', path: '/api/inventory/equip', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/inventory/unequip', auth: 'session', guarded: true, idempotent: true },

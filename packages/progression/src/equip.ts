@@ -1,4 +1,4 @@
-import { slotAccepts } from '@narok/data';
+import { EQUIPMENT_SLOTS, slotAccepts } from '@narok/data';
 import type { ItemInstance, Slot } from '@narok/data';
 import { usedSlots } from './bag';
 import { clampResources } from './resources';
@@ -14,7 +14,7 @@ import type { Bag, Character, Result, TownContext } from './types';
  * raises Max HP heals nothing.
  */
 
-const SLOTS: readonly Slot[] = ['weapon', 'offhand', 'head', 'body', 'cloak', 'shoes', 'accessory1', 'accessory2'];
+const SLOTS: readonly Slot[] = EQUIPMENT_SLOTS;
 
 function copyItems(items: readonly ItemInstance[]): ItemInstance[] {
   return items.map((entry) => ({

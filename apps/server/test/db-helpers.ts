@@ -100,8 +100,12 @@ export async function insertCharacter(
       name: `Name${Math.floor(Math.random() * 1e9)}`,
       nameKey: `namekey${Math.floor(Math.random() * 1e9)}`,
       classId: 'guardian',
-      attributes: {},
+      // A level-1 character as creation leaves it (layer-1 §5.3, §5.4), so a
+      // hunt can start from it without a fixture of its own.
+      attributes: { str: 1, agi: 1, vit: 1, int: 1, dex: 1, luk: 1 },
       skills: {},
+      unspentStatPoints: 30,
+      unspentSkillPoints: 1,
       hp: 100,
       mp: 50,
       ...overrides,

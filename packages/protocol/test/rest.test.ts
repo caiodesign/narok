@@ -5,8 +5,13 @@
  * trusts a client's assertion.
  */
 import { describe, expect, test } from 'vitest';
+import { EQUIPMENT_SLOTS as CONTENT_SLOTS } from '@narok/data';
 import {
+  EQUIPMENT_SLOTS,
   ROUTES,
+  allocateAttributesCommandSchema,
+  autoSpendCommandSchema,
+  strategyPresetPayloadSchema,
   applyLootCommandSchema,
   applyLootSchema,
   applyStrategySchema,
@@ -21,13 +26,15 @@ import {
 
 describe('the route table', () => {
   test('lists every row of part 1 §3 with its method, auth, guard and idempotency', () => {
-    expect(ROUTES.length).toBe(24);
+    expect(ROUTES.length).toBe(25);
     const paths = ROUTES.map((route) => `${route.method} ${route.path}`);
     expect(paths).toContain('POST /api/auth/register');
     expect(paths).toContain('POST /api/auth/login');
     expect(paths).toContain('POST /api/hunts/current/strategy');
     expect(paths).toContain('POST /api/hunts/current/loot');
     expect(paths).toContain('POST /api/presets/loot/preview');
+    // Ruling R143: the town-only auto-spend template edit (part 3 §4, §5.2).
+    expect(paths).toContain('PUT /api/characters/:id/auto-spend');
   });
 
   test('the preview route mutates nothing, so it takes no idempotency key and no guard', () => {
@@ -65,6 +72,33 @@ describe('request schemas', () => {
     const request = { itemId: '11111111-1111-4111-8111-111111111111', characterId: '22222222-2222-4222-8222-222222222222', slot: 'weapon' };
     expect(equipRequestSchema.parse(request)).toEqual(request);
     expect(equipRequestSchema.safeParse({ ...request, slot: 'wings' }).success).toBe(false);
+  });
+
+  test('the equipment slots are layer-1 §7.1 eight, the same list content declares (ruling R142)', () => {
+    expect([...EQUIPMENT_SLOTS]).toEqual([...CONTENT_SLOTS]);
+    expect(EQUIPMENT_SLOTS).toContain('cloak');
+    expect(EQUIPMENT_SLOTS).toContain('shoes');
+  });
+
+  test('a staged allocation carries the cost the client quoted, so the server can replay it (part 3 §5.3)', () => {
+    const spend = { str: 2, agi: 0, vit: 0, int: 0, dex: 0, luk: 0 };
+    expect(allocateAttributesCommandSchema.parse({ spend, quotedCost: 4, expectedStateVersion: 1 }))
+      .toEqual({ spend, quotedCost: 4, expectedStateVersion: 1 });
+    expect(allocateAttributesCommandSchema.safeParse({ spend, expectedStateVersion: 1 }).success).toBe(false);
+    expect(allocateAttributesCommandSchema.safeParse({ spend, quotedCost: -1, expectedStateVersion: 1 }).success).toBe(false);
+  });
+
+  test('an auto-spend template is ordered targets and a remainder, or null to switch it off', () => {
+    const template = { targets: [{ attribute: 'vit', value: 20 }], remainder: 'str' };
+    expect(autoSpendCommandSchema.parse({ template, expectedStateVersion: 2 })).toEqual({ template, expectedStateVersion: 2 });
+    expect(autoSpendCommandSchema.parse({ template: null, expectedStateVersion: 2 }).template).toBeNull();
+    expect(autoSpendCommandSchema.safeParse({ template: { ...template, extra: 1 }, expectedStateVersion: 2 }).success).toBe(false);
+  });
+
+  test('a strategy preset may omit the wipe limit; the server then applies the engine default', () => {
+    const payload = { placement: {}, strategies: {}, rest: { hpStart: 50, mpStart: 30 } };
+    expect(strategyPresetPayloadSchema.safeParse(payload).success).toBe(true);
+    expect(strategyPresetPayloadSchema.safeParse({ ...payload, wipeLimit: 6 }).success).toBe(false);
   });
 
   test('sell takes a bounded list of owned ids', () => {

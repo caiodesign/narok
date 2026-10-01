@@ -170,15 +170,57 @@ describe('items', () => {
 });
 
 describe('stacks', () => {
-  test('quantity is bounded below by zero and above by the stack size layer-1 §7.5 fixes', async () => {
+  test('quantity is bounded below by zero, and a total past 999 is several stacks, not a refusal (ruling R137)', async () => {
     const account = await insertAccount(db);
     expect(await expectViolation(() =>
       db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: -1 }),
     )).toContain('stack_items_quantity_nonnegative');
+    // One total per consumable: 1,000 units occupy two slots, which the server counts.
+    await db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: 1000 });
+  });
+});
+
+describe('the two-handed weapon and the off-hand (owner decision 2026-09-21; ruling R145)', () => {
+  test('a character wearing a two-handed weapon cannot also hold an off-hand item, in either order', async () => {
+    const account = await insertAccount(db);
+    const a = await insertCharacter(db, account.id, { slot: 0 });
+    await insertItem(db, account.id, { baseItemId: 'ranger-bow', twoHanded: true, equippedCharacterId: a.id, equippedSlot: 'weapon' });
     expect(await expectViolation(() =>
-      db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: 1000 }),
-    )).toContain('stack_items_quantity_max');
-    await db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: 999 });
+      insertItem(db, account.id, { baseItemId: 'wooden-buckler', equippedCharacterId: a.id, equippedSlot: 'offhand' }),
+    )).toContain('items_two_handed_offhand_idx');
+
+    const b = await insertCharacter(db, account.id, { slot: 1 });
+    await insertItem(db, account.id, { baseItemId: 'wooden-buckler', equippedCharacterId: b.id, equippedSlot: 'offhand' });
+    expect(await expectViolation(() =>
+      insertItem(db, account.id, { baseItemId: 'ranger-bow', twoHanded: true, equippedCharacterId: b.id, equippedSlot: 'weapon' }),
+    )).toContain('items_two_handed_offhand_idx');
+  });
+
+  test('a one-handed weapon and an off-hand coexist, and a two-handed weapon in the bag locks nothing', async () => {
+    const account = await insertAccount(db);
+    const character = await insertCharacter(db, account.id);
+    await insertItem(db, account.id, { baseItemId: 'guardian-sword', equippedCharacterId: character.id, equippedSlot: 'weapon' });
+    await insertItem(db, account.id, { baseItemId: 'wooden-buckler', equippedCharacterId: character.id, equippedSlot: 'offhand' });
+    await insertItem(db, account.id, { baseItemId: 'ranger-bow', twoHanded: true });
+    expect(await db.select().from(schema.items)).toHaveLength(3);
+  });
+
+  test('slot names are layer-1 §7.1 names: an unknown slot is refused', async () => {
+    const account = await insertAccount(db);
+    const character = await insertCharacter(db, account.id);
+    expect(await expectViolation(() =>
+      insertItem(db, account.id, { equippedCharacterId: character.id, equippedSlot: 'hands' }),
+    )).toContain('items_equipped_slot_known');
+  });
+
+  test('a character-bound item can be worn by its own character only', async () => {
+    const account = await insertAccount(db);
+    const owner = await insertCharacter(db, account.id, { slot: 0 });
+    const other = await insertCharacter(db, account.id, { slot: 1 });
+    expect(await expectViolation(() =>
+      insertItem(db, account.id, { boundTo: owner.id, equippedCharacterId: other.id, equippedSlot: 'weapon' }),
+    )).toContain('items_bound_wearer');
+    await insertItem(db, account.id, { boundTo: owner.id, equippedCharacterId: owner.id, equippedSlot: 'weapon' });
   });
 });
 
