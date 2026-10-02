@@ -8,10 +8,12 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { content, validateContent } from '@narok/data';
 import { STARTER_LOOT_PRESET } from '@narok/loot';
-import { defaultPlacement, defaultStrategy } from '@narok/sim';
+import { characterMaxima, defaultPlacement, defaultStrategy } from '@narok/sim';
 import { createApp } from '../src/app';
 import { compose } from '../src/compose';
+import { toCharacter } from '../src/db/repositories/characters';
 import * as schema from '../src/db/schema';
+import { recoverFaultedHunt, type LifecycleDeps } from '../src/hunt/lifecycle';
 import { connect, DATABASE_URL, databaseReachable, disconnect, insertCharacter, truncateAll, type Db } from './db-helpers';
 import { sessionCookie } from './helpers';
 
@@ -19,6 +21,7 @@ let db: Db;
 let app: FastifyInstance;
 let close: () => Promise<void>;
 let origin: string;
+let lifecycle: LifecycleDeps;
 
 const validated = validateContent(content);
 const PASSWORD = 'a-sufficiently-long-password';
@@ -37,6 +40,7 @@ beforeEach(async () => {
   const composed = compose({ DATABASE_URL, NAROK_INSECURE_COOKIES: '1' });
   close = composed.close;
   origin = composed.deps.config!.allowedOrigins[0];
+  lifecycle = composed.deps.hunts!.lifecycle;
   app = await createApp(composed.deps);
 });
 
@@ -397,5 +401,111 @@ describe('POST /api/hunts/current/loot (apply loot filter)', () => {
     const [row] = await db.select().from(schema.hunts).where(eq(schema.hunts.accountId, me.accountId));
     const envelope = JSON.parse(Buffer.from(row.checkpoint).toString('utf8')) as { state: string };
     expect((JSON.parse(envelope.state) as { dropProtection: unknown }).dropProtection).toEqual({ epicPlus: 41, legendary: 977 });
+  });
+});
+
+describe('I1: a faulted hunt’s recovery is a return to town, and it heals (owner rule)', () => {
+  /** A running hunt marked faulted with its second member saved dead, as a mid-hunt commit leaves one (R151). */
+  async function faultedWithFallen(me: Player) {
+    const refs = await setup(me);
+    const started = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(started.statusCode).toBe(200);
+    await db.update(schema.hunts).set({ status: 'faulted', faultedReason: '{"code":"TEST"}' }).where(eq(schema.hunts.accountId, me.accountId));
+    await db.update(schema.characters).set({ hp: 0, mp: 3, dead: true }).where(eq(schema.characters.id, refs.characterIds[1]!));
+    await db.update(schema.characters).set({ hp: 7, mp: 0 }).where(eq(schema.characters.id, refs.characterIds[2]!));
+    return refs;
+  }
+
+  test('a start against a faulted hunt answers HUNT_FAULTED, before the plan is judged', async () => {
+    const me = await player();
+    const refs = await faultedWithFallen(me);
+    const response = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(response.json()).toMatchObject({ code: 'HUNT_FAULTED', field: 'hunt.status' });
+  });
+
+  test('recovery heals every party member to its derived maxima, and the next start succeeds', async () => {
+    const me = await player();
+    const refs = await faultedWithFallen(me);
+
+    await recoverFaultedHunt(lifecycle, { accountId: me.accountId, expectedStateVersion: await version(me.accountId) });
+
+    const maxima = characterMaxima(validated);
+    for (const id of refs.characterIds) {
+      const [row] = await db.select().from(schema.characters).where(eq(schema.characters.id, id));
+      const worn = await db.select().from(schema.items).where(eq(schema.items.equippedCharacterId, id));
+      expect(worn).toEqual([]);
+      const full = maxima(toCharacter(row!), []);
+      expect({ hp: row!.hp, mp: row!.mp, dead: row!.dead }, id).toEqual({ hp: full.maxHp, mp: full.maxMp, dead: false });
+    }
+
+    const again = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(again.statusCode, again.body).toBe(200);
+  });
+});
+
+describe('I2 / P-13: gameplay commands are rate-limited per account', () => {
+  /** The same app, with the configured command limiter shrunk so a test can reach it. */
+  async function limitedApp(limit: number) {
+    const composed = compose({ DATABASE_URL, NAROK_INSECURE_COOKIES: '1' });
+    const config = composed.deps.config!;
+    const limited = await createApp({
+      ...composed.deps,
+      config: { ...config, rateLimits: { ...config.rateLimits, command: { limit, windowMs: 60_000 } } },
+    });
+    return { limited, close: async () => { await limited.close(); await composed.close(); } };
+  }
+
+  test('every mutating hunt, preset and town route charges the account, and past the limit answers RATE_LIMITED', async () => {
+    const me = await player();
+    const other = await player();
+    const routes: Array<readonly ['POST' | 'PUT', string]> = [
+      ['POST', '/api/hunts'],
+      ['POST', '/api/hunts/current/stop'],
+      ['POST', '/api/hunts/current/strategy'],
+      ['POST', '/api/hunts/current/loot'],
+      ['PUT', `/api/presets/${crypto.randomUUID()}`],
+      ['POST', '/api/characters'],
+      ['POST', `/api/characters/${crypto.randomUUID()}/attributes`],
+      ['PUT', `/api/characters/${crypto.randomUUID()}/auto-spend`],
+      ['POST', '/api/inventory/equip'],
+      ['POST', '/api/inventory/lock'],
+    ];
+    for (const [method, url] of routes) {
+      const { limited, close: closeLimited } = await limitedApp(1);
+      try {
+        const send = (who: Player) => limited.inject({
+          method, url, headers: { origin, cookie: who.cookie, 'idempotency-key': crypto.randomUUID() }, payload: {},
+        });
+        expect((await send(me)).json().code, url).not.toBe('RATE_LIMITED');
+        const refused = await send(me);
+        expect(refused.json(), url).toMatchObject({ code: 'RATE_LIMITED' });
+        expect(Number(refused.headers['retry-after']), url).toBeGreaterThan(0);
+        // Per account: another account is not charged for mine.
+        expect((await send(other)).json().code, url).not.toBe('RATE_LIMITED');
+      } finally {
+        await closeLimited();
+      }
+    }
+  });
+
+  test('reads are not charged, and an anonymous command is UNAUTHENTICATED, not counted', async () => {
+    const me = await player();
+    const { limited, close: closeLimited } = await limitedApp(1);
+    try {
+      for (let i = 0; i < 3; i++) {
+        for (const url of ['/api/hunts/current', '/api/presets', '/api/characters', '/api/inventory']) {
+          const response = await limited.inject({ method: 'GET', url, headers: { origin, cookie: me.cookie } });
+          expect(response.json().code, url).not.toBe('RATE_LIMITED');
+        }
+        const anonymous = await limited.inject({ method: 'POST', url: '/api/hunts/current/stop', headers: { origin }, payload: {} });
+        expect(anonymous.json().code).toBe('UNAUTHENTICATED');
+      }
+      const first = await limited.inject({
+        method: 'POST', url: '/api/hunts/current/stop', headers: { origin, cookie: me.cookie, 'idempotency-key': 'k1' }, payload: {},
+      });
+      expect(first.json().code).not.toBe('RATE_LIMITED');
+    } finally {
+      await closeLimited();
+    }
   });
 });

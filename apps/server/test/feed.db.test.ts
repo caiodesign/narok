@@ -217,6 +217,27 @@ describe('release ticks write nothing (steps 3–4)', () => {
     expect(envelope.simAnchorMs).toBe(lifecycle.config.persistCadenceMs);
   });
 
+  test('M6: a failed tick is dropped but logged, never silent', async () => {
+    const account = await insertAccount(db);
+    const failing = { on: false };
+    const inner = inlineExecutor(sim);
+    const { clock, lifecycle } = rig((request) => {
+      if (failing.on) throw new Error('executor down');
+      return inner(request);
+    });
+    const lines: string[] = [];
+    const feed = new LifecycleFeed({
+      lifecycle, retainedEvents: 5_000, releaseTickMs: 1_000, schedule: manualScheduler().scheduler, onLog: (line) => lines.push(line),
+    });
+    await startHunt(lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    await feed.connect(account.id);
+
+    failing.on = true;
+    clock.now = T0 + 30_000;
+    await feed.tick(account.id);
+    expect(lines).toEqual([`feed tick failed account=${account.id} error=Error`]);
+  });
+
   test('the ticker runs only while someone is subscribed', async () => {
     const account = await insertAccount(db);
     const { lifecycle, feed, jobs } = rig();
@@ -286,6 +307,42 @@ describe('heartbeat is a settlement (step 6)', () => {
     clock.now = T0 + 12_000;
     await feed.heartbeat(account.id);
     expect(envelopeOf(await huntRow(account.id)).simAnchorMs).toBe(12_000);
+  });
+
+  test('I2 / P-13: heartbeats arriving while a settlement is in flight share it, and commit once', async () => {
+    const account = await insertAccount(db);
+    const { clock, lifecycle, feed } = rig();
+    await startHunt(lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    await feed.connect(account.id);
+    const before = envelopeOf(await huntRow(account.id)).checkpointSeq;
+
+    clock.now = T0 + 30_000;
+    const views = await Promise.all(Array.from({ length: 12 }, () => feed.heartbeat(account.id)));
+
+    expect(envelopeOf(await huntRow(account.id)).checkpointSeq, 'a storm is one settlement').toBe(before + 1);
+    for (const view of views) expect(view!.releaseSimMs).toBe(30_000);
+  });
+
+  test('I2 / P-13: a heartbeat with nothing new to release since the last commit settles nothing', async () => {
+    const account = await insertAccount(db);
+    const { clock, lifecycle, feed } = rig();
+    await startHunt(lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    await feed.connect(account.id);
+
+    clock.now = T0 + 30_000;
+    await feed.heartbeat(account.id);
+    const settled = envelopeOf(await huntRow(account.id));
+    const version = await accountVersion(account.id);
+
+    const again = await feed.heartbeat(account.id);
+    expect(envelopeOf(await huntRow(account.id)).checkpointSeq).toBe(settled.checkpointSeq);
+    expect(await accountVersion(account.id)).toBe(version);
+    expect(again!.releaseSimMs).toBe(30_000);
+
+    // Time moves on: the next heartbeat settles again, as before.
+    clock.now = T0 + 31_000;
+    await feed.heartbeat(account.id);
+    expect(envelopeOf(await huntRow(account.id)).simAnchorMs).toBe(31_000);
   });
 
   test('a stopped hunt keeps answering with its final state and commits nothing', async () => {

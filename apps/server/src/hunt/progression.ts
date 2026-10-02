@@ -17,8 +17,9 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Content } from '@narok/data';
 import { ONBOARDING_GRANT_KEY } from '@narok/progression';
-import type { SimState } from '@narok/sim';
-import { settledColumns } from '../db/repositories/characters';
+import { characterMaxima, type SimState } from '@narok/sim';
+import { settledColumns, toCharacter } from '../db/repositories/characters';
+import { toInstance } from '../db/repositories/inventory';
 import { grantOnce } from '../db/repositories/grants';
 import * as schema from '../db/schema';
 import type { Tx } from '../db/tx';
@@ -69,4 +70,33 @@ export async function commitProgression(
   // return. The item is the class of the party's first character (p0).
   if (state.phase !== 'stopped' || !held.has(FIRST_WIN_MARKER) || held.has(ONBOARDING_GRANT_KEY)) return;
   await grantOnboardingOnce(tx, content, accountId, state.input.classes[0]!, stateVersionAfter);
+}
+
+/**
+ * A return to town the engine did not make — the explicit recovery of a
+ * faulted hunt (P-38) — heals as every engine return does (rulings R149,
+ * R155; owner rule "every return to town fully heals the whole party"). Each
+ * named character is set to the maxima the one derivation gives its own row
+ * and the items it wears — the derivation character creation and the town
+ * rules use (`characterMaxima`) — read from the rows, never from a checkpoint
+ * that may not decode. Rows of another account are left alone (P-12).
+ */
+export async function healToMaxima(tx: Tx, content: Content, accountId: string, characterIds: readonly string[]): Promise<void> {
+  if (characterIds.length === 0) return;
+  const rows = await tx
+    .select()
+    .from(schema.characters)
+    .where(and(eq(schema.characters.accountId, accountId), inArray(schema.characters.id, [...characterIds])));
+  const worn = await tx
+    .select()
+    .from(schema.items)
+    .where(and(eq(schema.items.accountId, accountId), inArray(schema.items.equippedCharacterId, [...characterIds])));
+  const maxima = characterMaxima(content);
+  for (const row of rows) {
+    const full = maxima(toCharacter(row), worn.filter((item) => item.equippedCharacterId === row.id).map(toInstance));
+    await tx
+      .update(schema.characters)
+      .set({ hp: full.maxHp, mp: full.maxMp, dead: false })
+      .where(and(eq(schema.characters.id, row.id), eq(schema.characters.accountId, accountId)));
+  }
 }

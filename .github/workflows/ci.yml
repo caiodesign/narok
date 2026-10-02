@@ -14,6 +14,9 @@
 # `e2e/town.spec.ts`) run against a real database, never a fake. The service
 # uses the same image, user and password as `compose.dev.yml`, published on the
 # same port, so the suites' default `DATABASE_URL` needs no CI-only override.
+# The db suites refuse a database not named `*_test`/`*_e2e` unless `CI` is set
+# (ruling R204, protecting a developer's `narok`); GitHub Actions sets `CI=true`,
+# and the service container is disposable.
 # The dev database is migrated before the tests; the e2e harness creates and
 # migrates its own `narok_e2e` (`e2e/support/server.mjs`).
 #

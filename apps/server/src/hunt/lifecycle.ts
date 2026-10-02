@@ -50,7 +50,7 @@ import {
   type PresetRef,
 } from './envelope';
 import { lootVersions, strategyVersions } from './pending';
-import { commitProgression } from './progression';
+import { commitProgression, healToMaxima } from './progression';
 import {
   commitConsumption, commitRewards, consumedDuring, identifyRewards, indexDropProtection, type HuntReward, type RewardSink,
 } from './rewards';
@@ -592,7 +592,9 @@ export interface RecoverCommand {
 /**
  * The one command a faulted hunt accepts (P-38): an explicit, guarded return
  * to town. The engine state is the last valid checkpoint, not advanced and not
- * repaired, so no settlement is invented and no wipe is charged. The fault
+ * repaired, so no settlement is invented and no wipe is charged. Like every
+ * return to town it fully heals the party's characters rows, in the same
+ * transaction (final review I1). The fault
  * reason stays on the row for the record; the archive row already holds the
  * reproduction inputs.
  */
@@ -619,7 +621,15 @@ export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCo
       if (loaded.status !== 'faulted') throw new AppError('RULE_VIOLATION', 'hunt.status');
 
       const envelope = decodeCheckpoint(loaded.encoded);
-      const atSimMs = deps.sim.decode(envelope.state).nowMs;
+      const state = deps.sim.decode(envelope.state);
+      const atSimMs = state.nowMs;
+
+      // The return to town heals the whole party, as every engine return does
+      // (R149, R155): a member saved dead by a mid-hunt commit would otherwise
+      // be refused by every later start (final review I1).
+      const partyIds = state.progression === null ? [] : Object.values(state.progression).map((member) => member.characterId);
+      await healToMaxima(tx, deps.content, command.accountId, partyIds);
+
       const encoded = encodeCheckpoint({
         ...envelope,
         // No journey: recovery is an operator action, not the player's stop.

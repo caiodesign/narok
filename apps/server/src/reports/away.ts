@@ -37,7 +37,7 @@
  * already settled — the committed states, the credited rewards, and the
  * digest of the events the settlement produced (`hunt/digest.ts`).
  */
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, gt, ne } from 'drizzle-orm';
 import { RARITIES, type Rarity } from '@narok/data';
 import type { SimState, StopReason } from '@narok/sim';
 import * as schema from '../db/schema';
@@ -359,13 +359,21 @@ export async function recordAwayReport(
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Reads a report. Writes nothing; absent and not-yours answer identically (P-12). */
-export async function readAwayReport(db: Database, accountId: string, reportId: string): Promise<AwayReport> {
+/**
+ * Reads a report. Writes nothing; absent, expired and not-yours answer
+ * identically (P-12). A report past its `expires_at` is gone even before a
+ * sweep deletes the row (final review M4).
+ */
+export async function readAwayReport(db: Database, accountId: string, reportId: string, nowWall: number): Promise<AwayReport> {
   if (!UUID.test(reportId)) throw notOwned('reportId');
   const [row] = await db
     .select({ payload: schema.huntReports.payload })
     .from(schema.huntReports)
-    .where(and(eq(schema.huntReports.id, reportId), eq(schema.huntReports.accountId, accountId)));
+    .where(and(
+      eq(schema.huntReports.id, reportId),
+      eq(schema.huntReports.accountId, accountId),
+      gt(schema.huntReports.expiresAt, new Date(nowWall)),
+    ));
   if (row === undefined) throw notOwned('reportId');
   return row.payload as AwayReport;
 }

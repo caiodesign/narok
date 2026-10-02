@@ -30,7 +30,7 @@ import { lootVersions, presetLoot, presetRules, strategyVersions } from '../hunt
 import { readDropProtection } from '../hunt/rewards';
 import { requireSession } from '../plugins/session';
 import { loadParty } from '../town/party';
-import type { RouteContext } from './context';
+import { requireCommander, type RouteContext } from './context';
 
 export interface HuntServices {
   readonly lifecycle: LifecycleDeps;
@@ -73,6 +73,8 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
   const { db } = lifecycle;
   const commands: CommandDeps = { lifecycle, sequencer: services.sequencer ?? new CommandSequencer(lifecycle.now) };
   const caller = (request: FastifyRequest) => requireSession(request, stores, config, now());
+  // Every mutating route is a gameplay command, charged per account (P-13).
+  const commander = (request: FastifyRequest) => requireCommander(ctx, request);
 
   // A new generation reaches open sockets as a snapshot. A failed push costs
   // nothing: the socket's next heartbeat reads the committed hunt anyway.
@@ -81,7 +83,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
   };
 
   app.post('/api/hunts', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     const body = parse(startHuntCommandSchema, request.body);
 
@@ -98,6 +100,16 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       .from(schema.lootPresets)
       .where(and(eq(schema.lootPresets.id, body.lootPresetId), eq(schema.lootPresets.accountId, account.id)));
     if (loot === undefined) throw notOwned('lootPresetId');
+
+    // A faulted hunt accepts only its explicit recovery (P-38, B-30). Asked
+    // before the plan is judged, so a party a fault left at 0 HP hears
+    // HUNT_FAULTED, not a validation of that HP (final review I1). The
+    // lifecycle re-checks it under the account lock.
+    const [current] = await db
+      .select({ status: schema.hunts.status })
+      .from(schema.hunts)
+      .where(eq(schema.hunts.accountId, account.id));
+    if (current?.status === 'faulted') throw new AppError('HUNT_FAULTED', 'hunt.status');
 
     // 2. The rules.
     const recipe = MAPS[body.mapId];
@@ -171,7 +183,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
   });
 
   app.post('/api/hunts/current/stop', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     // The body carries nothing: a stop names no time and needs no guard.
     parse(startHuntCommandSchema.pick({}).strict(), request.body ?? {});
@@ -198,7 +210,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
    * time, never an order.
    */
   app.post('/api/hunts/current/strategy', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     const body = parse(applyStrategyCommandSchema, request.body);
 
@@ -230,7 +242,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
    * in the bag is re-evaluated. Guarded like apply-next-encounter.
    */
   app.post('/api/hunts/current/loot', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     const body = parse(applyLootCommandSchema, request.body);
 
@@ -302,7 +314,7 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
    * exactly as a foreign one does (P-12).
    */
   app.put('/api/presets/:id', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     const body = parse(savePresetCommandSchema, request.body);
 

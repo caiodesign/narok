@@ -323,6 +323,18 @@ export class SocketSession {
       return;
     }
 
+    // A push that arrived while `connect` was awaited may already have
+    // snapshotted a newer generation; this older view must not rewind the
+    // cursor to it (P-14; final review M1).
+    if (view.generation < this.generation) return;
+    // Something was already delivered: the stream is live, so this view
+    // continues it like any other, and a resume no longer applies.
+    if (this.generation !== -1) {
+      this.deliver(view);
+      this.announceReport(view);
+      return;
+    }
+
     // A backlog the unacked bound could not carry is resynchronised with a
     // snapshot rather than replayed straight into a BACKPRESSURE close.
     const through = this.releasedThrough(view);

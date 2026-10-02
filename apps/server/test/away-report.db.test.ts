@@ -42,6 +42,19 @@ async function reports(accountId: string) {
 }
 
 describe('a reconnect after an absence produces one report from the committed deltas', () => {
+  test('M4: a report past its retention reads as absent, before any sweep deletes it', async () => {
+    const account = await insertAccount(db);
+    const r = rig(db);
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    r.clock.now = T0 + 300_000;
+    const view = await r.feed.connect(account.id);
+    const [row] = await reports(account.id);
+    const expiresAt = row!.expiresAt.getTime();
+
+    await expect(readAwayReport(db, account.id, view!.reportId!, expiresAt - 1)).resolves.toBeDefined();
+    await expect(readAwayReport(db, account.id, view!.reportId!, expiresAt)).rejects.toMatchObject({ code: 'NOT_OWNED' });
+  });
+
   test('time away and simulated duration are separate, and the report matches the committed checkpoint', async () => {
     const account = await insertAccount(db);
     const r = rig(db, { config: { offlineCapMs: 60_000 } });
@@ -52,7 +65,7 @@ describe('a reconnect after an absence produces one report from the committed de
     const view = await r.feed.connect(account.id);
     expect(view?.reportId).toBeDefined();
 
-    const report = await readAwayReport(db, account.id, view!.reportId!);
+    const report = await readAwayReport(db, account.id, view!.reportId!, r.clock.now);
     expect(report.status).toBe('capped');
     expect(report.timeAwayMs).toBe(300_000);
     expect(report.simulatedMs).toBe(60_000);
@@ -78,7 +91,7 @@ describe('a reconnect after an absence produces one report from the committed de
 
     r.clock.now = T0 + 3_600_000;
     const view = await r.feed.connect(account.id);
-    const report = await readAwayReport(db, account.id, view!.reportId!);
+    const report = await readAwayReport(db, account.id, view!.reportId!, r.clock.now);
     expect(report.status).toBe('stopped');
     expect(report.stopReason).toBe('wipe');
     expect(report.copyKey).toBe('away.stopped.wipe');
@@ -153,7 +166,7 @@ describe('report version 3 from a real settled hunt (Task 10 fix round 1; part 4
 
     r.clock.now = T0 + 3_600_000;
     const view = await r.feed.connect(account.id);
-    const report = await readAwayReport(db, account.id, view!.reportId!);
+    const report = await readAwayReport(db, account.id, view!.reportId!, r.clock.now);
 
     expect(report.reportVersion).toBe(3);
     expect(report.mapId).toBe('prototype');
@@ -199,7 +212,7 @@ describe('report version 3 from a real settled hunt (Task 10 fix round 1; part 4
     // Reopening credits nothing: the same report, the same checkpoint, the same account version.
     const checkpoint = (await huntRow(db, account.id)).checkpoint;
     const version = await accountVersion(db, account.id);
-    const again = await readAwayReport(db, account.id, view!.reportId!);
+    const again = await readAwayReport(db, account.id, view!.reportId!, r.clock.now);
     expect(again).toEqual(report);
     expect(Buffer.from((await huntRow(db, account.id)).checkpoint).equals(Buffer.from(checkpoint))).toBe(true);
     expect(await accountVersion(db, account.id)).toBe(version);
@@ -210,9 +223,11 @@ describe('reading a report credits nothing (B-17)', () => {
   let app: FastifyInstance;
 
   test('opening, reopening and refreshing it leave the account and the hunt byte-identical', async () => {
-    const stores = memoryStores();
     const r = rig(db);
-    app = await createApp({ stores, hunts: { lifecycle: r.lifecycle } });
+    // One clock for the app and the hunt: a report's retention is read against it (M4).
+    const now = () => r.clock.now;
+    const stores = memoryStores({ now });
+    app = await createApp({ stores, now, hunts: { lifecycle: r.lifecycle } });
     try {
       const email = `p-${crypto.randomUUID()}@example.com`;
       const origin = defaultConfig().allowedOrigins[0];

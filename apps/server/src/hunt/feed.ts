@@ -89,6 +89,8 @@ export class LifecycleFeed implements HuntFeed {
   private readonly windows = new Map<string, Window>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly tickers = new Map<string, () => void>();
+  /** The settlement each account has in flight from this feed, for heartbeats to share. */
+  private readonly settling = new Map<string, Promise<PersistResult | undefined>>();
   private readonly schedule: FeedScheduler;
   private readonly sequencer: CommandSequencer;
 
@@ -121,8 +123,20 @@ export class LifecycleFeed implements HuntFeed {
     return view === undefined || reportId === undefined ? view : { ...view, reportId };
   }
 
+  /**
+   * A heartbeat settles, coalesced (P-13; final review I2; controller ruling):
+   * while a settlement for the account is already in flight — a storm of
+   * heartbeats from up to four sockets, a tick, a connect — it waits for that
+   * one instead of queueing another behind it; and when the committed
+   * checkpoint already reaches the instant a settlement would credit to,
+   * nothing new is releasable and nothing is committed. Either way the answer
+   * is the same view. No interval is introduced: what limits the write rate is
+   * the play itself, not a number.
+   */
   async heartbeat(accountId: string): Promise<HuntView | undefined> {
-    await this.settle(accountId, 'events');
+    const inFlight = this.settling.get(accountId);
+    if (inFlight !== undefined) await inFlight;
+    else if (this.releasable(accountId)) await this.settle(accountId, 'events');
     return this.view(accountId);
   }
 
@@ -168,8 +182,12 @@ export class LifecycleFeed implements HuntFeed {
       if (age >= this.deps.config.persistCadenceMs) await this.settle(accountId, 'events');
       const view = await this.view(accountId);
       if (view !== undefined) this.push(accountId, { kind: 'view', view });
-    } catch {
-      // Deliberately silent here; see above.
+    } catch (error) {
+      // Dropped, not escalated (see above) — but never silently: a failure
+      // that never faults would otherwise retry every tick unseen (final
+      // review M6). The line names the account and the error class only.
+      const name = error instanceof AppError ? `${error.code}:${error.field}` : error instanceof Error ? error.name : 'unknown';
+      this.options.onLog?.(`feed tick failed account=${accountId} error=${name}`);
     }
   }
 
@@ -241,6 +259,28 @@ export class LifecycleFeed implements HuntFeed {
    * the time this one did not.
    */
   private async settle(accountId: string, collect: 'events' | 'summary', digest = false): Promise<PersistResult | undefined> {
+    const running = this.settleOnce(accountId, collect, digest);
+    this.settling.set(accountId, running);
+    try {
+      return await running;
+    } finally {
+      if (this.settling.get(accountId) === running) this.settling.delete(accountId);
+    }
+  }
+
+  /**
+   * Whether a settlement now would credit anything: false only when the
+   * committed checkpoint this feed holds already reaches the instant the
+   * settlement window would end at. With no window held, it cannot tell, so
+   * it settles.
+   */
+  private releasable(accountId: string): boolean {
+    const window = this.windows.get(accountId);
+    if (window === undefined) return true;
+    return settlementWindow(anchorsOf(window.envelope), this.deps.now()).creditableMs > 0;
+  }
+
+  private async settleOnce(accountId: string, collect: 'events' | 'summary', digest: boolean): Promise<PersistResult | undefined> {
     let committed;
     try {
       // In the account's command order, settled to the instant it was stamped at.

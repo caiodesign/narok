@@ -541,6 +541,22 @@ describe('hello: resume inside the retained window, otherwise a snapshot', () =>
     expect(r.wire.sent.at(-1)).toMatchObject({ type: 'snapshot', generation: 1, seq: 0 });
   });
 
+  test('M1: a push that opens a newer generation during hello is never rewound by the older view', async () => {
+    class RacingFeed extends FakeFeed {
+      override async connect(): Promise<HuntView | undefined> {
+        // A start lands while the hello's settlement is in flight.
+        this.push({ kind: 'view', view: view(4, 0, []) });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return window();
+      }
+    }
+    const r = rig(new RacingFeed());
+    await r.send({ type: 'hello', lastGeneration: 3, lastSeq: 2 });
+    await r.session.settled();
+    expect(r.wire.sent).toMatchObject([{ type: 'snapshot', generation: 4 }]);
+    expect(r.wire.closedWith).toBeUndefined();
+  });
+
   test('a second hello is a protocol violation', async () => {
     const r = rig(new FakeFeed(window()));
     await r.send({ type: 'hello' });

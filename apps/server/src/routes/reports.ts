@@ -20,6 +20,6 @@ export function registerReportRoutes(app: FastifyInstance, ctx: RouteContext, db
   app.get('/api/reports/:id', async (request) => {
     const { account } = await caller(request);
     const { id } = request.params as { id: string };
-    return readAwayReport(db, account.id, id);
+    return readAwayReport(db, account.id, id, now());
   });
 }

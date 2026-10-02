@@ -52,7 +52,7 @@ import { readAccountVersion, type LifecycleDeps } from '../hunt/lifecycle';
 import { requireSession } from '../plugins/session';
 import { runTownCommand, unwrap, type TownDeps, type TownTx } from '../town/commands';
 import { grantStarterKitOnce } from '../town/grants';
-import type { RouteContext } from './context';
+import { requireCommander, type RouteContext } from './context';
 import { hashRequest, requireIdempotencyKey } from './hunts';
 
 export interface TownServices {
@@ -128,6 +128,8 @@ export function registerTownRoutes(app: FastifyInstance, ctx: RouteContext, serv
   const { db, content } = services.lifecycle;
   const deps: TownDeps = { db, content, sequencer: services.sequencer };
   const caller = (request: FastifyRequest) => requireSession(request, stores, config, now());
+  // Every mutating route is a gameplay command, charged per account (P-13).
+  const commander = (request: FastifyRequest) => requireCommander(ctx, request);
 
   /** The named character of the caller, or `NOT_OWNED` — a malformed id is as absent as a missing one. */
   async function requireCharacter(accountId: string, id: unknown): Promise<string> {
@@ -167,7 +169,7 @@ export function registerTownRoutes(app: FastifyInstance, ctx: RouteContext, serv
       method,
       url: path,
       handler: async (request) => {
-        const { account } = await caller(request);
+        const { account } = await commander(request);
         const key = requireIdempotencyKey(request);
         const body = parse(bodySchema, request.body);
         const id = await requireCharacter(account.id, (request.params as { id?: unknown }).id);
@@ -208,7 +210,7 @@ export function registerTownRoutes(app: FastifyInstance, ctx: RouteContext, serv
    * §4 OPEN DECISION, the spec §4.1 recommendation; rulings R146, R147).
    */
   app.post('/api/characters', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     const body = parse(createCharacterCommandSchema, request.body);
     const nameKey = nameKeyOf(body.name);
@@ -301,7 +303,7 @@ export function registerTownRoutes(app: FastifyInstance, ctx: RouteContext, serv
     rule: (character: Character, body: z.infer<S>, bag: Bag, ctx: TownContext) => Result<{ character: Character; bag: Bag }>,
   ): void {
     app.post(path, async (request) => {
-      const { account } = await caller(request);
+      const { account } = await commander(request);
       const key = requireIdempotencyKey(request);
       const body = parse(bodySchema, request.body);
       await requireCharacter(account.id, body.characterId);
@@ -339,7 +341,7 @@ export function registerTownRoutes(app: FastifyInstance, ctx: RouteContext, serv
    * and the increment now in the write's own transaction (R144).
    */
   app.post('/api/inventory/lock', async (request) => {
-    const { account } = await caller(request);
+    const { account } = await commander(request);
     const key = requireIdempotencyKey(request);
     const body = parse(lockCommandSchema, request.body);
     await requireItem(account.id, body.itemId);
