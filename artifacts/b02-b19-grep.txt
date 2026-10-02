@@ -1,0 +1,30 @@
+# B-02 — engine literals in the shipped client bundle
+client files: 8 (.js under apps/client/dist)
+lab files (positive control): 2 (.js under apps/lab/dist)
+  "state was produced by different content": client 0, lab 1
+  "state was produced by a different grid": client 0, lab 1
+  "simulation time moved backwards": client 0, lab 1
+  "a queued entry is scheduled in the past": client 0, lab 2
+  "target is before the current simulation time": client 0, lab 1
+  "cannot encode a non-finite number": client 0, lab 1
+client total: 0; lab total: 7
+B-02 bundle half: no engine literal in the client bundle; the control finds them in the lab bundle
+
+# B-19 — forbidden concepts in the client bundle and both locale files
+## premium offline cap (17h42m)  /17\s*h\s*42|17h42/i: 0 match(es)
+## premium (any mention)  /premium|premi[uo]/i: 6 match(es)
+  apps/client/dist/assets/BagScreen-MsX4HUPL.js: «premium» … ; } .ledger-bag { color: var(--vellum); } .ledger-premium { color: #d7c9ff; } .pips { display: flex; gap: 3
+  apps/client/dist/assets/CharacterScreen-C4WenSE1.js: «premium» … Trebuchet MS', sans-serif; --gutter: 16px; --premium: #d7c9ff; --rule: #3a2e20; --top-h: 58px; 
+  apps/client/dist/assets/CharacterScreen-C4WenSE1.js: «premium» … ; } .ledger-bag { color: var(--vellum); } .ledger-premium { color: #d7c9ff; } .preset { display: grid; 
+  apps/client/dist/assets/CharacterScreen-C4WenSE1.js: «premium» … ; font-weight: 700; font-size: 15px; color: var(--premium); } .prem-tag { display: inline-flex; align-items
+  apps/client/dist/assets/CharacterScreen-C4WenSE1.js: «premium» … te li.is-next { box-shadow: inset 0 0 0 1px var(--premium); color: #fff; } .autospend-note { margin-top: 5p
+  apps/client/dist/assets/index-DG9ml10N.js: «premium» … t:_()}).strict(),r({id:Y,email:_(),stateVersion:Z,premium:m(),versions:r({simulationVersion:_(),contentVers
+## EXP loss / level loss  /exp(erience)?\s*loss|level\s*loss|perda\s+de\s+(exp|n[ií]vel|experi)/i: 0 match(es)
+## de-levelling  /de-?level|lose\s+a\s+level|perde(r)?\s+(um\s+)?n[ií]vel/i: 0 match(es)
+## time until death / forecast  /until\s+death|time\s+to\s+death|\+45\s*m|at[eé]\s+a\s+morte|previs[aã]o/i: 0 match(es)
+## two-level skill divisor  /every\s+(2|two)\s+levels|a\s+cada\s+(2|dois)\s+n[ií]veis/i: 0 match(es)
+## Materials tab  /materials|materiais/i: 0 match(es)
+## paid bag expansion  /bag\s+expansion|expand\s+(the\s+)?bag|expans[aã]o\s+d[ae]\s+bolsa|ampliar\s+(a\s+)?bolsa/i: 0 match(es)
+## fourth preset  /fourth\s+preset|4th\s+preset|quarto\s+preset/i: 0 match(es)
+## gallery  /gallery|galeria/i: 0 match(es)
+## compare original  /compare[\s-]+original|comparar\s+(com\s+o\s+)?original/i: 0 match(es)

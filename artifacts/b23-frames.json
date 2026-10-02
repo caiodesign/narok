@@ -1,0 +1,38 @@
+{
+  "gate": "B-23",
+  "ranAt": "2026-10-02T06:16:50.214Z",
+  "label": "WORKSTATION RESULT (headless Chromium), not a target-device result",
+  "hardware": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor           ",
+    "logicalCpus": 16,
+    "totalMemGiB": 31.2
+  },
+  "browser": "153.0.8010.12",
+  "viewport": "1440x900",
+  "releaseTickMs": 1000,
+  "playbackSpeed": 1,
+  "windowSeconds": 30,
+  "framesPresented": 1831,
+  "socketFramesReceived": 25,
+  "socketEventsReceived": 191,
+  "perFrameMs": {
+    "task": 0.847,
+    "script": 0.177,
+    "layout": 0.043,
+    "recalcStyle": 0.076
+  },
+  "frameIntervalMs": {
+    "n": 1830,
+    "min": 16.5,
+    "p50": 16.7,
+    "p95": 16.7,
+    "p99": 16.8,
+    "max": 16.8
+  },
+  "intervalsMissingAFrame": 0,
+  "huntRestartsDuringWindow": 0,
+  "huntStillRunningAtEnd": true,
+  "budgetMs": 16.7
+}

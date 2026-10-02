@@ -1,15 +1,35 @@
-# Milestone A continuous integration (plan task 11, ruling R69).
+# Continuous integration — milestone A (plan task 11, ruling R69), extended
+# for milestone B (Task 11, ruling R197).
 #
 # Runs the whole automated gate on every push and pull request, in the same
-# order the repository's own `pnpm check` uses, then the browser smoke.
+# order the repository's own `pnpm check` uses, then the browser smoke and the
+# end-to-end specs.
 #
 # Node is pinned to the repo's `engines.node` (24.15.0) and pnpm to its
 # `packageManager` field (pnpm@10.34.5) — `pnpm/action-setup` reads that field
 # rather than taking a second, driftable copy of the version here.
 #
-# The `pnpm balance` commands are deliberately absent: they are minutes-long
-# evidence runs producing `artifacts/**`, not gates. No secret is referenced by
-# this workflow, and it needs no write access to the repository.
+# Milestone B adds a PostgreSQL service: the `db` vitest project (the
+# `*.db.test.ts` suites) and the end-to-end specs (`e2e/hunt.spec.ts`,
+# `e2e/town.spec.ts`) run against a real database, never a fake. The service
+# uses the same image, user and password as `compose.dev.yml`, published on the
+# same port, so the suites' default `DATABASE_URL` needs no CI-only override.
+# The dev database is migrated before the tests; the e2e harness creates and
+# migrates its own `narok_e2e` (`e2e/support/server.mjs`).
+#
+# `apps/server` has no build step: it runs under `tsx` in every environment
+# (`pnpm --filter @narok/server start`), so the server's "build" is the
+# typecheck below plus the e2e run, which boots it from source exactly as
+# production does.
+#
+# B-01's five stylesheet diffs run twice: inside the unit run
+# (`apps/client/test/stylesheet-port.test.ts`) and as literal `diff` commands,
+# the form the port records name.
+#
+# The `pnpm balance` commands and the Task 11 drills (`artifacts/*-drill.mjs`,
+# `load-accounts.mjs`, `frame-budget.mjs`) are deliberately absent: they are
+# evidence runs producing `artifacts/**`, not gates. No secret is referenced
+# by this workflow, and it needs no write access to the repository.
 name: CI
 
 on:
@@ -21,8 +41,24 @@ permissions:
 
 jobs:
   check:
-    name: build, typecheck, lint, test, browser smoke
+    name: build, typecheck, lint, test, browser smoke, end-to-end
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: narok
+          POSTGRES_PASSWORD: narok
+          POSTGRES_DB: narok
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U narok -d narok"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://narok:narok@127.0.0.1:5433/narok
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -49,8 +85,21 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Migrate the test database
+        run: pnpm db:migrate
+
       - name: Unit and integration tests
         run: pnpm test
+
+      - name: Ported stylesheets are byte-identical (B-01)
+        shell: bash
+        run: |
+          set -euo pipefail
+          diff <(sed -n '11,764p' codex-examples/realm-refined/hunt.html) <(sed -n '1,754p' apps/client/src/styles.css)
+          diff <(sed -n '98,750p' codex-examples/realm-refined/strategy.html) <(sed -n '1,653p' apps/client/src/strategy.css)
+          diff <(sed -n '11,761p' codex-examples/realm-refined/bag.html) <(sed -n '1,751p' apps/client/src/bag.css)
+          diff <(sed -n '11,822p' codex-examples/realm-refined/character.html) <(sed -n '1,812p' apps/client/src/character.css)
+          diff <(sed -n '11,713p' codex-examples/realm-refined/away.html) <(sed -n '1,703p' apps/client/src/away.css)
 
       # Chromium only: the spec asks for a smoke, not a browser matrix.
       - name: Install the Playwright browser
@@ -59,5 +108,14 @@ jobs:
       - name: Build the client
         run: pnpm --filter @narok/client build
 
-      - name: Browser smoke
+      - name: Build the laboratory
+        run: pnpm --filter @narok/lab build
+
+      # B-02's bundle half and B-19's grep, over what was just built.
+      - name: Grep the built bundles (B-02, B-19)
+        run: node artifacts/bundle-grep.mjs bundle-grep.txt
+
+      # Both projects: `chromium` (client smoke, hunt and town against the real
+      # server) and `lab` (milestone A's laboratory smoke).
+      - name: Browser smoke and end-to-end
         run: pnpm test:e2e

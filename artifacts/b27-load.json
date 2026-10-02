@@ -1,0 +1,85 @@
+{
+  "gate": "B-27",
+  "label": "WORKSTATION RESULT — not the target VPS; B-27 and milestone A §6.5 stay open",
+  "ranAt": "2026-10-02T06:11:43.073Z",
+  "hardware": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor",
+    "logicalCpus": 16,
+    "totalMemGiB": 31.2
+  },
+  "node": "v24.15.0",
+  "accounts": 50,
+  "hours": 0.1,
+  "absenceMs": 3600000,
+  "onboardMs": {
+    "n": 50,
+    "min": 165.6,
+    "p50": 186,
+    "p95": 252.3,
+    "p99": 257,
+    "max": 257
+  },
+  "startHuntMs": {
+    "n": 50,
+    "min": 23.3,
+    "p50": 24.7,
+    "p95": 28.4,
+    "p99": 73.9,
+    "max": 73.9
+  },
+  "reconnectTimeToSnapshotMs": {
+    "n": 50,
+    "min": 404,
+    "p50": 442.7,
+    "p95": 454.7,
+    "p99": 456.6,
+    "max": 456.6
+  },
+  "restartedAfterAbsence": 50,
+  "huntReadUnderLoadMs": {
+    "n": 600,
+    "min": 71.8,
+    "p50": 118.6,
+    "p95": 261,
+    "p99": 261.4,
+    "max": 261.9
+  },
+  "huntReadFailures": [],
+  "huntRestartsDuringHold": 67,
+  "frameInterArrivalMs": {
+    "n": 7675,
+    "min": 2.6,
+    "p50": 1010.8,
+    "p95": 5045.4,
+    "p99": 5651.7,
+    "max": 41197.7
+  },
+  "framesReceived": 7701,
+  "peakRssMiB": 351.5,
+  "rssSamples": 347,
+  "socketBoundProbe": {
+    "opens": [
+      "open",
+      "open",
+      "open",
+      "open",
+      "open"
+    ],
+    "closes": [
+      null,
+      null,
+      null,
+      {
+        "code": 1013,
+        "reason": "RATE_LIMITED"
+      },
+      {
+        "code": 1013,
+        "reason": "RATE_LIMITED"
+      }
+    ]
+  },
+  "note": "Each account is charged to its own TEST-NET-2/3 X-Forwarded-For source; the credential limiter keys on that header (plugins/rate-limit.ts)."
+}

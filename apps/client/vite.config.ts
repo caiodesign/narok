@@ -1,9 +1,22 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+/**
+ * Ruling R197: `vite preview` forwards `/api` and `/ws` to a real server when
+ * `NAROK_API_PROXY` names one, so the end-to-end specs (`e2e/hunt.spec.ts`,
+ * `e2e/town.spec.ts`) drive the built bundle against `apps/server` on one
+ * origin, the way Caddy fronts both in production (part 1 §1). Unset, preview
+ * serves the bundle alone, exactly as before; nothing here reaches the build.
+ */
+const apiProxy = process.env.NAROK_API_PROXY;
+
 export default defineConfig({
   base: './',
   plugins: [react()],
+  preview:
+    apiProxy === undefined || apiProxy === ''
+      ? {}
+      : { proxy: { '/api': { target: apiProxy }, '/ws': { target: apiProxy, ws: true } } },
   build: {
     target: 'es2022',
     rolldownOptions: {
