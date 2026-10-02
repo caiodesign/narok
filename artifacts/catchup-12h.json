@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "measuredAt": "2026-10-02T14:14:16.461Z",
+    "nodeVersion": "v24.15.0",
+    "platform": "win32",
+    "cpuModel": "AMD Ryzen 7 7800X3D 8-Core Processor",
+    "cpuCount": 16,
+    "totalMemoryBytes": 33514852352,
+    "executor": "inline (compose.ts), the API process main thread",
+    "absenceMs": 43200000,
+    "path": "LifecycleFeed.connect: summary settlement with digest (R192), away report, view",
+    "hunt": "laboratory party guardian/cleric/ranger, mixed recipe, default placement and strategy"
+  },
+  "sequential": {
+    "runs": [
+      {
+        "wallMs": 728.4414,
+        "maxGapMs": 624.3986,
+        "histogramMaxMs": 624.427007,
+        "reportId": "2b4187a9-876b-4836-9efa-fdcf882bd208",
+        "status": "running",
+        "simNowMs": 43200000,
+        "stopReason": null
+      },
+      {
+        "wallMs": 713.3022,
+        "maxGapMs": 611.7188999999998,
+        "histogramMaxMs": 611.844095,
+        "reportId": "45eb770e-adfd-4a58-8021-273a721497d4",
+        "status": "running",
+        "simNowMs": 43200000,
+        "stopReason": null
+      },
+      {
+        "wallMs": 702.1733,
+        "maxGapMs": 598.2719999999999,
+        "histogramMaxMs": 598.736895,
+        "reportId": "ffb96e95-73b8-4418-b113-a21858520d44",
+        "status": "running",
+        "simNowMs": 43200000,
+        "stopReason": null
+      },
+      {
+        "wallMs": 682.2382,
+        "maxGapMs": 577.1768999999999,
+        "histogramMaxMs": 577.241087,
+        "reportId": "bdbe6188-26d1-4539-8e2d-0f4821222c12",
+        "status": "running",
+        "simNowMs": 43200000,
+        "stopReason": null
+      },
+      {
+        "wallMs": 711.9835,
+        "maxGapMs": 605.395,
+        "histogramMaxMs": 605.552639,
+        "reportId": "96a5cf9d-125a-4a8c-b8b9-f79e74a595b0",
+        "status": "running",
+        "simNowMs": 43200000,
+        "stopReason": null
+      }
+    ],
+    "wallMs": {
+      "n": 5,
+      "min": 682.2382,
+      "p50": 711.9835,
+      "p95": 728.4414,
+      "p99": 728.4414,
+      "max": 728.4414
+    },
+    "maxGapMs": {
+      "n": 5,
+      "min": 577.1768999999999,
+      "p50": 605.395,
+      "p95": 624.3986,
+      "p99": 624.3986,
+      "max": 624.3986
+    }
+  },
+  "concurrent16": {
+    "totalWallMs": 9482.2986,
+    "maxGapMs": 1155.4153999999999,
+    "histogramMaxMs": 1155.530751,
+    "reports": 16,
+    "simNowMs": {
+      "n": 16,
+      "min": 43200000,
+      "p50": 43200000,
+      "p95": 43200000,
+      "p99": 43200000,
+      "max": 43200000
+    },
+    "stopped": 0
+  }
+}

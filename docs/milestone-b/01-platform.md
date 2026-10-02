@@ -17,6 +17,19 @@ Milestone B adds `packages/protocol` and `apps/server` to the existing workspace
 |---|---|---|
 | `api` (Fastify, Node) | HTTP routes, WebSocket upgrade and sessions, all validation, all database transactions, the authoritative clock, event release to clients | PostgreSQL; `catchup` workers in-process; clients over HTTPS/WSS behind Caddy (layer-1 §13) |
 | `catchup` worker pool | Executing `advance()` from `@narok/sim` over a checkpoint, producing a candidate result; no database access, no wall-clock authority | `api` only, by message passing |
+
+> **Ruling R202 (final review I3, controller ruling 2026-10-02) — deviation from this table and from §8.**
+> In milestone B the `catchup` pool does not exist as a separate execution context: catch-up runs
+> **inline on the `api` event loop** (`apps/server/src/compose.ts`, `new SegmentPool(inlineExecutor(sim))`),
+> and there is **no bounded catch-up queue** and so no `RATE_LIMITED` overflow (§8's "Queued catch-up jobs"
+> row is unmet). The `SegmentExecutor` seam is where a `worker_threads` executor and the bounded queue
+> go; `runSegment` is already pure (P-04 holds: it writes nothing). Measured on the workstation
+> (`artifacts/catchup-12h.json`, `artifacts/catchup-12h.ts`): a 12 h digest-mode reconnect settlement
+> takes 712 ms p50 of wall time and blocks the event loop for 605 ms p50 (625 ms max) alone; sixteen
+> returning at once take 9.5 s in total, serialised on the one thread, with a longest single stall of
+> 1.16 s. Every socket release tick, heartbeat, authorisation and REST request on the process waits
+> behind that. It is an **open gate before any invitation**, beside B-27, closed by the owner or by the
+> worker executor and bounded queue (results §8).
 | `admin` CLI | Grants/revocations, password resets, maintenance freeze, settle/migrate/resume, restore drills (layer-1 §8.4, §4.7) | PostgreSQL and the `api` maintenance flag |
 | PostgreSQL | All durable state | `api` and `admin` only |
 | Caddy | TLS termination, HTTP→HTTPS redirect, `api` reverse proxy (layer-1 §13) | `api` |
@@ -215,7 +228,7 @@ Layer-1 §8.3 requires caps on message sizes, connections, worker jobs and pendi
 | Concurrent sockets per account | count | open decision |
 | Unacknowledged outbound events per socket | count | open decision, enforced by P-14's `ack` and `BACKPRESSURE` |
 | Catch-up worker pool size | count | open decision, sized from VPS measurement (layer-1 §13) |
-| Queued catch-up jobs | count | open decision; overflow returns `RATE_LIMITED`, never an unbounded queue (layer-1 §4.8) |
+| Queued catch-up jobs | count | open decision; overflow returns `RATE_LIMITED`, never an unbounded queue (layer-1 §4.8) — **not built in B: catch-up runs inline with no queue (R202, open pre-invite gate)** |
 | Per-job scheduled-event budget | count | reuse the simulation's `maxScheduledEvents` yield mechanism; continuation chunks preserve the split invariant (contracts §5, layer-1 §4.8) |
 | Checkpoint blob size | bytes | open decision |
 

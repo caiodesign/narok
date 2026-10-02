@@ -165,8 +165,11 @@ owner decides whether B needs a minimal sign-in and default-preset path before i
   builds and simulates the plan (`sim.start`) before the lifecycle transaction checks the existing
   hunt, so when the faulted hunt's checkpoint left a character at 0 HP the request is refused for
   the party's HP, not for the fault. The refusal is still a refusal; the reason is wrong, and the
-  same ordering applies to a start while any hunt is running. Not fixed here (out of this round's
-  scope); the fix is to check the hunt's status before simulating the plan.
+  same ordering applies to a start while any hunt is running. **Fixed in the final fix round
+  (R205):** the route reads the hunt's status before the plan is simulated, and a faulted hunt
+  answers `HUNT_FAULTED`; `recoverFaultedHunt` now heals the party's rows to their derived maxima,
+  so a character a fault left at 0 HP can start again after recovery. (A start while a hunt is
+  *running* still simulates the plan before the in-transaction `hunt.status` refusal.)
 - **Start during the return journey.** After Stop the party travels to town for 10 s of content;
   the shell offers Start a new hunt immediately and the server refuses it (`hunt.travel`) until the
   party arrives. Nothing on screen says why.
@@ -269,6 +272,25 @@ opened; the fifth and sixth sockets of the account were closed `1013 RATE_LIMITE
 refusal at `socketsPerAccount = 4`. Every hunt in the one-hour absence ended early (wipes), so
 "settles a 1 h absence" settled minutes of simulated time per account, not an hour.
 
+**12 h catch-up on the API event loop (final review I3, ruling R202)** (`artifacts/catchup-12h.json`,
+script `artifacts/catchup-12h.ts`, harness database `narok_drill_catchup`): the reconnect path a
+socket's `hello` takes after a full twelve-hour absence (`LifecycleFeed.connect` — summary
+settlement with the away-report digest, the report, the view), through the composed server
+dependencies with the inline executor, for a laboratory party that survives the whole 12 h
+(43,200,000 simulated ms credited in every run; a level-1 party with progression wipes in minutes).
+Event-loop block = the longest gap a 1 ms interval saw (agrees with `monitorEventLoopDelay`'s max).
+
+| Measure | n | p50 | max |
+|---|---|---|---|
+| one reconnect, wall time | 5 | 712.0 ms | 728.4 ms |
+| one reconnect, event-loop block | 5 | 605.4 ms | 624.4 ms |
+| sixteen reconnects at once, total wall time | 1 | 9,482.3 ms | — |
+| sixteen reconnects at once, longest event-loop block | 1 | 1,155.4 ms | — |
+
+While a settlement runs, nothing else on the process runs: no release tick, heartbeat, socket
+authorisation or REST request. Sixteen returning players hold the loop for ~9.5 s, in stalls of
+up to 1.16 s. This is the cost R202 accepts for B; it is an open pre-invite gate (§8).
+
 ### 6.2 Target VPS results — **not run**
 
 No target VPS exists for this run. B-27's gate and milestone A §6.5 both name it; neither is claimed.
@@ -305,6 +327,8 @@ The figures in §6.1 must not be quoted as capacity.
 | B-25 (drop half) | a drill run in which a drop lands between the committed checkpoint and the SIGKILL | implementer |
 | B-24 (onboarding) | a sign-in and default-preset path inside the product (§4.2) | owner decides scope (B or Phase C) |
 | CI | a green Actions run | anyone who pushes |
+| Catch-up executor (R202) — **before invite** | catch-up runs inline on the API event loop with no bounded queue (§6.1: 605 ms block per 12 h reconnect, ~9.5 s for sixteen at once); a `worker_threads` executor behind `SegmentExecutor` plus a bounded queue refusing with `RATE_LIMITED`, or the owner's acceptance of the inline cost | owner, or an implementer before invitations |
+| Credential limiter trusts `X-Forwarded-For` — **before invite** | `plugins/rate-limit.ts` charges the first XFF entry; safe only if the proxy overwrites it (§4.3) | owner (proxy topology) |
 
 ## 9. Milestone A's carried prerequisites
 
@@ -317,7 +341,7 @@ The figures in §6.1 must not be quoted as capacity.
 ## 10. Raw artifacts
 
 Committed: `artifacts/bundle-grep.mjs`, `recovery-drill.mjs`, `concurrency-drill.mjs`,
-`restore-drill.mjs`, `load-accounts.mjs`, `frame-budget.mjs`, `town-shots.mjs`; `b02-b19-grep.txt`;
+`restore-drill.mjs`, `load-accounts.mjs`, `frame-budget.mjs`, `town-shots.mjs`, `catchup-12h.ts`; `b02-b19-grep.txt`; `catchup-12h.json`;
 `b23-frames.json`; `b25-recovery.{json,txt}`; `b26-concurrency.{json,txt}`; `b28-restore.{json,txt}`;
 `b27-load.json`; `town/*.png`, `town/probe.json`; this file. The harness they share is
 `e2e/support/server.mjs`.
@@ -350,6 +374,36 @@ commands), `artifacts/b27-load.log`, `artifacts/b28-backup.dump`, `artifacts/pla
   lifting the freeze over an unsettled hunt bills the whole outage to that player's offline
   allowance, which P-31 forbids. *Cost if wrong:* drop the check; `maintenance.db.test.ts` names it.
 
+### Final fix round (final review I1–I3, 2026-10-02)
+
+- **R202 — catch-up runs inline, with no bounded queue, deviating from the plan.** The plan's
+  Task 3 interface runs `runSegment` in a worker, and part 1 §1/§8 ask for a `catchup` pool reached by
+  message passing and a bounded queue whose overflow returns `RATE_LIMITED`. B ships
+  `new SegmentPool(inlineExecutor(sim))` in `compose.ts`: every settlement runs on the API event loop
+  and concurrent settlements serialise there. Measured in §6.1 (605 ms block per 12 h reconnect).
+  Recorded where it binds: `docs/milestone-b/01-platform.md` §1 and §8. *Why:* a worker executor is a
+  sizeable change, there is no VPS and no invitation imminent, and the `SegmentExecutor` seam already
+  isolates the change. *Cost if wrong:* event-loop stalls under real load — an open gate before
+  invite (§8).
+- **R203 — gameplay commands are charged per account, and heartbeat settlements coalesce (P-13).**
+  Every mutating hunt, preset and town route resolves the session and then charges
+  `limiters.command` (`config.rateLimits.command`, unchanged) before any read or rule; reads are not
+  charged. A socket heartbeat no longer queues a settlement per message: it waits for one already in
+  flight for the account, and settles nothing when the committed checkpoint already reaches the
+  instant a settlement would credit to. No new interval or threshold was introduced. *Cost if wrong:*
+  a heartbeat storm still costs a view (an engine run on a copy, no write).
+- **R204 — the db suites refuse the dev database.** `apps/server/test/db-helpers.ts` refuses any
+  database whose name does not end in `_test` or `_e2e` unless `CI` is set or
+  `NAROK_DB_TESTS_TRUNCATE=<name>` opts in, because the suites truncate every table and the default
+  URL names `narok`. Local `pnpm check` needs `DATABASE_URL` pointed at a harness database (for
+  example `narok_e2e`). *Cost if wrong:* a developer sets one variable.
+- **R205 — recovering a faulted hunt heals the party (owner rule: every return to town fully
+  heals).** `recoverFaultedHunt` sets each party character's HP and MP to the maxima the one
+  derivation (`characterMaxima`) gives its row and worn items, in the recovery's transaction, and
+  `POST /api/hunts` answers `HUNT_FAULTED` before it simulates the plan. Stop, wipe and stalemate
+  already heal through the engine's `returnToTown`, committed by `commitProgression`; the maintenance
+  `settle` reaches town only through those same engine paths.
+
 ## 12. Recommendation: **retain the authoritative server design; do not invite players yet**
 
 Scoped to what was measured.
@@ -362,6 +416,7 @@ byte-identical by every table; a fault stopped, archived and stayed stopped. The
 
 **Do not invite yet, because of what this run found or could not run:** a new account cannot reach
 a hunt from the product (§4.2); a faulted hunt has no recovery the player can take (B-30); the
-credential limiter's trust of `X-Forwarded-For` needs a deployment answer; and every capacity
+credential limiter's trust of `X-Forwarded-For` needs a deployment answer; catch-up runs inline on
+the API event loop with no bounded queue (R202 — 605 ms per 12 h reconnect, §6.1); and every capacity
 figure here is a workstation figure — B-27 and A §6.5 need the VPS. The defect that would have hit
 every returning player (§4.1) is fixed and guarded by a browser test.
