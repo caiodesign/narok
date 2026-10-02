@@ -344,11 +344,19 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
     throw error;
   }
 
-  const envelope: CheckpointEnvelope = {
+  /**
+   * Ruling R198: a hunt's first generation is one past the account's last —
+   * 1 for the account's first hunt, as part 2 §1 step 1 states, and otherwise
+   * the stopped hunt's generation + 1. Part 2 §2 makes `generation` monotonic
+   * and every protocol message carries it; a socket and a client both drop a
+   * view whose generation is not newer than the one they hold (P-15, B-05),
+   * so a second hunt restarting at 1 was invisible to an open connection.
+   */
+  const envelopeAt = (generation: number): CheckpointEnvelope => ({
     envelopeVersion: ENVELOPE_VERSION,
     accountId: command.accountId,
     huntId,
-    generation: 1,
+    generation,
     checkpointSeq: 0,
     accountStateVersion: command.expectedStateVersion,
     wallAnchorMs: T0,
@@ -362,8 +370,7 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
     pendingLoot: [],
     stopContext: null,
     state: deps.sim.encode(state),
-  };
-  const encoded = encodeCheckpoint(envelope);
+  });
 
   const result = await withAccountTx(
     deps.db,
@@ -376,7 +383,7 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
     async (tx) => {
       // Checked under the account lock, so two starts cannot both see "none".
       const [existing] = await tx
-        .select({ status: schema.hunts.status, checkpoint: schema.hunts.checkpoint })
+        .select({ status: schema.hunts.status, checkpoint: schema.hunts.checkpoint, generation: schema.hunts.generation })
         .from(schema.hunts)
         .where(eq(schema.hunts.accountId, command.accountId));
       if (existing?.status === 'faulted') throw new AppError('HUNT_FAULTED', 'hunt.status');
@@ -385,6 +392,9 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
         throw new AppError('RULE_VIOLATION', 'hunt.travel');
       }
 
+      const generation = (existing?.generation ?? 0) + 1;
+      const envelope = envelopeAt(generation);
+      const encoded = encodeCheckpoint(envelope);
       await saveCheckpoint(tx, {
         accountId: command.accountId,
         status: 'running',
@@ -395,7 +405,7 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
         simAnchorMs: 0,
         wallAnchorAt: new Date(T0),
         lastSeenAt: new Date(T0),
-        generation: 1,
+        generation,
         maxBytes: deps.config.maxCheckpointBytes,
       });
 

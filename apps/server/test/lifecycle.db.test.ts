@@ -669,7 +669,8 @@ describe('P-38: recovery from a fault is explicit and validated', () => {
     const deps = { ...h.deps, pool: new SegmentPool(inlineExecutor(sim)) };
     await expect(
       startHunt(deps, { accountId: account.id, expectedStateVersion: version + 1, plan: plan() }),
-    ).resolves.toMatchObject({ generation: 1 });
+      // One past the recovered hunt's generation 1 (R198), never a reuse of it.
+    ).resolves.toMatchObject({ generation: 2 });
     expect((await huntRow(account.id)).faultedReason).toBeNull();
   });
 
@@ -755,6 +756,27 @@ describe('stop: settle, then return to town (spec §4.0, §4.0.1)', () => {
       id, actor.side === 'party' ? { ...actor, hp: actor.stats.maxHp, mp: actor.stats.maxMp } : actor,
     ]));
     expect(JSON.stringify(stopped.actors)).toBe(JSON.stringify(healed));
+  });
+
+  test('R198: a hunt started after a stop opens a newer generation than the stopped one', async () => {
+    // A socket and a client both drop a view whose generation is not newer than
+    // the one they hold (P-15, B-05). A second hunt restarting at 1 after the
+    // first reached 2 was therefore invisible to an open connection until it
+    // reconnected — found by Task 11's evidence harnesses.
+    const account = await insertAccount(db);
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    h.clock.now = T0 + 45_000;
+    const stopped = await stopHunt(h.deps, { accountId: account.id, expectedStateVersion: 1 });
+    h.clock.now = T0 + 45_000 + TRAVEL;
+
+    const next = await startHunt(h.deps, { accountId: account.id, expectedStateVersion: stopped.stateVersion, plan: plan() });
+
+    expect(next.generation).toBe(stopped.generation + 1);
+    const row = await huntRow(account.id);
+    expect(row.generation).toBe(stopped.generation + 1);
+    expect(decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8')).generation).toBe(stopped.generation + 1);
+    expect(sim.decode(decodeCheckpoint(Buffer.from(row.checkpoint).toString('utf8')).state).nextRewardSeq, 'still a new reward namespace').toBe(0);
   });
 
   test('a new hunt waits for the party to reach town', async () => {
