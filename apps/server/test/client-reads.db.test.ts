@@ -120,7 +120,11 @@ describe('GET /api/presets', () => {
     expect(body.strategy).toEqual([
       { id: refs.strategyPresetId, name: 'Main', presetVersion: 1, payloadSchemaVersion: 1, payload: strategyPayload() },
     ]);
-    expect(body.loot).toEqual([{ id: refs.lootPresetId, name: 'Loot', presetVersion: 1 }]);
+    // Ruling R183: loot presets carry their payload, which the Bag screen's
+    // filter pane shows and previews (part 4 §3.3).
+    expect(body.loot).toEqual([
+      { id: refs.lootPresetId, name: 'Loot', presetVersion: 1, payloadSchemaVersion: 1, payload: STARTER_LOOT_PRESET },
+    ]);
     expect(body.stateVersion).toBe(await version(me.accountId));
   });
 

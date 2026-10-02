@@ -379,7 +379,12 @@
     },
     "faultedHelp": "The hunt is faulted. It needs an explicit recovery before a new hunt can start.",
     "unavailable": "A hunt needs a character, a strategy preset and a loot preset on this account.",
-    "report": "An away report is ready."
+    "report": "An away report is ready.",
+    "lootFilter": "Loot filter",
+    "openBag": "Bag",
+    "party": "Party",
+    "openCharacter": "Character",
+    "openReport": "Away report"
   },
   "playbackState": {
     "label": "Playback",
@@ -444,5 +449,375 @@
   },
   "map": {
     "prototype": "Prototype map"
+  },
+  "item": {
+    "arcanist-staff": "Apprentice Staff",
+    "bone-charm": "Bone Charm",
+    "cleric-mace": "Cleric’s Mace",
+    "copper-ring": "Copper Ring",
+    "guardian-sword": "Guardian’s Sword",
+    "leather-boots": "Leather Boots",
+    "leather-cap": "Leather Cap",
+    "padded-vest": "Padded Vest",
+    "ranger-bow": "Ranger’s Bow",
+    "wooden-buckler": "Wooden Buckler",
+    "wool-cloak": "Wool Cloak"
+  },
+  "consumable": {
+    "idun-apple": "Idun’s Apple",
+    "small-hp-potion": "Small HP Potion",
+    "small-mp-potion": "Small MP Potion"
+  },
+  "bonus": {
+    "agi": "AGI",
+    "atk-pct": "ATK",
+    "attack-speed": "Attack speed",
+    "beast-damage": "Damage vs Beast",
+    "crit": "Crit chance",
+    "demon-damage": "Damage vs Demon",
+    "dex": "DEX",
+    "earth-damage": "Earth damage",
+    "earth-resist": "Earth resistance",
+    "fire-damage": "Fire damage",
+    "fire-resist": "Fire resistance",
+    "heal-power": "Healing power",
+    "hp-regen": "HP regen",
+    "humanoid-damage": "Damage vs Humanoid",
+    "insect-damage": "Damage vs Insect",
+    "int": "INT",
+    "luk": "LUK",
+    "matk-pct": "MATK",
+    "max-hp": "Max HP",
+    "mp-regen": "MP regen",
+    "plant-damage": "Damage vs Plant",
+    "str": "STR",
+    "undead-damage": "Damage vs Undead",
+    "vit": "VIT",
+    "water-damage": "Water damage",
+    "water-resist": "Water resistance",
+    "wind-damage": "Wind damage",
+    "wind-resist": "Wind resistance"
+  },
+  "base": {
+    "weaponAtk": "Weapon ATK",
+    "weaponMatk": "Weapon MATK",
+    "armorDef": "DEF",
+    "armorMdef": "MDEF",
+    "basicIntervalMs": "Attack interval"
+  },
+  "slot": {
+    "weapon": "Weapon",
+    "offhand": "Off-hand",
+    "head": "Head",
+    "body": "Body",
+    "cloak": "Cloak",
+    "shoes": "Shoes",
+    "accessory1": "Accessory",
+    "accessory2": "Accessory"
+  },
+  "rarity": {
+    "common": "Common",
+    "uncommon": "Uncommon",
+    "rare": "Rare",
+    "epic": "Epic",
+    "legendary": "Legendary"
+  },
+  "attribute": {
+    "str": {
+      "abbr": "STR",
+      "name": "Strength"
+    },
+    "agi": {
+      "abbr": "AGI",
+      "name": "Agility"
+    },
+    "vit": {
+      "abbr": "VIT",
+      "name": "Vitality"
+    },
+    "int": {
+      "abbr": "INT",
+      "name": "Intelligence"
+    },
+    "dex": {
+      "abbr": "DEX",
+      "name": "Dexterity"
+    },
+    "luk": {
+      "abbr": "LUK",
+      "name": "Luck"
+    }
+  },
+  "loot": {
+    "action": {
+      "keep": "Keep",
+      "auto-sell": "Auto-sell",
+      "ignore": "Ignore"
+    },
+    "category": {
+      "equipment": "Equipment",
+      "consumable": "Consumable"
+    },
+    "condition": {
+      "minRarity": "{{rarity}} or better",
+      "minBonusCount": "{{count}}+ bonuses",
+      "bonus": "has {{bonus}}",
+      "minItemLevel": "item level {{level}}+",
+      "and": " and "
+    }
+  },
+  "town": {
+    "name": "Town",
+    "account": "Account",
+    "gold": "Gold",
+    "bag": "Bag",
+    "state": {
+      "inTown": "In town",
+      "hunting": "Hunting"
+    },
+    "back": {
+      "hunting": "Hunting, return to hunt",
+      "inTown": "In town, return to hunt"
+    },
+    "nav": {
+      "label": "Town menu",
+      "character": "Character",
+      "bag": "Bag",
+      "hunt": "Hunt"
+    },
+    "refused": "The server refused that: {{reason}}"
+  },
+  "bag": {
+    "screen": "Bag and loot filter",
+    "title": "Bag",
+    "shared": "Shared by the whole party",
+    "categories": "Bag categories",
+    "category": {
+      "all": "All",
+      "equipment": "Equipment",
+      "consumable": "Consumables"
+    },
+    "search": "Search the bag",
+    "searchPlaceholder": "Search",
+    "sort": "Sort",
+    "sortBy": {
+      "rarity": "Rarity",
+      "level": "Item level",
+      "name": "Name"
+    },
+    "slots": "Bag slots, {{used}} of {{capacity}} used",
+    "occupancy": "{{used}} / {{capacity}}",
+    "cell": {
+      "consumable": "{{name}} ×{{quantity}}, consumable",
+      "locked": "locked"
+    },
+    "noSelection": "Select an item to inspect it.",
+    "pinned": "Pinned",
+    "selected": "Selected",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "consumableKind": "Consumable",
+    "quantity": "Quantity",
+    "stacks": "Stacks",
+    "kind": "{{rarity}} {{slot}}",
+    "itemLevel": "Item level",
+    "requiresLabel": "Requires",
+    "levelShort": "Lv {{level}}",
+    "bonuses": "Bonuses",
+    "boundTo": "Bound to {{name}}",
+    "compareWith": "Compare with",
+    "emptySlot": "{{name}}’s {{slot}} slot is empty",
+    "comparedWith": "Compared with {{name}}’s {{item}}",
+    "comparison": "Comparison for {{item}}",
+    "stat": "Stat",
+    "equipped": "Equipped",
+    "thisItem": "This item",
+    "change": "Change",
+    "percent": "{{value}}%",
+    "block": {
+      "hunting": "Return to town to equip",
+      "class": "Only for {{classes}}",
+      "level": "Available at level {{required}} · {{name}} is level {{current}}",
+      "bound": "Bound to another character",
+      "unknown": "This item is not in the loaded content"
+    },
+    "cannotEquip": "Cannot equip",
+    "requires": "Requires level {{level}}",
+    "equipOn": "Equip on {{name}}",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "sell": "Sell",
+    "confirmSell": "Confirm sale",
+    "unlockToSell": "Unlock to sell",
+    "saleRefused": {
+      "equipped": "Unequip to sell",
+      "bound": "Bound items are not sold",
+      "protected": "Protected"
+    },
+    "bulk": {
+      "label": "Sell all {{rarity}}",
+      "confirm": "Confirm the sale",
+      "meta_one": "{{count}} item, {{slots}} slot freed, {{locked}} locked kept",
+      "meta_other": "{{count}} items, {{slots}} slots freed, {{locked}} locked kept"
+    },
+    "capacityLine": "{{used}} / {{capacity}} slots used, {{free}} free",
+    "capacityMeter": "Bag capacity",
+    "filter": {
+      "title": "Loot filter",
+      "edited": "edited",
+      "saved_one": "{{count}} filter saved",
+      "saved_other": "{{count}} filters saved",
+      "presets": "Saved loot filters",
+      "unsaved": "Unsaved changes",
+      "byRarity": "By rarity",
+      "bonuses_one": "{{count}} bonus",
+      "bonuses_other": "{{count}} bonuses",
+      "alwaysKept": "Always kept",
+      "precedence": "Protection first: locked items are never sold in bulk and Legendary drops are always kept. Then exceptions, first match wins; rarity rules last.",
+      "exceptions": "Exceptions",
+      "firstMatch": "after protection · first match wins",
+      "preview": "What this filter would do",
+      "previewOver_one": "to the {{count}} item in your bag",
+      "previewOver_other": "to the {{count}} items in your bag",
+      "matched": {
+        "protected": "protected",
+        "default": "by rarity or default",
+        "exception": "by exception {{number}}"
+      },
+      "rowNote": "{{rarity}}, item lv {{level}}, {{matched}}",
+      "savedWould": "Saved filter: {{action}}.",
+      "tally": "{{keep}} kept, {{sold}} auto-sold, {{ignored}} ignored",
+      "previewOnly": "Preview only · bag items stay untouched",
+      "cannotApplyDraft": "Edited rules are not saved, so they cannot be applied. Revert to apply the saved filter.",
+      "revert": "Revert",
+      "apply": "Apply to future drops",
+      "noHunt": "Applies to a running hunt’s future drops"
+    }
+  },
+  "character": {
+    "title": "Character",
+    "roster": "Party members",
+    "flag_one": "{{count}} stat point unspent",
+    "flag_other": "{{count}} stat points unspent",
+    "ident": "Level {{level}} {{class}}",
+    "vitals": "{{name}} vitals",
+    "health": "Health",
+    "mana": "Mana",
+    "expTo": "Experience to level {{level}}",
+    "expMax": "Highest level reached",
+    "experience": "Experience",
+    "gear": "Equipment",
+    "empty": "Empty",
+    "fit_one": "{{count}} in bag fits",
+    "fit_other": "{{count}} in bag fit",
+    "unequip": "Unequip",
+    "itemLevel": "Item lv {{level}}",
+    "attributes": "Attributes",
+    "unspent": "unspent",
+    "raise": "Raise {{attr}}, costs {{cost}} points",
+    "raiseRefused": "Raise {{attr}}, costs {{cost}} points, not enough points",
+    "raiseCapped": "{{attr}} is at its cap",
+    "stepPreview": "{{attr}} {{from}} → {{to}} · costs {{cost}} points",
+    "choose": "Choose + to stage a point. Nothing is spent until you apply.",
+    "pending": "Pending {{pending}} · {{remaining}} would remain",
+    "insufficient": "Pending {{pending}} is more than the {{unspent}} unspent points. Reset before applying.",
+    "stale": "Your account changed before this was applied, so nothing was spent. Your draft is kept and checked against the new state.",
+    "apply": "Apply allocation",
+    "applying": "Applying…",
+    "reset": "Reset",
+    "autoSpend": "Auto-spend template",
+    "autoSpendTarget": "{{attr}} to {{value}}",
+    "autoSpendRest": "Rest into {{attr}}",
+    "combat": "Combat",
+    "stat": {
+      "atk": "ATK",
+      "matk": "MATK",
+      "def": "DEF",
+      "mdef": "MDEF",
+      "hit": "HIT",
+      "flee": "FLEE",
+      "crit": "Crit chance",
+      "interval": "Attack interval"
+    },
+    "skills": "Skills",
+    "skillPoints_one": "skill point",
+    "skillPoints_other": "skill points",
+    "skill": {
+      "rank": "Rank {{rank}} of {{max}}",
+      "raise": "Learn {{skill}} rank {{rank}}",
+      "missing": {
+        "town": "Return to town to learn",
+        "points": "Needs a skill point",
+        "max-rank": "Highest rank reached"
+      }
+    },
+    "skillPreview": "{{skill}}: rank {{from}} → {{to}}",
+    "skillChoose": "Select + to stage a skill rank.",
+    "learn": "Learn",
+    "learning": "Learning…",
+    "cancel": "Cancel",
+    "notLearnable": "Not raisable now",
+    "nextSkillPoint": "Next skill point at level {{level}}. Skill points are always spent by hand.",
+    "noNextSkillPoint": "No further skill point comes with a level.",
+    "returnToHunt": "Return to hunt"
+  },
+  "away": {
+    "title": "While you were away",
+    "running": "Your hunt is still running. Earned rewards are credited.",
+    "capped": "Accrual stopped at the offline limit. The hunt did not stop, and earned rewards are credited.",
+    "bagFull": "The bag filled while you were away. New kept drops were lost; auto-sales, EXP and gold continued.",
+    "stopped": {
+      "wipe": "The whole party fell. The hunt ended and the party was returned to town, fully healed.",
+      "stalemate": "An encounter ran out of time, so the hunt ended and the party returned to town.",
+      "operator": "The hunt was stopped and the party returned to town.",
+      "retreat": "The party retreated to town and the hunt ended.",
+      "potion-floor": "HP potions fell below the floor, so the hunt ended and the party returned to town.",
+      "unknown": "The hunt ended."
+    },
+    "fact": {
+      "away": "Time away",
+      "simulated": "Simulated {{simulated}} of the {{cap}} offline limit",
+      "map": "Map"
+    },
+    "capMeter": "Simulated time against the offline limit",
+    "wipes": {
+      "label": "Party wipes",
+      "thisHunt_one": "{{count}} party wipe this hunt",
+      "thisHunt_other": "{{count}} party wipes this hunt",
+      "thisAbsence_one": "{{count}} while you were away",
+      "thisAbsence_other": "{{count}} while you were away"
+    },
+    "totals": "Totals",
+    "kills": "Kills",
+    "wins": "Encounters won",
+    "rawExp": "EXP earned",
+    "rawGold": "Gold earned",
+    "consumed": "Consumables used",
+    "loot": {
+      "title": "Loot",
+      "rolled_one": "{{count}} drop",
+      "rolled_other": "{{count}} drops",
+      "kept_one": "{{count}} kept",
+      "kept_other": "{{count}} kept",
+      "ignored_one": "{{count}} ignored",
+      "ignored_other": "{{count}} ignored",
+      "autoSold_one": "{{count}} auto-sold as it dropped",
+      "autoSold_other": "{{count}} auto-sold as they dropped",
+      "lost_one": "{{count}} kept drop lost to the full bag",
+      "lost_other": "{{count}} kept drops lost to the full bag",
+      "lostNote": "Lost drops cannot be recovered."
+    },
+    "action": {
+      "view-hunt": "Return to hunt",
+      "start-hunt": "Start a new hunt",
+      "manage-bag": "Manage bag"
+    },
+    "note": {
+      "full": "Bag {{used}} / {{capacity}}. Make room for future drops; the {{lost}} lost drops cannot be recovered.",
+      "room": "Bag {{used}} / {{capacity}}: there is room for new drops."
+    },
+    "filter": "Current loot filter",
+    "review": "Review",
+    "credited": "Rewards were credited when the hunt settled. Opening this report credits nothing."
   }
 }

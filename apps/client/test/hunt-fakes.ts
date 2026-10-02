@@ -9,6 +9,7 @@ import type { ClientMessage, PublicStateWire, ServerMessage } from '@narok/proto
 import {
   CommandError,
   type Api,
+  type AwayReportRecord,
   type HuntResponse,
   type InventoryResponse,
   type PresetRef,
@@ -210,6 +211,12 @@ export interface FakeApi extends Api {
   strategyPresets: readonly StrategyPresetRecord[];
   /** How many times the preset list was read. */
   presetReads: number;
+  /** What `GET /api/reports/:id` answers, by id. */
+  readonly reports: Record<string, AwayReportRecord>;
+  /** Every report id read, in order. */
+  readonly reportReads: string[];
+  /** Every town mutation sent (equip, unequip, lock, allocate, skills, loot, sell), in order. */
+  readonly mutations: { name: string; body: unknown }[];
 }
 
 export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord(SUSTAIN, 'Sustain')]): FakeApi {
@@ -222,6 +229,9 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
     inventoryResponse: null,
     strategyPresets: presets,
     presetReads: 0,
+    reports: {},
+    reportReads: [],
+    mutations: [],
     me: async () => ({ id: 'a', email: 'a@narok.test', stateVersion: 7, premium: false }),
     characters: async () => ({
       characters: [
@@ -266,6 +276,42 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
       const held = gate<SavePresetResponse>();
       api.saves.push({ presetId, body, gate: held });
       return held.promise;
+    },
+    report: async (reportId) => {
+      api.reportReads.push(reportId);
+      const found = api.reports[reportId];
+      if (found === undefined) throw new CommandError('NOT_OWNED', 'reportId');
+      return found;
+    },
+    // Town mutations are recorded and refused: a suite that needs one to land
+    // substitutes its own.
+    equip: async (body) => {
+      api.mutations.push({ name: 'equip', body });
+      throw new CommandError('RULE_VIOLATION', 'equip');
+    },
+    unequip: async (body) => {
+      api.mutations.push({ name: 'unequip', body });
+      throw new CommandError('RULE_VIOLATION', 'unequip');
+    },
+    lock: async (body) => {
+      api.mutations.push({ name: 'lock', body });
+      throw new CommandError('RULE_VIOLATION', 'lock');
+    },
+    allocate: async (characterId, body) => {
+      api.mutations.push({ name: 'allocate', body: { characterId, ...body } });
+      throw new CommandError('RULE_VIOLATION', 'allocate');
+    },
+    upgradeSkill: async (characterId, body) => {
+      api.mutations.push({ name: 'upgradeSkill', body: { characterId, ...body } });
+      throw new CommandError('RULE_VIOLATION', 'skills');
+    },
+    applyLoot: async (body) => {
+      api.mutations.push({ name: 'applyLoot', body });
+      throw new CommandError('RULE_VIOLATION', 'loot');
+    },
+    sell: async (body) => {
+      api.mutations.push({ name: 'sell', body });
+      throw new CommandError('RULE_VIOLATION', 'sell');
     },
   };
   return api;

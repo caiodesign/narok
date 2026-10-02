@@ -63,6 +63,16 @@ export interface OrdersPanelProps {
   onStart: () => void;
   onStop: () => void;
   onOpenStrategy: () => void;
+  /**
+   * The town screens (milestone B Task 10): the reference's second preset
+   * button opens the Bag and loot filter, named by the loot preset the hunt
+   * runs; the party button opens Character. Omitted, neither is drawn.
+   */
+  lootFilterName?: string | null;
+  onOpenBag?: () => void;
+  onOpenCharacter?: () => void;
+  /** The party's names, for the Character button. */
+  partyLabel?: string | null;
 }
 
 interface Control {
@@ -100,6 +110,10 @@ export function OrdersPanel({
   onStart,
   onStop,
   onOpenStrategy,
+  lootFilterName = null,
+  onOpenBag,
+  onOpenCharacter,
+  partyLabel = null,
 }: OrdersPanelProps): React.JSX.Element {
   const { t } = useTranslation();
 
@@ -158,6 +172,31 @@ export function OrdersPanel({
           {t('hunt.openStrategy')}
         </span>
       </button>
+
+      {onOpenBag !== undefined && (
+        <button className="preset" type="button" onClick={onOpenBag}>
+          <span className="preset-kind">{t('hunt.lootFilter')}</span>
+          <span className="preset-value">{lootFilterName ?? t('hunt.openBag')}</span>
+          <span className="preset-edit">
+            <svg aria-hidden="true">
+              <use href="#i-quill" />
+            </svg>
+            {t('hunt.openBag')}
+          </span>
+        </button>
+      )}
+      {onOpenCharacter !== undefined && (
+        <button className="preset" type="button" onClick={onOpenCharacter}>
+          <span className="preset-kind">{t('hunt.party')}</span>
+          <span className="preset-value">{partyLabel ?? t('hunt.party')}</span>
+          <span className="preset-edit">
+            <svg aria-hidden="true">
+              <use href="#i-quill" />
+            </svg>
+            {t('hunt.openCharacter')}
+          </span>
+        </button>
+      )}
 
       <SealedButton control={sealed} />
 

@@ -21,6 +21,7 @@
  * authoritative time is derived from it, and it is never sent anywhere.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SkillId, Slot } from '@narok/data';
 import type { DomainEvent, PublicState } from '@narok/sim';
 import { STRATEGY_PAYLOAD_SCHEMA_VERSION, type PublicStateWire, type StrategyPresetPayload } from '@narok/protocol';
 import {
@@ -28,6 +29,7 @@ import {
   createApi,
   faultOf,
   type Api,
+  type AwayReportRecord,
   type CharacterSummary,
   type HuntResponse,
   type InventoryResponse,
@@ -96,6 +98,31 @@ export interface StrategyCommands {
   apply(ref: PresetRef): Promise<{ active: PresetRef | null; pending: PresetRef | null }>;
 }
 
+/**
+ * The town commands (part 4 §3.3–§3.4), over the same account state Hunt reads.
+ *
+ * Ruling R189: equip, unequip, allocate, upgrade-skill and sell are guarded by
+ * the account version of the newest read the player acted on — they are
+ * town-only, so in town that version is stable and a different one means the
+ * player's picture is stale; lock and apply-loot read the version at the
+ * moment of sending, as Save and Apply do (R170), because both are allowed
+ * while a hunt runs and the version moves at every settled encounter. Every
+ * success re-reads the whole account, so every screen's counters come from
+ * one returned state; every refusal is recorded as `commandError` and
+ * rethrown, and a stale-version refusal re-reads the account too.
+ */
+export interface TownCommands {
+  equip(itemId: string, characterId: string, slot: Slot): Promise<void>;
+  unequip(characterId: string, slot: Slot): Promise<void>;
+  lock(itemId: string, locked: boolean): Promise<void>;
+  allocate(characterId: string, spend: Partial<Record<'str' | 'agi' | 'vit' | 'int' | 'dex' | 'luk', number>>, quotedCost: number): Promise<void>;
+  upgradeSkill(characterId: string, skillId: SkillId, targetRank: number): Promise<void>;
+  applyLoot(ref: PresetRef): Promise<void>;
+  sell(itemIds: readonly string[]): Promise<void>;
+  /** Re-reads characters, presets and the bag. */
+  refresh(): Promise<void>;
+}
+
 export interface UseHuntResult {
   state: PublicState | null;
   events: DomainEvent[];
@@ -114,6 +141,8 @@ export interface UseHuntResult {
   /** A socket or protocol fault. */
   error: ProtocolFault | null;
   reportId: string | null;
+  /** The away report `reportId` names, as read — a read only; it credits nothing (B-17). */
+  report: AwayReportRecord | null;
   hunt: HuntResponse | null;
   inventory: InventoryResponse | null;
   characters: readonly CharacterSummary[];
@@ -121,6 +150,7 @@ export interface UseHuntResult {
   selectedPresetId: string | null;
   selectPreset: (presetId: string) => void;
   strategy: StrategyCommands;
+  town: TownCommands;
 }
 
 function cursorOf(view: PlaybackView): Cursor {
@@ -151,6 +181,9 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
   const [pending, setPending] = useState<HuntCommandPending>(null);
   const [commandError, setCommandError] = useState<ProtocolFault | null>(null);
   const pendingRef = useRef<HuntCommandPending>(null);
+  const [report, setReport] = useState<AwayReportRecord | null>(null);
+  /** The newest account version any read returned: what a town command was formed against (R189). */
+  const accountVersion = useRef<number | null>(null);
   const mounted = useRef(true);
 
   const apply = useCallback(
@@ -225,12 +258,21 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
   const refreshAccount = useCallback(async () => {
     const [chars, presetList, bag] = await Promise.allSettled([api.characters(), api.presets(), api.inventory()]);
     if (!mounted.current) return;
-    if (chars.status === 'fulfilled') setCharacters([...chars.value.characters].sort((a, b) => a.slot - b.slot));
+    const seen = (version: number) => {
+      if (accountVersion.current === null || version > accountVersion.current) accountVersion.current = version;
+    };
+    if (chars.status === 'fulfilled') {
+      seen(chars.value.stateVersion);
+      setCharacters([...chars.value.characters].sort((a, b) => a.slot - b.slot));
+    }
     if (presetList.status === 'fulfilled') {
       setPresets(presetList.value);
       setSelectedPresetId((current) => current ?? presetList.value.strategy[0]?.id ?? null);
     }
-    if (bag.status === 'fulfilled') setInventory(bag.value);
+    if (bag.status === 'fulfilled') {
+      seen(bag.value.stateVersion);
+      setInventory(bag.value);
+    }
     const refused = [chars, presetList, bag].find((result) => result.status === 'rejected');
     if (refused !== undefined && refused.status === 'rejected') setCommandError(faultOf(refused.reason));
   }, [api]);
@@ -239,6 +281,25 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     void refreshAccount();
     void refreshHunt();
   }, [refreshAccount, refreshHunt]);
+
+  // A report notice from the socket: read it. Reading is all the client does
+  // with a report — it settles nothing and credits nothing (B-17).
+  const reportId = view.reportId;
+  useEffect(() => {
+    if (reportId === null) return;
+    let live = true;
+    api.report(reportId).then(
+      (read) => {
+        if (live && mounted.current) setReport(read);
+      },
+      (error: unknown) => {
+        if (live && mounted.current) setCommandError(faultOf(error));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [reportId, api]);
 
   // A new generation (start, stop, apply, recovery) or a reconnect's snapshot:
   // re-read the hunt record for the active and pending strategy versions.
@@ -377,6 +438,46 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     [api, refreshAccount],
   );
 
+  const town = useMemo<TownCommands>(() => {
+    const guarded = async (send: (expectedStateVersion: number) => Promise<unknown>, version: () => Promise<number>): Promise<void> => {
+      setCommandError(null);
+      try {
+        await send(await version());
+      } catch (error) {
+        if (mounted.current) setCommandError(faultOf(error));
+        if (error instanceof CommandError && error.code === 'CONFLICT_STATE_VERSION') await refreshAccount();
+        throw error;
+      }
+      await refreshAccount();
+    };
+    // The version the player's picture was read at (R189).
+    const read = async () => accountVersion.current ?? (await api.me()).stateVersion;
+    // The version as it stands now, for commands allowed mid-hunt (R170, R189).
+    const now = async () => (await api.me()).stateVersion;
+    return {
+      equip: (itemId, characterId, slot) => guarded((v) => api.equip({ itemId, characterId, slot, expectedStateVersion: v }), read),
+      unequip: (characterId, slot) => guarded((v) => api.unequip({ characterId, slot, expectedStateVersion: v }), read),
+      lock: (itemId, locked) => guarded((v) => api.lock({ itemId, locked, expectedStateVersion: v }), now),
+      allocate: (characterId, spend, quotedCost) =>
+        guarded((v) => api.allocate(characterId, { spend, quotedCost, expectedStateVersion: v }), read),
+      upgradeSkill: (characterId, skillId, targetRank) =>
+        guarded((v) => api.upgradeSkill(characterId, { skillId, targetRank, expectedStateVersion: v }), read),
+      sell: (itemIds) => guarded((v) => api.sell({ itemIds, expectedStateVersion: v }), read),
+      applyLoot: async (ref) => {
+        setCommandError(null);
+        try {
+          const current = await api.currentHunt();
+          const applied = await api.applyLoot({ ...ref, expectedStateVersion: current.stateVersion, expectedGeneration: current.generation });
+          if (mounted.current) setHunt((was) => ({ ...was, ...applied }));
+        } catch (error) {
+          if (mounted.current) setCommandError(faultOf(error));
+          throw error;
+        }
+      },
+      refresh: refreshAccount,
+    };
+  }, [api, refreshAccount]);
+
   // -- the authoritative status ---------------------------------------------
 
   // Whichever source has seen the newer generation speaks for the hunt.
@@ -423,6 +524,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     playback: view.status,
     error: view.error,
     reportId: view.reportId,
+    report,
     hunt,
     inventory,
     characters,
@@ -430,5 +532,6 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     selectedPresetId: strategyPreset?.id ?? null,
     selectPreset: setSelectedPresetId,
     strategy,
+    town,
   };
 }

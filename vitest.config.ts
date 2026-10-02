@@ -19,6 +19,10 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
+          // The three route-scoped town sheets are imported `?raw` (ruling
+          // R181); without this vitest hands every CSS import an empty string,
+          // and a screen under test would mount an empty sheet.
+          css: { include: [/apps[\\/]client[\\/]src[\\/](bag|character|away)\.css/] },
           include: ['**/test/**/*.test.{ts,tsx}'],
           exclude: ['**/node_modules/**', '**/.claude/**', '**/artifacts/**', '**/e2e/**', '**/*.db.test.ts'],
         },

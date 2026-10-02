@@ -25,3 +25,23 @@ test('the hunt shell offers Start hunt and Stop, and never Pause or Resume (R166
   await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(1);
   await expect(page.getByRole('button', { name: /pause|resume/i })).toHaveCount(0);
 });
+
+test('the town screens open from the hunt and take their sheet away with them (R181)', async ({ page }) => {
+  await page.goto('/');
+  const sheet = (name: string) => page.locator(`style[data-route-sheet="${name}"]`);
+  await expect(sheet('bag')).toHaveCount(0);
+
+  await page.getByRole('button', { name: /Loot filter/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Bag and loot filter' })).toBeVisible();
+  await expect(sheet('bag')).toHaveCount(1);
+  await expect(page.getByRole('tab', { name: /Materials/ })).toHaveCount(0);
+
+  await page.locator('.statusbar .back').click();
+  await expect(sheet('bag')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Start hunt', exact: true })).toHaveCount(1);
+
+  await page.getByRole('button', { name: /^Party/ }).click();
+  await expect(sheet('character')).toHaveCount(1);
+  await page.getByRole('navigation', { name: 'Town menu' }).getByRole('button', { name: /^Hunt/ }).click();
+  await expect(sheet('character')).toHaveCount(0);
+});

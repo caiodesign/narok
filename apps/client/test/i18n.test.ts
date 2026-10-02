@@ -4,6 +4,9 @@ import type { LabInput, Phase, PublicActor, SimErrorCode, StopReason } from '@na
 import { gridPosition } from '@narok/sim';
 import { resources, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../src/i18n';
 import { validateLabInput } from '../src/validation';
+import { EQUIPMENT_SLOTS, RARITIES } from '@narok/data';
+import { LOOT_ACTIONS, LOOT_CATEGORIES } from '@narok/loot';
+import { ATTRIBUTE_KEYS } from '@narok/progression';
 
 type Tree = { [key: string]: string | Tree };
 
@@ -150,6 +153,75 @@ describe('locale resources', () => {
     expect(produced.size).toBeGreaterThanOrEqual(10);
     for (const language of SUPPORTED_LANGUAGES) {
       expect([...produced].filter((key) => !has(language, key)).sort()).toEqual([]);
+    }
+  });
+});
+
+/**
+ * B-20 over the five screens (milestone B Task 10): Hunt, Strategy, Bag,
+ * Character and Away. Parity holds per screen namespace in both directions,
+ * every content id the town screens name is translated in both languages,
+ * every copy key an away report can carry exists, and no locale carries the
+ * mockups' corrected concepts (part 4 §4).
+ */
+describe('the five screens', () => {
+  const SCREENS = ['hunt', 'strategy', 'town', 'bag', 'character', 'away'] as const;
+
+  test('each screen namespace has the same keys in EN and PT-BR, both directions', () => {
+    for (const screen of SCREENS) {
+      const en = new Set(flatten((treeOf('en')[screen] ?? {}) as Tree));
+      const ptBR = new Set(flatten((treeOf('pt-BR')[screen] ?? {}) as Tree));
+      expect(en.size, screen).toBeGreaterThan(0);
+      expect([...en].filter((key) => !ptBR.has(key)).sort(), screen).toEqual([]);
+      expect([...ptBR].filter((key) => !en.has(key)).sort(), screen).toEqual([]);
+    }
+  });
+
+  test('every item, consumable, bonus, slot, rarity, attribute and loot term the town screens name is translated', () => {
+    const ids = [
+      ...Object.keys(content.items).map((id) => `item.${id}`),
+      ...Object.keys(content.consumables).map((id) => `consumable.${id}`),
+      ...Object.keys(content.bonuses).map((id) => `bonus.${id}`),
+      ...EQUIPMENT_SLOTS.map((slot) => `slot.${slot}`),
+      ...RARITIES.map((rarity) => `rarity.${rarity}`),
+      ...ATTRIBUTE_KEYS.flatMap((key) => [`attribute.${key}.abbr`, `attribute.${key}.name`]),
+      ...LOOT_ACTIONS.map((action) => `loot.action.${action}`),
+      ...LOOT_CATEGORIES.map((category) => `loot.category.${category}`),
+      ...['weaponAtk', 'weaponMatk', 'armorDef', 'armorMdef', 'basicIntervalMs'].map((field) => `base.${field}`),
+    ];
+    for (const language of SUPPORTED_LANGUAGES) {
+      expect(ids.filter((key) => !has(language, key))).toEqual([]);
+    }
+  });
+
+  test('every copy key and action an away report can carry is translated', () => {
+    const stopReasons: Record<StopReason, true> = { wipe: true, stalemate: true, operator: true, retreat: true, 'potion-floor': true };
+    const keys = [
+      'away.running',
+      'away.capped',
+      'away.bagFull',
+      'away.stopped.unknown',
+      ...Object.keys(stopReasons).map((reason) => `away.stopped.${reason}`),
+      ...['view-hunt', 'start-hunt', 'manage-bag'].map((action) => `away.action.${action}`),
+    ];
+    for (const language of SUPPORTED_LANGUAGES) {
+      expect(keys.filter((key) => !has(language, key))).toEqual([]);
+    }
+  });
+
+  test('neither locale carries EXP-loss, de-levelling, forecast, premium-cap, Materials, bag-expansion or fourth-preset copy', () => {
+    const forbidden = [
+      /exp(erience)?[- ]loss|lose[sd]? (exp|experience)|level loss|perda de (exp|experiência|nível)/i,
+      /de-?level|delevel|perde(r|u)? n[ií]vel/i,
+      /forecast|time until death|tempo at[ée] a morte|previs[ãa]o/i,
+      /premium/i,
+      /materials?|materiais/i,
+      /bag expansion|expand the bag|expans[ãa]o da bolsa/i,
+      /fourth preset|quarto preset|4th preset/i,
+    ];
+    for (const language of SUPPORTED_LANGUAGES) {
+      const offending = values(treeOf(language)).filter(([, text]) => forbidden.some((pattern) => pattern.test(text)));
+      expect(offending, language).toEqual([]);
     }
   });
 });

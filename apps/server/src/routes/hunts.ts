@@ -258,9 +258,13 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
   /**
    * The account's presets (part 1 §3; ruling R171): what the Strategy screen's
    * tabs and the start command name. Strategy presets carry their payload,
-   * because the editor shows and edits it; loot presets carry their identity
-   * only until the Bag screen edits them. Ordered by name, then id, so the tab
+   * because the editor shows and edits it. Ordered by name, then id, so the tab
    * order is stable across reads.
+   *
+   * Ruling R183: loot presets carry their payload and its schema version too —
+   * because the Bag screen's filter pane shows the saved rules and previews
+   * them through the shared evaluator (part 4 §3.3, B-14), and had no other
+   * read of them. A read only: loot presets still have no save route.
    */
   app.get('/api/presets', async (request) => {
     const { account } = await caller(request);
@@ -276,7 +280,13 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       .where(eq(schema.strategyPresets.accountId, account.id))
       .orderBy(asc(schema.strategyPresets.name), asc(schema.strategyPresets.id));
     const loot = await db
-      .select({ id: schema.lootPresets.id, name: schema.lootPresets.name, presetVersion: schema.lootPresets.presetVersion })
+      .select({
+        id: schema.lootPresets.id,
+        name: schema.lootPresets.name,
+        presetVersion: schema.lootPresets.presetVersion,
+        payloadSchemaVersion: schema.lootPresets.payloadSchemaVersion,
+        payload: schema.lootPresets.payload,
+      })
       .from(schema.lootPresets)
       .where(eq(schema.lootPresets.accountId, account.id))
       .orderBy(asc(schema.lootPresets.name), asc(schema.lootPresets.id));

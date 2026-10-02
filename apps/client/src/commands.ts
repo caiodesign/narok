@@ -13,6 +13,8 @@
  * Retriable mutations carry an `Idempotency-Key` (P-25). The session is the
  * cookie the browser already holds; nothing here reads or writes it (P-07).
  */
+import type { Attributes, ItemInstance, SkillId, Slot } from '@narok/data';
+import type { LootPreset } from '@narok/loot';
 import { errorEnvelopeSchema, type ErrorCode, type PublicStateWire, type StrategyPresetPayload } from '@narok/protocol';
 
 export interface PresetRef {
@@ -27,12 +29,48 @@ export interface MeResponse {
   readonly premium: boolean;
 }
 
+/** The derived combat stats the server computes with the engine's one formula (`deriveCharacter`). */
+export interface DerivedStatsView {
+  readonly maxHp: number;
+  readonly maxMp: number;
+  readonly atk: number;
+  readonly matk: number;
+  readonly def: number;
+  readonly mdef: number;
+  readonly hit: number;
+  readonly flee: number;
+  readonly critBp: number;
+  readonly intervalMs: number;
+}
+
+/**
+ * A character as `GET /api/characters` reads it (`characterView` in
+ * `apps/server/src/routes/town.ts`). The identity fields are always present;
+ * the progression fields are what the server sends, and a screen that finds
+ * one absent leaves its panel out rather than filling it in (ruling R182).
+ */
 export interface CharacterSummary {
   readonly id: string;
   readonly slot: number;
   readonly name: string;
   readonly classId: string;
   readonly level: number;
+  readonly exp?: number;
+  readonly expToNext?: number | null;
+  /** Allocated attributes, before gear. */
+  readonly attributes?: Attributes;
+  readonly statPoints?: number;
+  readonly skillPoints?: number;
+  readonly skillRanks?: Partial<Record<SkillId, number>>;
+  readonly autoSpendTemplate?: {
+    readonly targets: readonly { readonly attribute: keyof Attributes; readonly value: number }[];
+    readonly remainder: keyof Attributes | null;
+  } | null;
+  readonly hp?: number;
+  readonly mp?: number;
+  readonly maxHp?: number;
+  readonly maxMp?: number;
+  readonly stats?: DerivedStatsView;
 }
 
 export interface CharactersResponse {
@@ -48,10 +86,17 @@ export interface StrategyPresetRecord {
   readonly payload: StrategyPresetPayload;
 }
 
+/**
+ * A loot preset (ruling R183): its identity, and the payload the Bag screen's
+ * filter pane shows and previews. A fixture or an older server may omit the
+ * payload; the pane then shows the preset's name and nothing it cannot read.
+ */
 export interface LootPresetRecord {
   readonly id: string;
   readonly name: string;
   readonly presetVersion: number;
+  readonly payloadSchemaVersion?: number;
+  readonly payload?: LootPreset;
 }
 
 export interface PresetsResponse {
@@ -60,11 +105,121 @@ export interface PresetsResponse {
   readonly stateVersion: number;
 }
 
+/** One consumable as the bag holds it: a total, and the stacks it occupies (ruling R137). */
+export interface ConsumableStack {
+  readonly consumableId: string;
+  readonly quantity: number;
+  readonly stacks: number;
+}
+
+/**
+ * `GET /api/inventory`: the shared bag and the wallet, one read, one account
+ * version. Every slot and gold counter on every screen comes from this one
+ * returned state (part 4 §3.3, §4). `items` holds every owned instance,
+ * equipped or not — only unequipped ones take a slot.
+ */
 export interface InventoryResponse {
   readonly capacity: number;
   readonly usedSlots: number;
   readonly gold: number;
   readonly stateVersion: number;
+  readonly items?: readonly ItemInstance[];
+  readonly consumables?: readonly ConsumableStack[];
+}
+
+/**
+ * The away report as `GET /api/reports/:id` returns it (`AwayReport`,
+ * report version 2, in `apps/server/src/reports/away.ts`). The protocol
+ * package carries only the socket's `{type: 'report', reportId}` notice, so
+ * the client states the fields it reads here. It carries two wipe counts —
+ * this hunt's and this absence's — and no per-member deaths, no per-member
+ * results, no notable drops and no timeline (ruling R184).
+ */
+export type AwayStatus = 'running' | 'capped' | 'bag-full' | 'stopped';
+export type AwayAction = 'view-hunt' | 'start-hunt' | 'manage-bag';
+export interface AwayReportRecord {
+  readonly reportVersion: number;
+  readonly huntId: string;
+  readonly generation: number;
+  readonly status: AwayStatus;
+  readonly stopReason: NonNullable<PublicStateWire['stopReason']> | null;
+  /** A stable key the client localizes (layer-1 §9). */
+  readonly copyKey: string;
+  readonly actions: readonly AwayAction[];
+  readonly awayFromWall: number;
+  readonly returnedAtWall: number;
+  readonly timeAwayMs: number;
+  readonly simulatedMs: number;
+  readonly accrualEndedAtWall: number;
+  readonly capCutoffWall: number;
+  readonly uncovered: { readonly afterStopMs: number; readonly afterCapMs: number };
+  readonly outcomes: {
+    readonly kills: number;
+    readonly wins: number;
+    /** Wipes during this absence. */
+    readonly wipes: number;
+    readonly rawExp: number;
+    readonly rawGold: number;
+    readonly drops: {
+      readonly rolled: number;
+      readonly kept: number;
+      readonly autoSold: number;
+      readonly ignored: number;
+      readonly lost: number;
+    };
+    readonly consumed: Readonly<Record<string, number>>;
+  };
+  /** Wipes over the whole hunt. */
+  readonly wipesThisHunt: number;
+  readonly rewardsCredited: number;
+}
+
+/** A character command's answer: the character as it now stands. */
+export interface CharacterCommandResponse {
+  readonly character: CharacterSummary;
+  readonly stateVersion: number;
+}
+
+export interface EquipBody {
+  readonly itemId: string;
+  readonly characterId: string;
+  readonly slot: Slot;
+  readonly expectedStateVersion: number;
+}
+
+export interface UnequipBody {
+  readonly characterId: string;
+  readonly slot: Slot;
+  readonly expectedStateVersion: number;
+}
+
+export interface LockBody {
+  readonly itemId: string;
+  readonly locked: boolean;
+  readonly expectedStateVersion: number;
+}
+
+export interface AllocateBody {
+  readonly spend: Partial<Record<keyof Attributes, number>>;
+  /** The total cost the staging showed; the server refuses a mismatch (part 3 §5.3). */
+  readonly quotedCost: number;
+  readonly expectedStateVersion: number;
+}
+
+export interface UpgradeSkillBody {
+  readonly skillId: SkillId;
+  readonly targetRank: number;
+  readonly expectedStateVersion: number;
+}
+
+export interface ApplyLootBody extends PresetRef {
+  readonly expectedStateVersion: number;
+  readonly expectedGeneration: number;
+}
+
+export interface SellBody {
+  readonly itemIds: readonly string[];
+  readonly expectedStateVersion: number;
 }
 
 /** `GET /api/hunts/current` and every hunt command's answer (the server's `HuntView`). */
@@ -128,6 +283,20 @@ export interface Api {
   stopHunt(): Promise<HuntResponse>;
   applyStrategy(body: ApplyStrategyBody): Promise<HuntResponse>;
   savePreset(presetId: string, body: SavePresetBody): Promise<SavePresetResponse>;
+  /** A read: it settles nothing and credits nothing (B-17). */
+  report(reportId: string): Promise<AwayReportRecord>;
+  equip(body: EquipBody): Promise<unknown>;
+  unequip(body: UnequipBody): Promise<unknown>;
+  lock(body: LockBody): Promise<unknown>;
+  allocate(characterId: string, body: AllocateBody): Promise<CharacterCommandResponse>;
+  upgradeSkill(characterId: string, body: UpgradeSkillBody): Promise<CharacterCommandResponse>;
+  applyLoot(body: ApplyLootBody): Promise<HuntResponse>;
+  /**
+   * Bulk or single sale. Only reachable with `VITE_FEATURE_SHOP` on, which
+   * defaults off: prices are deferred and the route is unimplemented, so B-15
+   * stays open behind prices (ruling R185).
+   */
+  sell(body: SellBody): Promise<unknown>;
 }
 
 export interface ApiOptions {
@@ -189,6 +358,14 @@ export function createApi(options: ApiOptions = {}): Api {
     stopHunt: () => call('POST', '/api/hunts/current/stop', {}),
     applyStrategy: (body) => call('POST', '/api/hunts/current/strategy', body),
     savePreset: (presetId, body) => call('PUT', `/api/presets/${encodeURIComponent(presetId)}`, body),
+    report: (reportId) => call('GET', `/api/reports/${encodeURIComponent(reportId)}`),
+    equip: (body) => call('POST', '/api/inventory/equip', body),
+    unequip: (body) => call('POST', '/api/inventory/unequip', body),
+    lock: (body) => call('POST', '/api/inventory/lock', body),
+    allocate: (characterId, body) => call('POST', `/api/characters/${encodeURIComponent(characterId)}/attributes`, body),
+    upgradeSkill: (characterId, body) => call('POST', `/api/characters/${encodeURIComponent(characterId)}/skills`, body),
+    applyLoot: (body) => call('POST', '/api/hunts/current/loot', body),
+    sell: (body) => call('POST', '/api/inventory/sell', body),
   };
 }
 
