@@ -19,7 +19,17 @@
  *             simulated, and does not bill the offline allowance), each in its
  *             own guarded account transaction, then lifts the freeze.
  *
- * Usage: DATABASE_URL=... node --import tsx apps/server/src/ops/maintenance.ts <freeze|settle|resume>
+ * Ruling R201: `resume` keeps the freeze while any running hunt was skipped
+ * (not anchored at `T_c` — typically `freeze` then `resume` with no `settle`),
+ * reports it, and exits 2; `resume --force` is the operator's explicit
+ * override and lifts it anyway, still leaving the skipped hunts untouched —
+ * because lifting the freeze over an unsettled hunt bills the whole outage to
+ * that player's offline allowance, the exact outcome P-31 forbids, and an
+ * operator who forgot `settle` should be stopped, not silently obeyed. A hunt
+ * `refused` for a pin mismatch does not hold the freeze: this build can never
+ * settle it, and every route refuses it the same way (P-28).
+ *
+ * Usage: DATABASE_URL=... node --import tsx apps/server/src/ops/maintenance.ts <freeze|settle|resume> [--force]
  * Prints one JSON line per hunt and a summary line.
  */
 import { pathToFileURL } from 'node:url';
@@ -76,8 +86,18 @@ export async function settleAll(deps: LifecycleDeps): Promise<MaintenanceOutcome
   return outcomes;
 }
 
-/** Part 2 §7 step 5: resume with new anchors, then lift the freeze. */
-export async function resumeAll(deps: LifecycleDeps, resumeWall: number): Promise<MaintenanceOutcome[]> {
+export interface ResumeResult {
+  readonly outcomes: MaintenanceOutcome[];
+  /** Whether the freeze was lifted: false while a hunt was skipped and `force` was not given (R201). */
+  readonly lifted: boolean;
+}
+
+/** Part 2 §7 step 5: resume with new anchors, then lift the freeze unless a hunt was skipped (R201). */
+export async function resumeAll(
+  deps: LifecycleDeps,
+  resumeWall: number,
+  options: { readonly force?: boolean } = {},
+): Promise<ResumeResult> {
   const cutoff = await frozenCutoff(deps);
   const outcomes: MaintenanceOutcome[] = [];
   for (const accountId of await runningHunts(deps)) {
@@ -125,11 +145,13 @@ export async function resumeAll(deps: LifecycleDeps, resumeWall: number): Promis
     );
     outcomes.push({ accountId, outcome: 'resumed', detail: `wallAnchorMs=${resumed.wallAnchorMs} lastSeenAt=${resumed.lastSeenAt}` });
   }
+  const skipped = outcomes.some((outcome) => outcome.outcome === 'skipped');
+  if (skipped && options.force !== true) return { outcomes, lifted: false };
   await deps.db
     .update(schema.maintenance)
     .set({ frozen: false, updatedAt: new Date(), updatedBy: 'ops/maintenance' })
     .where(eq(schema.maintenance.id, 1));
-  return outcomes;
+  return { outcomes, lifted: true };
 }
 
 async function main(): Promise<void> {
@@ -142,12 +164,20 @@ async function main(): Promise<void> {
     if (command === 'freeze') {
       await freeze(lifecycle, now, process.argv[3] ?? 'maintenance');
       console.log(JSON.stringify({ frozen: true, cutoffWall: now }));
-    } else if (command === 'settle' || command === 'resume') {
-      const outcomes = command === 'settle' ? await settleAll(lifecycle) : await resumeAll(lifecycle, now);
+    } else if (command === 'settle') {
+      const outcomes = await settleAll(lifecycle);
       for (const outcome of outcomes) console.log(JSON.stringify(outcome));
       console.log(JSON.stringify({ command, hunts: outcomes.length, at: now }));
+    } else if (command === 'resume') {
+      const { outcomes, lifted } = await resumeAll(lifecycle, now, { force: process.argv.includes('--force') });
+      for (const outcome of outcomes) console.log(JSON.stringify(outcome));
+      console.log(JSON.stringify({ command, hunts: outcomes.length, lifted, at: now }));
+      if (!lifted) {
+        console.error('maintenance stays frozen: a running hunt was not settled to the cutoff; run settle, or resume --force');
+        process.exitCode = 2;
+      }
     } else {
-      throw new Error('usage: maintenance.ts <freeze|settle|resume>');
+      throw new Error('usage: maintenance.ts <freeze|settle|resume> [--force]');
     }
   } finally {
     await composed.close();

@@ -47,7 +47,8 @@ describe('maintenance: freeze, settle to the cutoff, resume (R199)', () => {
     const downtime = 10 * 60 * 1000;
     r.clock.now = cutoff + downtime;
     const resumed = await resumeAll(r.lifecycle, r.clock.now);
-    expect(resumed).toEqual([expect.objectContaining({ accountId: account.id, outcome: 'resumed' })]);
+    expect(resumed.outcomes).toEqual([expect.objectContaining({ accountId: account.id, outcome: 'resumed' })]);
+    expect(resumed.lifted).toBe(true);
     const after = await checkpointOf(db, account.id);
     expect(after.wallAnchorMs).toBe(cutoff + downtime);
     expect(after.simAnchorMs, 'nothing simulated across the outage').toBe(atCutoff.simAnchorMs);
@@ -75,6 +76,33 @@ describe('maintenance: freeze, settle to the cutoff, resume (R199)', () => {
     ]);
     const after = (await db.select().from(schema.hunts).where(eq(schema.hunts.accountId, account.id)))[0].checkpoint;
     expect(Buffer.from(after).equals(Buffer.from(before))).toBe(true);
+  });
+
+  test('resume keeps the freeze while a running hunt was never settled to the cutoff (R201)', async () => {
+    const account = await insertAccount(db);
+    const r = rig(db);
+    await startHunt(r.lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    const before = (await db.select().from(schema.hunts).where(eq(schema.hunts.accountId, account.id)))[0].checkpoint;
+
+    // freeze -> resume with no settle: the hunt is anchored before the cutoff.
+    const cutoff = T0 + 20_000;
+    r.clock.now = cutoff;
+    await freeze(r.lifecycle, cutoff, 'test');
+    r.clock.now = cutoff + 60_000;
+    const refused = await resumeAll(r.lifecycle, r.clock.now);
+    expect(refused.outcomes).toEqual([expect.objectContaining({ accountId: account.id, outcome: 'skipped' })]);
+    expect(refused.lifted, 'a skipped hunt keeps the freeze').toBe(false);
+    const [still] = await db.select().from(schema.maintenance).where(eq(schema.maintenance.id, 1));
+    expect(still.frozen).toBe(true);
+    const after = (await db.select().from(schema.hunts).where(eq(schema.hunts.accountId, account.id)))[0].checkpoint;
+    expect(Buffer.from(after).equals(Buffer.from(before)), 'the skipped hunt is left untouched').toBe(true);
+
+    // The operator's explicit override lifts it, and still touches no skipped hunt.
+    const forced = await resumeAll(r.lifecycle, r.clock.now, { force: true });
+    expect(forced.outcomes).toEqual([expect.objectContaining({ accountId: account.id, outcome: 'skipped' })]);
+    expect(forced.lifted).toBe(true);
+    const [lifted] = await db.select().from(schema.maintenance).where(eq(schema.maintenance.id, 1));
+    expect(lifted.frozen).toBe(false);
   });
 
   test('settle and resume refuse to run unless maintenance is frozen', async () => {

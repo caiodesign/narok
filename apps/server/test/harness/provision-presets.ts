@@ -11,9 +11,12 @@
  * `hunt-db-harness.ts`). This file is that seeding, made runnable from
  * outside vitest; it is test tooling, never imported by `src/`.
  *
- * The payloads are the engine's own defaults for the account's party in slot
- * order (`defaultPlacement`, `defaultStrategy`) and the starter loot filter
- * (`starterLoot`); nothing here invents a rule, a threshold or a price.
+ * The placement, strategies and loot filter are the engine's own defaults for
+ * the account's party in slot order (`defaultPlacement`, `defaultStrategy`,
+ * `starterLoot`). The rest thresholds (`hpStart: 50, mpStart: 30`) are not an
+ * engine default — the engine has none — but the value the server's own test
+ * fixtures already use (`apps/server/test/hunt-db-harness.ts`); nothing here
+ * invents a rule, a threshold or a price of its own.
  *
  * Usage: DATABASE_URL=... node --import tsx apps/server/test/harness/provision-presets.ts <email> [<email> ...]
  * Prints one JSON line per account: `{ email, strategyPresetId, lootPresetId }`.

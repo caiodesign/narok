@@ -131,7 +131,7 @@ A checkpoint contains everything needed to resume without hidden process state:
 - Character progression, allocated stats/skills, derived combat state, equipment references, HP/MP, and build templates.
 - Party, map, encounter, enemy state, placements, movement/path state, current targets, and threat.
 - Pending actions/casts, cooldowns, statuses, buff sources/expiry, regeneration schedule, and event sequence counters.
-- Strategy and loot preset snapshots, rest/walk/retreat state, wipe limit and count.
+- Strategy and loot preset snapshots, rest/walk/retreat state, wipe limit and count. *(superseded by the owner decision of 2026-09-30 — no wipe limit and no respawn; a full wipe ends the hunt and town fully heals, R154/R155; see §5.6's struck lines)*
 - Inventory/resource inputs needed by simulation, PRNG state, reward-tier pity state, and deterministic reward sequence identifiers.
 - Simulation time, wall/simulation anchors, pause state, simulation version, content version, checkpoint schema version, and account state version.
 
@@ -160,7 +160,7 @@ A transport reconnect can discard the local animation queue and resynchronize fr
 - A paused encounter resumes from its stored state. Abandoning it for town/map change is an explicit retreat transition, not a silent reset.
 - Return-to-town/map-change recovery and travel costs must be specified before milestone B. ✅ **Decided 2026-09-21 (owner):** stopping a hunt *is* the return to town — there is no resume of an interrupted encounter. The abandoned encounter is lost, the return consumes a simulated travel segment, and stopping still preserves damage, spent resources, PRNG progression and pity counters (§4.5). Starting again begins a new encounter, which is why repeated sampling costs travel time and buys no healing.
 - Simultaneous commands use server sequencing; clients cannot backdate changes.
-- Scheduled consumable use, rest, walking, respawn, and retreat are simulation transitions, not special offline approximations.
+- Scheduled consumable use, rest, walking, respawn, and retreat are simulation transitions, not special offline approximations. *(superseded by the owner decision of 2026-09-30 — no wipe limit and no respawn; a full wipe ends the hunt and town fully heals, R154/R155; see §5.6's struck lines)*
 
 ### 4.6 Offline and wall-clock semantics ✅
 
@@ -632,7 +632,7 @@ Preserve stable IDs, explicit ownership/trade eligibility, versioned effects, au
 | Event priority table, rounding/stacking rules, basic-attack definitions, skill costs/cooldowns | Milestone A combat implementation |
 | Stalemate, path blocking, shape orientation, duplicate Taunt, stun/cast behavior | Milestone A encounter validation |
 | Whether placement produces understandable value and the grid should remain | Broad content expansion |
-| HP/MP adjustments on stat/max changes, dead-member EXP, respawn MP/status handling | Progression/respawn implementation |
+| HP/MP adjustments on stat/max changes, dead-member EXP, respawn MP/status handling *(superseded by the owner decision of 2026-09-30 — no wipe limit and no respawn; a full wipe ends the hunt and town fully heals, R154/R155; see §5.6's struck lines)* | Progression/respawn implementation |
 | ~~Retreat/travel/town recovery costs and stop/restart invariants~~ | **Decided 2026-09-21:** stop returns to town, §4.5 |
 | One-time starter grants (bag overflow **decided 2026-09-21:** the drop is lost, §7.5; two-handed compatibility **decided 2026-09-21:** a two-handed weapon locks the off-hand, §7.1) | Milestone B inventory/town. **Prices deferred by the owner 2026-09-21**: the NPC shop cannot ship until they are set |
 | ~~Predictable first equipment reward and trigger~~ | **Decided 2026-09-21:** a fixed Uncommon item on the first won encounter, identical for every account, no RNG, §7.4 |

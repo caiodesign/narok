@@ -14,7 +14,8 @@
  * the session it obtains is the one the bundle then uses — and the account's
  * first strategy and loot presets are seeded by
  * `apps/server/test/harness/provision-presets.ts`. Everything after that is the
- * shipped UI: the Strategy screen, Start hunt, the live log, the reconnect,
+ * shipped UI: the Strategy screen (one edit, saved through the real
+ * `PUT /api/presets/:id`), Start hunt, the live log, the reconnect,
  * Away, Stop, and the three town routes.
  *
  * Accessible names are read from the committed locale files at run time (the
@@ -93,11 +94,29 @@ for (const language of ['en', 'pt-BR'] as const) {
     };
     await noLabControls();
 
-    // Configure: the Strategy screen shows the account's saved preset; a save is a real command.
+    // Configure: the Strategy screen shows the account's saved preset; one
+    // edit marks it unsaved, and Save is a real `PUT /api/presets/:id` whose
+    // acknowledgement — not the click — clears the marker (part 4 §3.2).
     const orders = page.getByRole('region', { name: s(t, 'hunt.orders') });
     await expect(orders.getByRole('button', { name: new RegExp(escape(s(t, 'hunt.openStrategy'))) })).toContainText('Main');
     await orders.getByRole('button', { name: new RegExp(escape(s(t, 'hunt.openStrategy'))) }).click();
-    await expect(page.getByRole('button', { name: s(t, 'strategy.save'), exact: true })).toBeVisible();
+    const strategy = page.getByTestId('strategy-screen');
+    const dirtyNote = strategy.getByTestId('dirty-note');
+    await expect(dirtyNote).toHaveText(s(t, 'strategy.saved').replace('{{version}}', '1'));
+    const restHp = strategy.getByLabel(s(t, 'controls.restHp'), { exact: true });
+    await expect(restHp).toHaveValue('50');
+    await restHp.fill('61');
+    await expect(dirtyNote).toHaveText(s(t, 'strategy.unsavedDraft'));
+    await expect(strategy.getByRole('img', { name: s(t, 'strategy.unsaved'), exact: true })).toHaveCount(1);
+    const saved = page.waitForResponse(
+      (response) => /\/api\/presets\/[^/]+$/.test(new URL(response.url()).pathname) && response.request().method() === 'PUT',
+    );
+    await strategy.getByRole('button', { name: s(t, 'strategy.save'), exact: true }).click();
+    const saveResponse = await saved;
+    expect(saveResponse.status()).toBe(200);
+    expect(saveResponse.request().postDataJSON()).toMatchObject({ payload: { rest: { hpStart: 61 } } });
+    await expect(dirtyNote).toHaveText(s(t, 'strategy.saved').replace('{{version}}', '2'));
+    await expect(strategy.getByRole('img', { name: s(t, 'strategy.unsaved'), exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: s(t, 'strategy.close'), exact: true }).click();
     await expect(page.getByRole('button', { name: s(t, 'strategy.save'), exact: true })).toHaveCount(0);
 

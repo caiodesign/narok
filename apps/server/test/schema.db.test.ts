@@ -8,6 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import {
   connect,
+  DATABASE_URL,
   databaseReachable,
   disconnect,
   expectViolation,
@@ -312,6 +313,12 @@ describe('drop protection, grants and maintenance', () => {
  */
 describe('resource_audit is append-only', () => {
   test('a non-owner application role may insert and select, but never update or delete', async () => {
+    // The database this suite runs against (`DATABASE_URL`), never a hard-coded one.
+    const target = new URL(DATABASE_URL);
+    const database = decodeURIComponent(target.pathname.slice(1));
+    target.username = 'narok_app_test';
+    target.password = 'app';
+    const appUrl = target.toString();
     const account = await insertAccount(db);
     await db.insert(schema.resourceAudit).values({
       accountId: account.id,
@@ -323,12 +330,12 @@ describe('resource_audit is append-only', () => {
 
     await db.execute(sql`drop role if exists narok_app_test`);
     await db.execute(sql`create role narok_app_test login password 'app'`);
-    await db.execute(sql`grant connect on database narok to narok_app_test`);
+    await db.execute(sql`grant connect on database ${sql.identifier(database)} to narok_app_test`);
     await db.execute(sql`grant usage on schema public to narok_app_test`);
     await db.execute(sql`grant select, insert on resource_audit to narok_app_test`);
     await db.execute(sql`grant usage, select on all sequences in schema public to narok_app_test`);
 
-    const appRole = postgres('postgres://narok_app_test:app@127.0.0.1:5433/narok', { max: 1, onnotice: () => {} });
+    const appRole = postgres(appUrl, { max: 1, onnotice: () => {} });
     try {
       // Reading and appending are the two things it may do.
       const rows = await appRole`select count(*)::int as count from resource_audit`;
@@ -343,7 +350,7 @@ describe('resource_audit is append-only', () => {
       await db.execute(sql`revoke all on resource_audit from narok_app_test`);
       await db.execute(sql`revoke all on all sequences in schema public from narok_app_test`);
       await db.execute(sql`revoke usage on schema public from narok_app_test`);
-      await db.execute(sql`revoke connect on database narok from narok_app_test`);
+      await db.execute(sql`revoke connect on database ${sql.identifier(database)} from narok_app_test`);
       await db.execute(sql`drop role if exists narok_app_test`);
     }
   });

@@ -140,11 +140,11 @@ const expAtKill = Number((await sql`select sum(exp)::bigint as exp from characte
 
 // -- 3. B-25: crash, replay, rewards once --------------------------------------
 await server.kill();
-t.log('B-25 SIGKILL server #2 mid-hunt (no shutdown hook ran)');
+t.log('B-25 SIGKILL server #1 mid-hunt (no shutdown hook ran)');
 const aliveAfterKill = await readHuntRow(sql, accountId);
 check('the durable checkpoint is exactly what was committed before the crash', aliveAfterKill.envelope.checkpointSeq === committedAtKill.envelope.checkpointSeq && Buffer.compare(aliveAfterKill.row.checkpoint, committedAtKill.row.checkpoint) === 0);
 
-server = await boot('#3 (same build, same pins)');
+server = await boot('#2 (same build, same pins)');
 socket = openSocket(BASE, ORIGIN, api.cookie);
 await socket.opened;
 socket.send({ type: 'hello' });
@@ -179,20 +179,33 @@ const releasedBeyond = framesAhead.filter((frame) => frame.releasedSimMs > commi
 const liveAtKill = rewardsAtKill.filter((row) => row.source_ref.startsWith(`${live.body.huntId}:`)).length;
 const committedRewards = committedAtKill.state.nextRewardSeq - committedAtKill.state.pendingRewards.length;
 check('at the crash the database held exactly the rewards the committed checkpoint had rolled — nothing from the released precomputation', releasedBeyond.length > 0 && liveAtKill === committedRewards, `${releasedBeyond.length} frames released past sim ${committedAtKill.envelope.simAnchorMs}; live-hunt rewards in the database ${liveAtKill}, committed checkpoint nextRewardSeq ${committedAtKill.state.nextRewardSeq} with ${committedAtKill.state.pendingRewards.length} pending`);
+// Was a drop in flight at the crash? Drops the replay rolled after the committed
+// checkpoint's sequence cover the released-but-uncommitted window (the replay
+// re-simulates it deterministically). Zero means the item half of B-25 was not
+// exercised by this run: recorded, never claimed.
+const dropsInFlight = afterReplay.state.nextRewardSeq - committedAtKill.state.nextRewardSeq;
+t.log(`drops rolled past the committed checkpoint (in flight at the crash, replayed once): ${dropsInFlight}${dropsInFlight === 0 ? ' — item half not exercised by this run' : ''}`);
 const expNow = Number((await sql`select sum(exp)::bigint as exp from characters where account_id = ${accountId}`)[0].exp);
 t.log(`EXP: ${expAtKill} at the crash (as committed), ${expNow} after replay`);
 const [{ exp: expColumn }] = await sql`select sum(exp)::bigint as exp from characters where account_id = ${accountId}`;
-const expCheckpoint = Object.values(afterReplay.state.progression ?? {}).reduce((sum, entry) => sum + Number(entry?.exp ?? 0), 0);
-check('character EXP columns equal the committed checkpoint progression (no double credit)', Number(expColumn) === expCheckpoint || afterReplay.state.progression === undefined, `columns ${expColumn}, checkpoint ${expCheckpoint}`);
+// No vacuous pass: a checkpoint without progression fails this check rather than skipping it.
+const progression = afterReplay.state.progression;
+const hasProgression = progression !== null && typeof progression === 'object' && Object.keys(progression).length > 0;
+const expCheckpoint = hasProgression ? Object.values(progression).reduce((sum, entry) => sum + Number(entry?.exp ?? 0), 0) : null;
+check(
+  'character EXP columns equal the committed checkpoint progression (no double credit)',
+  hasProgression && Number(expColumn) === expCheckpoint,
+  hasProgression ? `columns ${expColumn}, checkpoint ${expCheckpoint}` : `columns ${expColumn}, checkpoint has no progression to compare`,
+);
 await server.kill();
-t.log('server #3 stopped');
+t.log('server #2 stopped');
 
 // -- 4. B-29: a checkpoint pinned to other content is refused, never substituted --
 const bytesBefore = (await readHuntRow(sql, accountId)).row.checkpoint;
 const realContent = afterReplay.row.content_version;
 await sql`update hunts set content_version = ${'drill-other-content'} where account_id = ${accountId}`;
 t.log("INJECT hunts.content_version := 'drill-other-content' (a checkpoint pinned to content this build does not carry)");
-server = await boot('#4');
+server = await boot('#3');
 const currentRead = await api.get('/api/hunts/current');
 socket = openSocket(BASE, ORIGIN, api.cookie);
 await socket.opened;
@@ -216,7 +229,7 @@ await tamperCheckpoint(sql, accountId, ({ state }) => {
   first.definitionId = 'drill-no-such-class';
 });
 t.log("INJECT the first actor's definitionId := 'drill-no-such-class' (an engine state no content can produce)");
-server = await boot('#5');
+server = await boot('#4');
 socket = openSocket(BASE, ORIGIN, api.cookie);
 await socket.opened;
 socket.send({ type: 'hello' });
@@ -247,7 +260,7 @@ check('B-30 automatic retries are stopped: three reconnects with heartbeats wrot
 const stop = await api.post('/api/hunts/current/stop', {}, crypto.randomUUID());
 const restart = await startHunt(api);
 check('B-30 a normal stop is refused with HUNT_FAULTED', stop.body?.code === 'HUNT_FAULTED', `${stop.status} ${stop.body?.code}`);
-check('B-30 a normal start is refused with HUNT_FAULTED', restart.body?.code === 'HUNT_FAULTED', `${restart.status} ${restart.body?.code}`);
+check('B-30 a normal start is refused with HUNT_FAULTED', restart.body?.code === 'HUNT_FAULTED', `${restart.status} ${restart.body?.code} ${restart.body?.field ?? ""}`);
 const recoverRoute = await api.post('/api/hunts/current/recover', { expectedStateVersion: 0 }, crypto.randomUUID());
 t.log(`POST /api/hunts/current/recover -> ${recoverRoute.status} ${JSON.stringify(recoverRoute.body)} (the explicit recovery has no route in this build)`);
 await server.kill();
@@ -265,6 +278,7 @@ const result = {
   committedAtKill: { checkpointSeq: committedAtKill.envelope.checkpointSeq, simAnchorMs: committedAtKill.envelope.simAnchorMs, dropRows: rewardsAtKill.length },
   afterReplay: { checkpointSeq: afterReplay.envelope.checkpointSeq, simAnchorMs: afterReplay.envelope.simAnchorMs, dropRows: rewardsAfter.length },
   framesObservedAhead: framesAhead.length,
+  dropsInFlightAtCrash: dropsInFlight,
   recoverRoute: { status: recoverRoute.status, body: recoverRoute.body },
   checks,
   passed: failed.length === 0,

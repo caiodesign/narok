@@ -12,7 +12,8 @@
  * coherent account state, part 4 §4); equipping in town is a real command
  * whose result the Character screen shows; locking is a real command; and
  * the corrected mockup content is absent — no Materials tab, no purchase or
- * sale affordance while the shop is flagged off, no fourth preset. Every wait
+ * sale affordance while the shop is flagged off, and no fourth (locked
+ * premium) preset tab on the Strategy screen. Every wait
  * is a condition.
  */
 import { expect, test } from '@playwright/test';
@@ -43,6 +44,10 @@ for (const language of ['en', 'pt-BR'] as const) {
     // Corrected mockup content does not ship (B-19, inline).
     await expect(page.getByRole('tab', { name: /Materials|Materiais/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: new RegExp(`^${escape(s(t, 'bag.sell'))}$`) })).toHaveCount(0);
+    // No purchase affordance either: no locale key names one, so the negative
+    // is on the words a mockup's shop would use, in both languages.
+    await expect(page.getByRole('button', { name: /(Buy|Purchase|Shop|Comprar|Loja)/i })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /(Buy|Purchase|Shop|Comprar|Loja)/i })).toHaveCount(0);
 
     // Equip the first starter weapon in town: a real command.
     const weapon = page.getByRole('button', { name: /, (Common|Comum)$/ }).first();
@@ -77,5 +82,14 @@ for (const language of ['en', 'pt-BR'] as const) {
       .getByRole('button', { name: new RegExp(`^${escape(s(t, 'town.nav.hunt'))}`) })
       .click();
     await expect(page.getByRole('button', { name: s(t, 'hunt.start'), exact: true })).toBeEnabled();
+
+    // No fourth preset: the Strategy screen's tabs are exactly the account's
+    // saved presets (one, "Main", seeded by R197) — no locked premium slot.
+    await orders.getByRole('button', { name: new RegExp(escape(s(t, 'hunt.openStrategy'))) }).click();
+    const tabs = page.getByTestId('strategy-screen').getByRole('tablist', { name: s(t, 'strategy.presets') }).getByRole('tab');
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.first()).toContainText('Main');
+    await expect(page.getByTestId('strategy-screen')).not.toContainText(/premium/i);
+    await page.getByRole('button', { name: s(t, 'strategy.close'), exact: true }).click();
   });
 }

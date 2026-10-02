@@ -46,17 +46,17 @@ Repo-relative, in the order run. Exit status is the process exit code observed h
 
 | # | Command | Exit | Headline result | Raw output |
 |---|---|---|---|---|
-| 1 | `pnpm check` (narok-postgres up) | **0** | **1,297 tests passed in 95 files**, 0 failed; `tsc --noEmit` and `eslint` clean | `artifacts/run-b11/check.txt` |
-| 2 | `pnpm --filter @narok/client build` | **0** | production build, eight JS chunks | `artifacts/run-b11/client-build.txt` |
-| 3 | `pnpm --filter @narok/lab build` | **0** | production build | `artifacts/run-b11/lab-build.txt` |
-| 4 | `pnpm test:e2e` | **0** | **14 of 14 passed** (45.3 s): `client.spec` 3, `hunt.spec` 2 (B-24 EN and PT-BR), `town.spec` 2 (EN and PT-BR), `laboratory.spec` 7 | `artifacts/run-b11/e2e.txt` |
-| 5 | the five stylesheet `diff`s of `docs/realm-hunt-port.md`, `docs/realm-strategy-port.md`, `docs/realm-town-port.md` | **0** | all five print nothing | `artifacts/run-b11/css-diffs.txt` |
+| 1 | `pnpm check` (narok-postgres up) | **0** | **1,298 tests passed in 95 files**, 0 failed; `tsc --noEmit` and `eslint` clean. Fix round 1: run with `DATABASE_URL` on the harness database `narok_e2e` (the `db` suites truncate whatever it names); `schema.db.test.ts`'s application-role case now connects to the database `DATABASE_URL` names instead of a hard-coded `narok`, so the harness run passes and the dev database is not reached | `artifacts/run-b11/check-fix1.txt` (local, not committed) |
+| 2 | `pnpm --filter @narok/client build` | **0** | production build, eight JS chunks | `artifacts/run-b11/client-build-fix1.txt` (local, not committed) |
+| 3 | `pnpm --filter @narok/lab build` | **0** | production build | `artifacts/run-b11/lab-build-fix1.txt` (local, not committed) |
+| 4 | `pnpm test:e2e` | **0** | **14 of 14 passed** (45.1 s, fix round 1): `client.spec` 3, `hunt.spec` 2 (B-24 EN and PT-BR, now with a strategy edit saved through `PUT /api/presets/:id`), `town.spec` 2 (EN and PT-BR), `laboratory.spec` 7 | `artifacts/run-b11/e2e-fix1.txt` (local, not committed) |
+| 5 | the five stylesheet `diff`s of `docs/realm-hunt-port.md`, `docs/realm-strategy-port.md`, `docs/realm-town-port.md` | **0** | all five print nothing | `artifacts/run-b11/css-diffs.txt` (local, not committed) |
 | 6 | `node artifacts/bundle-grep.mjs artifacts/b02-b19-grep.txt` | **0** | B-02: 0 engine literals in the client bundle, 7 in the lab bundle (positive control); B-19: see §5 | `artifacts/b02-b19-grep.txt` |
-| 7 | `node artifacts/recovery-drill.mjs artifacts/b25-recovery.json` | **0** | **18/18 checks** (B-25, B-29 server half, B-30 server half) | `artifacts/b25-recovery.{json,txt}` |
+| 7 | `node artifacts/recovery-drill.mjs artifacts/b25-recovery.json` | **0** | **18/18 checks** (B-25, B-29 server half, B-30 server half); fix round 1 re-run: server labels corrected, EXP check can no longer pass vacuously, drops in flight at the crash recorded (**0**). One of five fix-round runs failed one B-30 check (see §4.3, *start on a faulted hunt*) | `artifacts/b25-recovery.{json,txt}` |
 | 8 | `node artifacts/concurrency-drill.mjs artifacts/b26-concurrency.json` | **0** | **18/18 checks** (B-26, B-18) | `artifacts/b26-concurrency.{json,txt}` |
-| 9 | `node artifacts/restore-drill.mjs artifacts/b28-restore.json` | **0** | **13/13 checks** (B-28) | `artifacts/b28-restore.{json,txt}` |
+| 9 | `node artifacts/restore-drill.mjs artifacts/b28-restore.json` | **0** | **13/13 checks** (B-28); re-run in fix round 1 because `ops/maintenance resume` changed (R201): it now prints `lifted` | `artifacts/b28-restore.{json,txt}` |
 | 10 | `node artifacts/frame-budget.mjs artifacts/b23-frames.json 30` | **0** | 0.847 ms main-thread task time per frame; 0 missed vsyncs in 1,830 intervals (workstation) | `artifacts/b23-frames.json` |
-| 11 | `node artifacts/load-accounts.mjs 50 0.1 artifacts/b27-load.json` | **0** | 50 returning accounts, six-minute hold; **workstation numbers** (§6.2) | `artifacts/b27-load.json`, `artifacts/b27-load.log` |
+| 11 | `node artifacts/load-accounts.mjs 50 0.1 artifacts/b27-load.json` | **0** | 50 returning accounts, six-minute hold; **workstation numbers** (§6.2) | `artifacts/b27-load.json`, `artifacts/b27-load.log` (local, not committed) |
 | 12 | `node artifacts/town-shots.mjs http://127.0.0.1:4173/ artifacts/town` | **0** | 20 screenshots, the 1100 px probe and the B-21 automated checks | `artifacts/town/*.png`, `artifacts/town/probe.json` |
 
 The drills were run twice: once while being written, and again on the final code (the figures in
@@ -67,8 +67,11 @@ harness databases (`narok_drill_recovery`, `narok_drill_concurrency`, `narok_dri
 ### 2.1 What the two new end-to-end specs drive
 
 `e2e/hunt.spec.ts` (B-24, in EN and in PT-BR): sign in and create a party through the server's real
-routes, seed the first presets (ruling R197); open the Strategy screen and see the saved preset;
-Start hunt; wait until the elapsed readout and the log move; five samples that the shown elapsed time
+routes, seed the first presets (ruling R197); open the Strategy screen and see the saved preset
+(`Saved v1`); **configure strategy** — set Rest HP from 50 to 61, see the draft marked unsaved, press
+Save preset, and wait for the `PUT /api/presets/:id` response: 200, the request carries
+`rest.hpStart: 61`, and the marker clears to `Saved v2` on the acknowledgement (fix round 1; before it
+the spec only opened and closed the screen); Start hunt; wait until the elapsed readout and the log move; five samples that the shown elapsed time
 never passes the newest state the server released (read off the routed socket); drop the socket from
 the network side; the server settles the absence and announces a report, and Away opens; the
 herald's time away and the simulated-of-cap fact are separate figures, and the cap meter's maximum
@@ -76,7 +79,9 @@ is the server's `capCutoffWall − awayFromWall`, with no `17h42`-style literal 
 Stop, with the operator stop copy; Bag; Character; back to Hunt; then **Start a new hunt from town and
 see it stream on the same socket** (the R198 regression, §4.1). No Pause or Resume control exists in
 either language at three points. `e2e/town.spec.ts`: the compass and the Bag agree on occupancy;
-no Materials tab and no Sell control; equip a starter weapon in town (a real command; the bag
+no Materials tab, no Sell control and no purchase control (no Buy / Purchase / Shop / Comprar / Loja
+button or link); the Strategy screen shows exactly the account's one preset tab, no fourth (locked
+premium) slot (fix round 1 added these two — the spec's header claimed them before it asserted them); equip a starter weapon in town (a real command; the bag
 re-reads one slot fewer); lock another (a real command; the cell says "locked" in text); the
 Character screen's equipment pane shows the weapon. Every wait is a condition; neither file calls
 `waitForTimeout`.
@@ -155,6 +160,13 @@ owner decides whether B needs a minimal sign-in and default-preset path before i
   "The game content was updated. Reload to continue."; it does not compare `/api/me`'s versions with
   its bundle, refetch, or invalidate the placement UI. Part 4 §7's content decision (a) — content
   bundled, a mismatch forces a reload — makes the message defensible, but the gate text asks for more.
+- **Start on a faulted hunt can answer `VALIDATION` before `HUNT_FAULTED`** (observed in fix round 1,
+  one recovery-drill run in five, `400 VALIDATION plan.setup.party.p0.hp`). `POST /api/hunts`
+  builds and simulates the plan (`sim.start`) before the lifecycle transaction checks the existing
+  hunt, so when the faulted hunt's checkpoint left a character at 0 HP the request is refused for
+  the party's HP, not for the fault. The refusal is still a refusal; the reason is wrong, and the
+  same ordering applies to a start while any hunt is running. Not fixed here (out of this round's
+  scope); the fix is to check the hunt's status before simulating the plan.
 - **Start during the return journey.** After Stop the party travels to town for 10 s of content;
   the shell offers Start a new hunt immediately and the server refuses it (`hunt.travel`) until the
   party arrives. Nothing on screen says why.
@@ -166,7 +178,7 @@ owner decides whether B needs a minimal sign-in and default-preset path before i
 - **Focus indicator.** The automated walk found 2 of 39 Bag stops — both text inputs — whose focused
   rendering does not differ from their blurred rendering beyond the caret.
 - **Balance, observed only.** In the bundled content a level-1 party under the default strategy wipes
-  within 15 s to 7 min of simulated time; drops in the first hunts are rare (four drop rows across
+  within 15 s to 7 min of simulated time; drops in the first hunts are rare (three drop rows across
   26 one-hour absences in the recovery drill's final run). Not a defect of this task; it limits what the drills can show
   (§5, B-25).
 - **Startup flake, not reproduced.** Twice in the first three `playwright test` launches of the day a
@@ -205,13 +217,13 @@ named open. Open = not exercised, with the reason.
 | B-21 accessibility | **partly open** | automated: focus indicator on 38/38 Hunt, 39/39 Strategy, 27/27 Away, 37/39 Bag, 38/38 Character Tab stops per language; with reduced motion the live log kept receiving rows (EN 11 → 15, PT-BR 9 → 19) with 0 running animations (`town/probe.json`). **Open:** the stated human observation of keyboard-only traversal of all five screens, and the colour-alone review |
 | B-22 visual composition, three new screens | **partly open** | 20 screenshots committed (§7); 1100 px probe: no document-level horizontal overflow on any screen in either language; element-level overflows listed in §4.3. **Open:** the human look. **Does not close R64** |
 | B-23 frame budget and R109 | **green on the workstation** | 0.847 ms main-thread task per presented frame under a live socket at the one supported release rate (1 s tick, 1x), 0 missed vsyncs (§6.1); the R109 identity rule's unit test. Not a target-device figure |
-| B-24 end-to-end smoke | **green, with R197's onboarding caveat** | `hunt.spec.ts` EN and PT-BR against the built bundle, a real server and a real PostgreSQL; sign-in and party creation go through REST because no screen exists (§4.2) |
-| B-25 recovery | **green, drops not straddled** | recovery drill: SIGKILL with the server 6 s of released sim time ahead of the committed checkpoint; restart under the same pins replays from it; 4 reward ids unique and contiguous per hunt; every pre-crash reward intact; kept-drop audits = reward items; at the crash the database held exactly what the committed checkpoint had rolled; EXP 5,563 → 5,599 credited once (columns = checkpoint). No drop happened to fall inside the crash window, so "uncommitted precomputation never a reward source" is shown for EXP and for the empty drop set, not for a dropped item |
+| B-24 end-to-end smoke | **green, with R197's onboarding caveat** | `hunt.spec.ts` EN and PT-BR against the built bundle, a real server and a real PostgreSQL; sign-in and party creation go through REST because no screen exists (§4.2); strategy is configured on the shipped screen — one edit, Save, `PUT /api/presets/:id` 200, unsaved marker cleared (fix round 1) |
+| B-25 recovery | **EXP half green; drop half partly open (vacuous: no drop in flight)** | recovery drill (fix round 1 re-run): SIGKILL of server #1 with 10.0 s of released sim time ahead of the committed checkpoint (released 30,178 ms, committed 20,132 ms); server #2 restarts under the same pins and replays from it; 3 reward ids unique and contiguous per hunt (2 hunts); every pre-crash reward intact; kept-drop audits = reward items (2 = 2); at the crash the database held exactly what the committed checkpoint had rolled; EXP 4,100 → 4,172 credited once, and the check now fails if the checkpoint carries no progression to compare (columns 4,172 = checkpoint 4,172). **Drop half:** the drill now records the drops rolled past the committed checkpoint — **0** in this run (`dropsInFlightAtCrash`), and 0 in each of the four other fix-round runs. No drop was in flight at the crash, so "uncommitted precomputation is never a reward source" is shown for EXP and for an empty drop set only; for a dropped item it is unexercised. Closing it needs a drill that makes a drop land between the committed checkpoint and the SIGKILL (drops are rare at level 1, §4.3) |
 | B-26 concurrency | **green** | two server processes, one account: 182 lock attempts against 92 heartbeat settlements (checkpoint seq 1 → 67); 150 intents, 32 lost races, each answered `CONFLICT_STATE_VERSION` with the current version and landed on retry (max 2 tries); no shared version; final lock correct; committed hunt never moved backwards in 133 samples; key replay returns the stored result on both processes; same key, other body → `IDEMPOTENCY_KEY_REUSED` |
 | B-27 load on the target VPS | **open** | workstation run only (§6.2). The gate names the target VPS; none exists. **Does not close §6.5** |
 | B-28 backup restore and migration settlement | **partly open** | restore drill: `pg_dump -Fc` → empty database → `pg_restore`; all 17 tables identical by row count and row md5; a fresh process signs both accounts in and reads identical characters, bag and hunt; `ops/maintenance` freeze → settle (to the cutoff, pinned artifacts) → resume (sim time unchanged across a 4.3 s outage, `lastSeenAt` advanced by exactly the outage) → the hunt plays on. **Open:** B has no content migration to transform (part 2 §7 step 4), and the routes do not refuse commands while frozen (step 1) — the freeze is a stopped process |
 | B-29 content mismatch | **partly open** | server: a checkpoint pinned to other content answers `CONTENT_VERSION_MISMATCH` on read and socket and its bytes stay untouched (recovery drill; `ops/maintenance settle` refuses the same, `maintenance.db.test.ts`). **Open:** the client's refetch and placement invalidation (§4.3) |
-| B-30 faulted hunt | **partly open** | server: an injected unknown class faults the hunt (`INVALID_STATE`), writes one `fault` archive row, charges no wipe, three reconnects with heartbeats write nothing, normal stop and start answer `HUNT_FAULTED`. **Open:** the explicit recovery action has no route and no client control (§4.3) |
+| B-30 faulted hunt | **partly open** | server: an injected unknown class faults the hunt (`INVALID_STATE`), writes one `fault` archive row, charges no wipe, three reconnects with heartbeats write nothing, normal stop and start answer `HUNT_FAULTED`. Fix round 1: one of five drill runs saw the start answer `400 VALIDATION plan.setup.party.p0.hp` instead (§4.3, *start on a faulted hunt*); the committed run is a passing one. **Open:** the explicit recovery action has no route and no client control (§4.3) |
 
 ---
 
@@ -290,6 +302,7 @@ The figures in §6.1 must not be quoted as capacity.
 | B-28 (rest) | refusal of commands while frozen; a real content migration through step 4 | implementer, then operator |
 | B-29 (client half) | refetch / invalidate on a version change | implementer (after the owner confirms part 4 §7 option (a) is enough) |
 | B-30 (client half) | a recovery route and the one control the client offers | implementer |
+| B-25 (drop half) | a drill run in which a drop lands between the committed checkpoint and the SIGKILL | implementer |
 | B-24 (onboarding) | a sign-in and default-preset path inside the product (§4.2) | owner decides scope (B or Phase C) |
 | CI | a green Actions run | anyone who pushes |
 
@@ -329,6 +342,13 @@ commands), `artifacts/b27-load.log`, `artifacts/b28-backup.dump`, `artifacts/pla
   arithmetic had no path that ran it, and the drill needed one; an HTTP admin surface would have
   been new attack surface. *Cost if wrong:* move it behind an admin route later.
 - **R200 — B-23's method is stated, not inherited** (§6.1), because A's is unrecorded.
+- **R201 — `ops/maintenance resume` keeps the freeze while any running hunt was skipped** (fix round
+  1): a running hunt not anchored at the cutoff — typically `freeze` then `resume` with no `settle`
+  — is reported `skipped`, left untouched, the freeze stays set and the command exits 2;
+  `resume --force` is the explicit override. A hunt `refused` for a pin mismatch does not hold the
+  freeze, because this build can never settle it and every route refuses it the same way. *Why:*
+  lifting the freeze over an unsettled hunt bills the whole outage to that player's offline
+  allowance, which P-31 forbids. *Cost if wrong:* drop the check; `maintenance.db.test.ts` names it.
 
 ## 12. Recommendation: **retain the authoritative server design; do not invite players yet**
 
