@@ -1,0 +1,25 @@
+[+   1.3 s] source database narok_drill_backup; server pid 27892
+[+   2.9 s] source populated: one hunt stopped after an absence, one running; server stopped
+[+   3.1 s] pg_dump -Fc narok_drill_backup -> artifacts/b28-backup.dump (46248 bytes)
+[+   3.3 s] clean database narok_restore created empty (no migration applied)
+[+   3.6 s] pg_restore --no-owner -d narok_restore < dump
+[+   3.7 s] PASS every table restored with identical row count and row md5 — 17 tables
+[+   4.5 s] fresh server process pid 27492 against narok_restore
+[+   4.6 s] PASS stopped: signs in against the restored database — 204
+[+   4.6 s] PASS stopped: characters and bag read back identical
+[+   4.6 s] PASS stopped: the hunt reads back identical — status stopped
+[+   4.6 s] PASS running: signs in against the restored database — 204
+[+   4.7 s] PASS running: characters and bag read back identical
+[+   4.7 s] PASS running: the hunt reads back identical — status walking
+[+   4.7 s] server stopped: the stopped process is the freeze (R199)
+[+   5.4 s]   ops/maintenance freeze: {"frozen":true,"cutoffWall":1790949087148}
+[+   6.0 s]   ops/maintenance settle: {"accountId":"f523a5c3-443b-4949-969c-1d273d94a875","outcome":"settled","detail":"simNowMs=3152 wallAnchorMs=1790949087148"}
+[+   6.0 s]   ops/maintenance settle: {"command":"settle","hunts":1,"at":1790949087774}
+[+   6.0 s] PASS settle: the running hunt is settled to the cutoff under its pinned artifacts — wallAnchor 1790949087148 = cutoff 1790949087148; sim 3152 ms
+[+   6.0 s] PASS settle: the stopped hunt is not touched
+[+   9.7 s]   ops/maintenance resume: {"accountId":"f523a5c3-443b-4949-969c-1d273d94a875","outcome":"resumed","detail":"wallAnchorMs=1790949091415 lastSeenAt=1790949088263"}
+[+   9.7 s]   ops/maintenance resume: {"command":"resume","hunts":1,"lifted":true,"at":1790949091415}
+[+   9.7 s] PASS resume: nothing simulated across the outage
+[+   9.7 s] PASS resume: lastSeenAt advanced by exactly the downtime (not billed to the allowance) — downtime 4267 ms
+[+   9.7 s] PASS resume: the freeze is lifted
+[+  11.6 s] PASS after resume the hunt plays on from the cutoff state — snapshot at sim 4191 ms

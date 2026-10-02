@@ -1,0 +1,145 @@
+{
+  "gate": "B-28",
+  "ranAt": "2026-10-02T13:51:33.446Z",
+  "dumpBytes": 46248,
+  "tables": {
+    "__drizzle_migrations": {
+      "rows": 3,
+      "md5": "ef19fc3e1918a3af157035ea615b216a"
+    },
+    "account_drop_protection": {
+      "rows": 2,
+      "md5": "039d53abcc4846ba0e8a406494bd32ed"
+    },
+    "account_grants": {
+      "rows": 8,
+      "md5": "f1600d2c5021670807921c2b210476c8"
+    },
+    "accounts": {
+      "rows": 2,
+      "md5": "f42ea2d3472dd1e66e423945294df0fc"
+    },
+    "characters": {
+      "rows": 6,
+      "md5": "4cc32faa837a7a8af47eb67352954f3f"
+    },
+    "command_results": {
+      "rows": 8,
+      "md5": "f3887c6cd2c1af77188329a7c8a98ad4"
+    },
+    "hunt_checkpoint_archive": {
+      "rows": 0,
+      "md5": ""
+    },
+    "hunt_reports": {
+      "rows": 0,
+      "md5": ""
+    },
+    "hunts": {
+      "rows": 2,
+      "md5": "c16091455b4162b8a7a95c333ad7e372"
+    },
+    "items": {
+      "rows": 7,
+      "md5": "167a04666ccad9a0305b305cee90747d"
+    },
+    "loot_presets": {
+      "rows": 2,
+      "md5": "79007b371b8e1823d2c241c3c9a7e395"
+    },
+    "maintenance": {
+      "rows": 0,
+      "md5": ""
+    },
+    "periodic_jobs": {
+      "rows": 0,
+      "md5": ""
+    },
+    "resource_audit": {
+      "rows": 7,
+      "md5": "bb04ca69cd6bc221892c2d206e3aedd3"
+    },
+    "sessions": {
+      "rows": 2,
+      "md5": "b6d9d3ea6459da5b0cdeb9f77476af67"
+    },
+    "stack_items": {
+      "rows": 2,
+      "md5": "b60336bbc3ac180cc3345cd16e78209f"
+    },
+    "strategy_presets": {
+      "rows": 2,
+      "md5": "53561328c136a2ba8e9fb5d966235908"
+    }
+  },
+  "cutoffWall": 1790949087148,
+  "downtimeMs": 4267,
+  "checks": [
+    {
+      "name": "every table restored with identical row count and row md5",
+      "ok": true,
+      "detail": "17 tables"
+    },
+    {
+      "name": "stopped: signs in against the restored database",
+      "ok": true,
+      "detail": "204"
+    },
+    {
+      "name": "stopped: characters and bag read back identical",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "stopped: the hunt reads back identical",
+      "ok": true,
+      "detail": "status stopped"
+    },
+    {
+      "name": "running: signs in against the restored database",
+      "ok": true,
+      "detail": "204"
+    },
+    {
+      "name": "running: characters and bag read back identical",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "running: the hunt reads back identical",
+      "ok": true,
+      "detail": "status walking"
+    },
+    {
+      "name": "settle: the running hunt is settled to the cutoff under its pinned artifacts",
+      "ok": true,
+      "detail": "wallAnchor 1790949087148 = cutoff 1790949087148; sim 3152 ms"
+    },
+    {
+      "name": "settle: the stopped hunt is not touched",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "resume: nothing simulated across the outage",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "resume: lastSeenAt advanced by exactly the downtime (not billed to the allowance)",
+      "ok": true,
+      "detail": "downtime 4267 ms"
+    },
+    {
+      "name": "resume: the freeze is lifted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "after resume the hunt plays on from the cutoff state",
+      "ok": true,
+      "detail": "snapshot at sim 4191 ms"
+    }
+  ],
+  "passed": true
+}

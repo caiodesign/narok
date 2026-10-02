@@ -1,0 +1,30 @@
+{
+  "name": "@narok/lab",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@narok/client": "workspace:*",
+    "@narok/data": "workspace:*",
+    "@narok/sim": "workspace:*",
+    "i18next": "26.4.2",
+    "pixi.js": "8.21.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-i18next": "17.0.14"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "30.1.0",
+    "vite": "8.3.0"
+  }
+}

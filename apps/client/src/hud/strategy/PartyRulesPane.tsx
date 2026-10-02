@@ -1,40 +1,37 @@
 /**
  * The party rules pane (`codex-examples/realm-refined/strategy.html:1331-1414`).
  *
- * Three of the reference's four sections survive into milestone A, and each is
- * bound to a real field of `LabInput`:
+ * Two of the reference's four sections survive, each bound to a real field of
+ * `LabInput`:
  *
  * - "Rest between fights" → `rest.hpStart` / `rest.mpStart`, on the design's own
  *   HP and MP ranges.
- * - The retreat section's death pips → `wipeLimit`. The reference's pips count
- *   deaths against a five-death cap; the laboratory's are wipes against the
- *   configured limit, which defaults to one (the rules override the mockup's
- *   five — see the UI spec's correction table).
  * - Roster size, recipe and seed have no counterpart on a game screen, which
  *   starts from a party that already exists. They are the laboratory's own and
  *   use the design's `.section` / `.subhead` / `.chips` / `.rule` vocabulary
- *   rather than a new one.
+ *   rather than a new one; they render only when the laboratory passes their
+ *   handlers. A saved strategy preset (milestone B) holds placement, rules and
+ *   rest, and its seed is the server's (part 1 §2), so it shows neither.
  *
- * Dropped whole: potions and the bag-full policy (no items in A), and "return to
- * town" (no town, and travel costs are an open milestone B decision).
+ * Dropped whole: potions and the bag-full policy (no items in A), "return to
+ * town" (no town, and travel costs are an open milestone B decision), and the
+ * retreat section's death pips: a wipe ends the hunt (owner decision
+ * 2026-09-30), so there is no wipe limit to choose.
  */
 import { useTranslation } from 'react-i18next';
 import type { Content, RecipeId } from '@narok/data';
 import type { LabInput } from '@narok/sim';
 import { formatNumber, type Translate } from '../../i18n';
-import type { ValidationIssue } from '../../validation';
-
-/** The reference's pip strip is five wide; the laboratory's cap is the same. */
-const WIPE_PIPS = [1, 2, 3, 4, 5] as const;
+import type { PresetDraft, ValidationIssue } from '../../validation';
 
 export interface PartyRulesPaneProps {
   content: Content;
-  draft: LabInput;
-  onRosterSize: (size: number) => void;
-  onRecipe: (recipe: RecipeId | 'mixed') => void;
-  onSeed: (seed: number) => void;
+  draft: PresetDraft & Partial<Pick<LabInput, 'seed' | 'recipe'>>;
+  /** The laboratory's roster, recipe and seed controls; omitted on a saved preset. */
+  onRosterSize?: (size: number) => void;
+  onRecipe?: (recipe: RecipeId | 'mixed') => void;
+  onSeed?: (seed: number) => void;
   onRest: (part: 'hpStart' | 'mpStart', value: number) => void;
-  onWipeLimit: (limit: number) => void;
   issuesFor: (field: string) => ValidationIssue[];
 }
 
@@ -64,6 +61,7 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
         {t('controls.partyRules')}
       </h2>
       <div className="pane-body">
+        {props.onRosterSize !== undefined && (
         <div className="section">
           <fieldset className="chips chips--grid">
             <legend className="subhead">{t('controls.rosterSize')}</legend>
@@ -75,7 +73,7 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
                   value={size}
                   aria-label={t('controls.rosterSizeOption', { count: size })}
                   checked={draft.classes.length === size}
-                  onChange={() => props.onRosterSize(size)}
+                  onChange={() => props.onRosterSize?.(size)}
                 />
                 <span className="num">{formatNumber(size, language)}</span>
               </label>
@@ -83,7 +81,9 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
           </fieldset>
           <Alerts issues={props.issuesFor('classes')} />
         </div>
+        )}
 
+        {props.onRecipe !== undefined && props.onSeed !== undefined && (
         <div className="section">
           <h3 className="subhead">
             {t('controls.recipeAndSeed')}
@@ -93,7 +93,7 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
             <label className="rule-label" htmlFor="recipe">
               {t('controls.recipe')}
             </label>
-            <select id="recipe" value={draft.recipe} onChange={(event) => props.onRecipe(event.target.value as RecipeId | 'mixed')}>
+            <select id="recipe" value={draft.recipe} onChange={(event) => props.onRecipe?.(event.target.value as RecipeId | 'mixed')}>
               {[...Object.keys(content.recipes), 'mixed'].map((recipeId) => (
                 <option key={recipeId} value={recipeId}>
                   {t(`recipe.${recipeId}`)}
@@ -111,11 +111,12 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
               type="number"
               className="val num"
               value={draft.seed}
-              onChange={(event) => props.onSeed(Number(event.target.value))}
+              onChange={(event) => props.onSeed?.(Number(event.target.value))}
             />
           </div>
           <Alerts issues={props.issuesFor('seed')} />
         </div>
+        )}
 
         <div className="section">
           <h3 className="subhead">{t('controls.restBetween')}</h3>
@@ -168,32 +169,6 @@ export function PartyRulesPane(props: PartyRulesPaneProps): React.JSX.Element {
           <Alerts issues={props.issuesFor('rest')} />
         </div>
 
-        <div className="section">
-          <h3 className="subhead">{t('controls.wipeLimit')}</h3>
-          <div className="inline-rule">
-            <div className="attempts">
-              <fieldset className="attempt-pips">
-                <legend className="sr-only">{t('controls.wipeLimit')}</legend>
-                {WIPE_PIPS.map((limit) => (
-                  <label key={limit}>
-                    <input
-                      type="radio"
-                      name="wipe-limit"
-                      aria-label={t('controls.wipeLimitOption', { count: limit })}
-                      checked={draft.wipeLimit === limit}
-                      onChange={() => props.onWipeLimit(limit)}
-                    />
-                    <span className="pip num">{formatNumber(limit, language)}</span>
-                  </label>
-                ))}
-              </fieldset>
-              <span className="rule-label">
-                {t('controls.wipeLimitNote', { count: draft.wipeLimit })}
-              </span>
-            </div>
-          </div>
-          <Alerts issues={props.issuesFor('wipeLimit')} />
-        </div>
       </div>
     </section>
   );

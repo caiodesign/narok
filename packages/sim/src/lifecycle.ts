@@ -1,9 +1,13 @@
-import type { RecipeId } from '@narok/data';
+import { CONSUMABLE_STACK_MAX, IDUN_APPLE_ID } from '@narok/data';
+import type { Content, RecipeId } from '@narok/data';
 import { gridPosition } from './battlefield/grid';
 import { compareIds, emitEvent, livingActors } from './effects';
+import { dispositionRewards } from './rewards';
+import { SimError } from './errors';
+import { actorLoadout } from './loadout';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
-import type { Actor, ActorId, Context, Phase, SimState } from './types';
+import type { Actor, ActorId, Context, Phase, PositionId, SimState } from './types';
 
 /** Fixed roll order for a `'mixed'` recipe draw (ruling R34): melee, ranged, clustered. */
 const RECIPE_ORDER: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
@@ -23,9 +27,145 @@ function enemyIds(state: SimState): ActorId[] {
 }
 
 /**
+ * Ruling R155 (owner decision 2026-09-30, amended the same day; supersedes
+ * R149's amount): the return to town heals the whole party — every member,
+ * living or dead — to full HP and MP. The owner set this aside of layer-1
+ * §4.5's "stop/start grants no free recovery" for the town return only.
+ * Returns whether anyone had fallen.
+ */
+function healParty(state: SimState): boolean {
+  let fallen = false;
+  for (const id of partyIds(state)) {
+    const member = state.actors[id];
+    if (member.hp <= 0) fallen = true;
+    member.hp = member.stats.maxHp;
+    member.mp = member.stats.maxMp;
+  }
+  return fallen;
+}
+
+/**
+ * Every transition into `stopped` — the operator's stop, a full wipe, the
+ * stalemate deadline — is the party's return to town, and goes through here.
+ *
+ * Ruling R149, as R155 amends it: the return heals the whole party to full HP
+ * and MP, so no member comes home dead and every one can hunt again. It draws
+ * nothing and touches no reward, pity or metric. When anyone had fallen, the
+ * whole party is re-seated at its input placement, as the encounter exit does
+ * (ruling R92), because a corpse may share a cell with a living ally.
+ */
+export function returnToTown(state: SimState, reason: NonNullable<SimState['stopReason']>): void {
+  state.phase = 'stopped';
+  state.stopReason = reason;
+  state.queue = [];
+  if (!healParty(state)) return;
+  for (const id of partyIds(state)) state.actors[id].position = state.input.placement[id];
+}
+
+/** A rejoining member decides as a freshly spawned one does: half a second later. */
+const REJOIN_DECISION_MS = 500;
+
+/**
+ * The HP a revived member returns with: Idun's Apple's share of its maximum,
+ * `max(1, floor(maxHp * 5000 / 10000))` (owner decision 2026-09-30). The
+ * Cleric's Revive restores exactly what the apple does (ruling R153), so both
+ * read this one definition.
+ */
+function revivedHp(maxHp: number, content: Content): number {
+  return Math.max(1, Math.floor((maxHp * content.consumables[IDUN_APPLE_ID].restoreBp) / 10_000));
+}
+
+/**
+ * Ruling R156 (owner decision 2026-09-30): where a revived member stands — its
+ * death cell when no living actor holds it (a corpse does not occupy its cell,
+ * ruling R92), else its input placement, else the first free party-side slot
+ * in row-major order. The party side has more cells than a party and an
+ * encounter's enemies together, so a free one always exists.
+ */
+function rejoinCell(state: SimState, ctx: Context, member: Actor): PositionId {
+  const taken = new Set(livingActors(state).map((entry) => entry.position));
+  const candidates = [member.position, state.input.placement[member.id], ...ctx.battlefield.placementSlots('party')];
+  const free = candidates.find((cell) => !taken.has(cell));
+  /* istanbul ignore next -- the party side always has a free cell */
+  if (free === undefined) throw new SimError('INVALID_STATE', `actors.${member.id}.position`, 'no free cell to rejoin');
+  return free;
+}
+
+/**
+ * Brings a fallen party member back into the running encounter (rulings
+ * R152, R153, R156): HP from {@link revivedHp}, MP exactly as at its death,
+ * its statuses, cast in progress, targets and threat cleared — including the
+ * threat and taunt records the enemies hold for it — and its cooldown
+ * timestamps kept. It rejoins at {@link rejoinCell} under a fresh action
+ * token and decides {@link REJOIN_DECISION_MS} later. Draws nothing.
+ *
+ * Announced as a `revive` event: `actorId` the revived member, `targetId` the
+ * Cleric who cast Revive (`null` for an apple), `amount` the HP restored,
+ * `reason` the apple's id or `revive`, `position` where it rejoined.
+ */
+export function reviveMember(
+  state: SimState, ctx: Context, member: Actor, source: typeof IDUN_APPLE_ID | 'revive', casterId: ActorId | null,
+): void {
+  const cell = rejoinCell(state, ctx, member);
+  member.hp = revivedHp(member.stats.maxHp, ctx.content);
+  member.position = cell;
+  member.statuses = [];
+  member.pendingCast = null;
+  member.currentTarget = null;
+  member.forcedTarget = null;
+  member.threat = {};
+  for (const id of enemyIds(state)) {
+    const enemy = state.actors[id];
+    delete enemy.threat[member.id];
+    if (enemy.forcedTarget?.actorId === member.id) enemy.forcedTarget = null;
+  }
+  member.actionToken += 1;
+  schedule(state, {
+    at: state.nowMs + REJOIN_DECISION_MS, kind: 'act', actorId: member.id, epoch: state.epoch, token: member.actionToken,
+  });
+  emitEvent(state, ctx, {
+    kind: 'revive', actorId: member.id, targetId: casterId, amount: member.hp, reason: source, position: cell,
+  });
+}
+
+/** The account's id for a roster member, its roster id in a laboratory run. */
+function characterIdOf(state: SimState, id: ActorId): string {
+  return state.progression?.[id]?.characterId ?? id;
+}
+
+/**
+ * Ruling R152 (owner decision 2026-09-30), as R157 refines it: Idun's Apple.
+ * Called with the party members who died at one instant — one simulated
+ * millisecond, across every cast resolution at it (ruling R157, controller
+ * ruling 2026-10-01; `advance.ts` gathers them before the encounter is
+ * judged) — each of them is revived at once by one apple from the shared
+ * bag while the bag holds one, in ascending character id (ASCII), the order
+ * simultaneous potion use resolves in, so two members never eat the same
+ * apple and queue order never decides who does. Each apple eaten leaves the bag (its
+ * stack and, when emptied, its slot) and is counted in `metrics.consumed`,
+ * which the settlement's commit takes off the account's stack. Draws nothing.
+ */
+export function reviveWithApples(state: SimState, ctx: Context, fallen: readonly ActorId[]): void {
+  const order = fallen
+    .filter((id) => state.actors[id]?.side === 'party' && state.actors[id].hp <= 0)
+    .sort((left, right) => compareIds(characterIdOf(state, left), characterIdOf(state, right)));
+  const bag = state.bagState;
+  for (const id of order) {
+    const apples = bag.held[IDUN_APPLE_ID] ?? 0;
+    if (apples < 1) return;
+    const stacksBefore = Math.ceil(apples / CONSUMABLE_STACK_MAX);
+    if (apples === 1) delete bag.held[IDUN_APPLE_ID];
+    else bag.held[IDUN_APPLE_ID] = apples - 1;
+    bag.usedSlots -= stacksBefore - Math.ceil((apples - 1) / CONSUMABLE_STACK_MAX);
+    state.metrics.consumed[IDUN_APPLE_ID] = (state.metrics.consumed[IDUN_APPLE_ID] ?? 0) + 1;
+    reviveMember(state, ctx, state.actors[id], IDUN_APPLE_ID, null);
+  }
+}
+
+/**
  * Drops every queued entry whose `epoch` is non-null and no longer matches the
  * current epoch (ruling R45). Global entries (`epoch: null` — regen ticks, walking
- * and respawn transitions) always survive. Applied at encounter exit, right after
+ * and rest-exit transitions) always survive. Applied at encounter exit, right after
  * the epoch bump and enemy-actor deletion, so a snapshot taken between the
  * conclusion of one encounter and the queue's natural drain never carries a
  * queued entry referencing an actor `validateSimState` can no longer find —
@@ -59,12 +199,35 @@ function chooseRecipe(state: SimState, ctx: Context): RecipeId {
 }
 
 /**
+ * Activates the queued strategy, if any (milestone B part 2 §4, §9 #4; ruling
+ * R115). Called at the top of {@link spawnEncounter}, before the recipe draw, so
+ * it consumes no RNG and cannot reroll the encounter — and since every spawn is
+ * reached from a completed walk (after a win or a rest), it can never land
+ * mid-fight. One atomic activation: placement, per-character strategies and
+ * rest thresholds all become active together (spec §4.1).
+ */
+export function activatePending(state: SimState): void {
+  const pending = state.pendingRules;
+  if (pending === null) return;
+
+  state.input = {
+    ...state.input,
+    placement: pending.placement,
+    strategies: pending.strategies,
+    rest: pending.rest,
+  };
+  state.pendingRules = null;
+}
+
+/**
  * Spawns the next encounter on a completed walk (ruling R34): rolls the recipe,
  * advances encounter bookkeeping, resets the party to its input placement, creates
  * the enemy roster from the monster definitions, and schedules first decisions plus
  * the encounter deadline.
  */
 function spawnEncounter(state: SimState, ctx: Context): void {
+  // R115: before `chooseRecipe` draws, so activation never touches the RNG.
+  activatePending(state);
   const recipe = ctx.content.recipes[chooseRecipe(state, ctx)];
 
   state.encounterCount += 1;
@@ -150,44 +313,11 @@ function spawnEncounter(state: SimState, ctx: Context): void {
 }
 
 /**
- * Completes a respawn wait (ruling R34): the only full HP/MP reset after initial
- * experiment setup. Clears encounter state, preserves cooldown timestamps, and
- * resumes walking toward the next group.
- */
-function completeRespawn(state: SimState, ctx: Context): void {
-  for (const id of partyIds(state)) {
-    const member = state.actors[id];
-    member.hp = member.stats.maxHp;
-    member.mp = member.stats.maxMp;
-    member.statuses = [];
-    member.pendingCast = null;
-    member.currentTarget = null;
-    member.forcedTarget = null;
-    member.threat = {};
-    member.actionToken += 1;
-  }
-  state.phase = 'walking';
-  emitEvent(state, ctx, { kind: 'phase', reason: 'walking' });
-  schedule(state, {
-    at: state.nowMs + ctx.content.walkMs,
-    kind: 'transition',
-    actorId: '',
-    epoch: null,
-    token: null,
-  });
-}
-
-/**
- * Global `transition` handler (ruling R34): fires for a completed `walking` phase
- * (spawn the next encounter) or a completed `respawning` phase (restore the party
- * and resume walking). The dispatcher (Task 7) routes queued `kind: 'transition'`
- * entries here; this is the only place either completion is decided.
+ * Global `transition` handler (ruling R34): fires for a completed `walking`
+ * phase and spawns the next encounter. There is no respawn to complete: a full
+ * wipe ends the hunt (owner decision 2026-09-30; ruling R154).
  */
 export function transition(state: SimState, ctx: Context): void {
-  if (state.phase === 'respawning') {
-    completeRespawn(state, ctx);
-    return;
-  }
   spawnEncounter(state, ctx);
 }
 
@@ -200,8 +330,9 @@ function regenMultiplier(phase: Phase): [numerator: number, denominator: number]
 
 /**
  * Global 5,000 ms regen tick (ruling R35). Always reschedules its successor unless
- * the experiment is stopped; applies no regeneration while `respawning` or
- * `stopped`. Only living party members regenerate, HP before MP, in id order.
+ * the experiment is stopped; applies no regeneration while `stopped`. Only
+ * living party members regenerate, HP before MP, in id order, each adding its
+ * loadout's flat regen to the base (ruling R161).
  * While resting, reevaluates the (fixed 90%/80%) exit thresholds after applying
  * regeneration and may resume walking on this same tick.
  */
@@ -215,16 +346,23 @@ export function regenerate(state: SimState, ctx: Context): void {
       token: null,
     });
   }
-  if (state.phase === 'respawning' || state.phase === 'stopped') return;
+  if (state.phase === 'stopped') return;
 
   const [numerator, denominator] = regenMultiplier(state.phase);
   const party = livingActors(state).filter((entry) => entry.side === 'party');
 
   for (const member of party) {
+    // Ruling R161 (Task 7d, requirement 4): Part 3 states no order for the
+    // loadout's flat regen, so `hpRegenFlat`/`mpRegenFlat` add to the tick's
+    // base — after its floor of one, before the phase multiplier — making
+    // equipment regen a rate that fighting halves and resting quadruples like
+    // the rest; the gain is still clamped to the missing HP/MP. Only the
+    // living reach this loop, so the dead gain nothing whatever they wear.
+    const loadout = actorLoadout(state, member, ctx.content);
     const hpBase = Math.max(
       1,
       Math.floor(member.stats.maxHp / 100) + Math.floor(member.attributes.vit / 5),
-    );
+    ) + (loadout?.hpRegenFlat ?? 0);
     const hpGain = Math.min(
       member.stats.maxHp - member.hp,
       Math.max(1, Math.floor((hpBase * numerator) / denominator)),
@@ -238,7 +376,7 @@ export function regenerate(state: SimState, ctx: Context): void {
       const mpBase = Math.max(
         1,
         Math.floor(member.stats.maxMp / 100) + Math.floor(member.attributes.int / 6),
-      );
+      ) + (loadout?.mpRegenFlat ?? 0);
       const mpGain = Math.min(
         member.stats.maxMp - member.mp,
         Math.max(1, Math.floor((mpBase * numerator) / denominator)),
@@ -274,8 +412,21 @@ export function regenerate(state: SimState, ctx: Context): void {
  * Encounter completion (ruling R36). Called by the dispatcher after a whole cast
  * resolution; returns immediately unless the encounter is decided (`fighting` with
  * one side fully dead). Records exactly one win or wipe, invalidates the encounter
- * epoch, prunes the now-stale queue (ruling R45), and chooses the next recovery
- * phase.
+ * epoch, prunes the now-stale queue (ruling R45), dispositions the
+ * encounter's drops (part 3 §2.1), and chooses what follows: a win rests or
+ * walks on, a wipe ends the hunt.
+ *
+ * Ruling R151 (owner decision 2026-09-30; supersedes milestone A spec §10's
+ * won-encounter revive): a member dead at the win stays dead for the rest of
+ * the hunt, until Idun's Apple, a Cleric's Revive or the town brings it back.
+ * It still counts in the EXP divisor and earns nothing (ruling R135). Only the
+ * living decide whether the party rests, as only the living decide when the
+ * rest ends: a corpse at 0 HP would otherwise force a rest after every win.
+ *
+ * Ruling R154 (owner decision 2026-09-30; supersedes layer-1 §5.6's wipe limit
+ * and 30-second respawn, and milestone A spec §10's respawn): a full wipe —
+ * every member dead, with no apple or Revive left to act, since apples are
+ * spent before this runs — is counted and ends the hunt with `wipe`.
  */
 export function finishEncounter(state: SimState, ctx: Context): void {
   if (state.phase !== 'fighting') return;
@@ -299,9 +450,8 @@ export function finishEncounter(state: SimState, ctx: Context): void {
     // cell (`executeMove` tests occupancy with `livingActors`, and
     // `assertInvariants`/`validateSimState` both skip actors at `hp <= 0`), so an
     // ally may legally step onto a fallen member — and two members may die on one
-    // cell. Reviving in place, here on the win branch or later in
-    // `completeRespawn`, then put two *living* actors on one cell and tripped both
-    // occupancy checks. `input.placement` is the same source `spawnEncounter` uses
+    // cell. Reviving in place at the return to town would then put two *living*
+    // actors on one cell and trip both occupancy checks. `input.placement` is the same source `spawnEncounter` uses
     // and `startState` validated it collision-free, so this makes the party-reset
     // sites consistent instead of inventing a placement rule. It is a teleport,
     // not a step: no `move` event, and no RNG is drawn.
@@ -318,34 +468,22 @@ export function finishEncounter(state: SimState, ctx: Context): void {
   if (wipe) {
     state.metrics.wipes += 1;
     emitEvent(state, ctx, { kind: 'wipe' });
-    if (state.metrics.wipes >= state.input.wipeLimit) {
-      state.phase = 'stopped';
-      state.stopReason = 'wipe-limit';
-      state.queue = [];
-      emitEvent(state, ctx, { kind: 'stop', reason: 'wipe-limit' });
-    } else {
-      state.phase = 'respawning';
-      schedule(state, {
-        at: state.nowMs + ctx.content.respawnMs,
-        kind: 'transition',
-        actorId: '',
-        epoch: null,
-        token: null,
-      });
-    }
+    // Kills made before the wipe still dropped: their rewards are dispositioned too.
+    dispositionRewards(state, ctx);
+    returnToTown(state, 'wipe');
+    emitEvent(state, ctx, { kind: 'stop', reason: 'wipe' });
     return;
   }
 
   state.metrics.wins += 1;
   emitEvent(state, ctx, { kind: 'win' });
-  for (const id of partyIds(state)) {
-    const member = state.actors[id];
-    if (member.hp <= 0) member.hp = Math.max(1, Math.floor(member.stats.maxHp / 10));
-  }
+  // Walk → fight → loot filter → rest (layer-1 §6.1): disposition, never at death.
+  dispositionRewards(state, ctx);
 
   const { hpStart, mpStart } = state.input.rest;
   const needsRest = partyIds(state).some((id) => {
     const member = state.actors[id];
+    if (member.hp <= 0) return false;
     const hpLow = hpStart > 0 && member.hp * 100 < hpStart * member.stats.maxHp;
     const mpLow = mpStart > 0 && member.stats.maxMp > 0 && member.mp * 100 < mpStart * member.stats.maxMp;
     return hpLow || mpLow;
@@ -371,12 +509,14 @@ export function finishEncounter(state: SimState, ctx: Context): void {
  * Encounter deadline (ruling R37). Stops the experiment only while still
  * `fighting` — a decided encounter has already left that phase via
  * {@link finishEncounter}, so a stale or already-resolved deadline is a no-op.
- * No win, no wipe, no rewards; state is preserved for inspection.
+ * No win, no wipe and no new reward; the drops the encounter's kills already
+ * rolled are dispositioned like at any encounter end (ruling R127), and state
+ * is preserved for inspection.
  */
 export function deadline(state: SimState, ctx: Context): void {
   if (state.phase !== 'fighting') return;
-  state.phase = 'stopped';
-  state.stopReason = 'stalemate';
-  state.queue = [];
+  // The encounter ends here: kills already made keep their drops (ruling R127).
+  dispositionRewards(state, ctx);
+  returnToTown(state, 'stalemate');
   emitEvent(state, ctx, { kind: 'stop', reason: 'stalemate' });
 }

@@ -5,8 +5,17 @@
  * inspection readout and the hotbar of party skillsets. Two things the reference
  * shows are deliberately absent:
  *
- * - the `.slot--passive` state. Ruling R84: milestone A has no passive skills, so
- *   the state is unreachable and rendering it would invent a skill kind.
+ * - a passive *in the content*. Ruling R84: no class carries a passive skill, so
+ *   `skillActivity` never yields one and nothing here infers one. The renderer
+ *   for the state exists (`SkillSlot`, ruling R173) so that when content does
+ *   declare a passive it is drawn as the reference's `.slot--passive` — and
+ *   never as a button, because a passive is not a thing a player can inspect
+ *   into casting (part 4 §3.1, gate B-09).
+ *   Ruling R173: `SkillSlot` draws all six states — the five `skillActivity`
+ *   yields, plus passive — and draws a passive as a non-interactive image,
+ *   never a button — because gate B-09 requires the six to render distinctly
+ *   and a passive never to be a cast affordance, while R84 still forbids
+ *   inferring a passive the content does not declare.
  * - the `.expline` XP strip below the bar. There is no levelling mechanic and no
  *   experience curve to fill it from.
  *
@@ -31,7 +40,67 @@ import {
   skillsFor,
   slotModifier,
   splitSides,
+  type SkillActivity,
 } from './model';
+
+/** Every state a hotbar slot can be drawn in: the five `skillActivity` yields, and passive. */
+export type SlotState = SkillActivity | 'passive';
+
+export interface SkillSlotProps {
+  actor: PublicActor;
+  skill: SkillDefinition;
+  state: SlotState;
+  /** Whole seconds of cooldown left, from `PublicActor.cooldowns`; `null` when not cooling down. */
+  remaining: number | null;
+  inspected: boolean;
+  onInspect: (actorId: string, skillId: string) => void;
+}
+
+/**
+ * One hotbar slot. A clickable slot *inspects* — it selects the skill so the
+ * readout above names why it is waiting — and issues no command of any kind:
+ * casting is the strategy's, never the player's (R84, part 4 §3.1 "never cast
+ * a skill on click"). A passive is rendered as the reference draws it and is
+ * not a button at all.
+ */
+export function SkillSlot({ actor, skill, state, remaining, inspected, onInspect }: SkillSlotProps): React.JSX.Element {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language;
+  const name = t(`skill.${skill.id}`);
+  const label = t('inspect.heading', { skill: name, state: t(`skillState.${state}`) });
+  const slot = (
+    <span className={classNames('slot', slotModifier(state), schoolModifier(actor.definitionId))}>
+      <svg aria-hidden="true">
+        <use href={`#${skillGlyph(skill.id)}`} />
+      </svg>
+      {state !== 'passive' && <span className="corner-text num">{formatNumber(skill.mp, language)}</span>}
+      {remaining !== null && <span className="cd num">{formatNumber(remaining, language)}</span>}
+    </span>
+  );
+
+  if (state === 'passive') {
+    return (
+      <span className="skill skill--passive" role="img" aria-label={label} data-state={state}>
+        {slot}
+        <span className="skill-name">{name}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={classNames('skill', state === 'casting' && 'skill--casting', state === 'unavailable' && 'skill--starved')}
+      style={SKILL_BUTTON}
+      aria-pressed={inspected}
+      aria-label={label}
+      data-state={state}
+      onClick={() => onInspect(actor.id, skill.id)}
+    >
+      {slot}
+      <span className="skill-name">{name}</span>
+    </button>
+  );
+}
 
 export interface CommandBarProps {
   state: PublicState | null;
@@ -169,30 +238,14 @@ export function CommandBar(props: CommandBarProps): React.JSX.Element {
                   const isInspected = inspected?.actorId === actor.id && inspected.skillId === skill.id;
                   return (
                     <li key={skill.id}>
-                      <button
-                        type="button"
-                        className={classNames(
-                          'skill',
-                          activity === 'casting' && 'skill--casting',
-                          activity === 'unavailable' && 'skill--starved',
-                        )}
-                        style={SKILL_BUTTON}
-                        aria-pressed={isInspected}
-                        aria-label={t('inspect.heading', {
-                          skill: t(`skill.${skill.id}`),
-                          state: t(`skillState.${activity}`),
-                        })}
-                        onClick={() => onInspect(actor.id, skill.id)}
-                      >
-                        <span className={classNames('slot', slotModifier(activity), schoolModifier(actor.definitionId))}>
-                          <svg aria-hidden="true">
-                            <use href={`#${skillGlyph(skill.id)}`} />
-                          </svg>
-                          <span className="corner-text num">{formatNumber(skill.mp, language)}</span>
-                          {remaining !== null && <span className="cd num">{formatNumber(remaining, language)}</span>}
-                        </span>
-                        <span className="skill-name">{t(`skill.${skill.id}`)}</span>
-                      </button>
+                      <SkillSlot
+                        actor={actor}
+                        skill={skill}
+                        state={activity}
+                        remaining={remaining}
+                        inspected={isInspected}
+                        onInspect={onInspect}
+                      />
                     </li>
                   );
                 })}

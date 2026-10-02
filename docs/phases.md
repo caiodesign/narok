@@ -23,7 +23,7 @@ experiment setup. A7's automated half is done and recorded in [`artifacts/milest
 |---|---|---|
 | **A1. Foundations** | pnpm monorepo; typed content (4 level-10 classes, 8 skills, 3 monsters, 3 recipes, element chart); deterministic xorshift32 RNG | 1 |
 | **A2. Simulation core** | Grid geometry and pathfinding, area shapes, stat and damage formulas, snapshots, stable event queue | 2–4 |
-| **A3. Combat** | Rule priority, targeting, casts, threat, Taunt, slow/stun; walk → fight → rest → respawn loop with wipe limit and stalemate | 5–6 |
+| **A3. Combat** | Rule priority, targeting, casts, threat, Taunt, slow/stun; walk → fight → rest → respawn loop with wipe limit and stalemate (as milestone A built it; the respawn and the wipe limit were removed in milestone B by the owner decision of 2026-09-30, Task 7c, R151–R156) | 5–6 |
 | **A4. Simulation API** | Chunked `advance` with split invariance, summary mode, public projection | 7 |
 | **A5. Balance CLI** | `run`, `matrix` (34 compositions × 3 recipes × 3 placements), `benchmark` (12h/24h) | 8 |
 | **A6. Browser laboratory** | Worker, playback clock (pause, 1×/4×/16×), setup controls, isometric board (specified as PixiJS, built in SVG — see the milestone A spec's amended renderer note), event log, two-run comparison, EN/PT-BR | 9–10 |

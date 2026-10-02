@@ -1,6 +1,11 @@
 /**
  * The laboratory's setup, presented over the world as the Strategy screen.
  *
+ * Milestone B: this overlay is the laboratory's (it starts an *experiment*);
+ * the game client's Strategy screen, with the preset lifecycle this file's
+ * notes below defer, is `hud/strategy/StrategyScreen.tsx`. Neither carries a
+ * Pause or Resume (ruling R166).
+ *
  * `hunt.html` has no form anywhere — a hunt is configured on the Strategy
  * screen, and that screen is now ported: this is `strategy.html`'s `.editor`
  * dialog, opened over a scrim, with its head, its three columns and its panes.
@@ -23,15 +28,13 @@ import { useTranslation } from 'react-i18next';
 import type { Content } from '@narok/data';
 import type { LabInput } from '@narok/sim';
 import { ExperimentControls } from '../ExperimentControls';
-import type { ExperimentStatus } from '../useExperiment';
+import type { ExperimentStatus } from '../status';
 
 export interface SetupOverlayProps {
   open: boolean;
   content: Content;
   status: ExperimentStatus;
   onStart: (input: LabInput) => void;
-  onPause: () => void;
-  onResume: () => void;
   onStop: () => void;
   onSpeedChange: (speed: number) => void;
   onDraftChange: (draft: LabInput, canStart: boolean) => void;

@@ -1,0 +1,5 @@
+# Task 10 fix round 1 (Minor 9): the ported Realm sheets are compared byte for
+# byte with their mockups, so both are checked out with LF on every platform.
+# This is the only place their line endings are normalised.
+codex-examples/realm-refined/*.html text eol=lf
+apps/client/src/*.css text eol=lf

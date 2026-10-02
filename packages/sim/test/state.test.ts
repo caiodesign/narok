@@ -20,7 +20,7 @@ test('startState builds a full-resource party at default placement with zero coo
   const state = startState(content, grid, labInput());
 
   expect(state.schemaVersion).toBe(1);
-  expect(state.simulationVersion).toBe('a1');
+  expect(state.simulationVersion).toBe('b1');
   expect(state.contentVersion).toBe(content.version);
   expect(state.gridHash).toBe(content.gridHash);
   expect(state.nowMs).toBe(0);
@@ -45,11 +45,16 @@ test('startState builds a full-resource party at default placement with zero coo
   expect(state.metrics).toEqual({
     kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0,
     damageDealt: 0, effectiveHealing: 0,
-    walkMs: 0, fightMs: 0, restMs: 0, respawnMs: 0,
+    walkMs: 0, fightMs: 0, restMs: 0, consumed: {},
     actors: {
       p0: { damageDealt: 0, damageReceived: 0, healingDone: 0 },
       p1: { damageDealt: 0, damageReceived: 0, healingDone: 0 },
       p2: { damageDealt: 0, damageReceived: 0, healingDone: 0 },
+    },
+    drops: {
+      rolled: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+      consumables: 0, kept: 0, autoSold: 0, ignored: 0, lost: 0,
+      firstDropMs: null, firstDropRarity: null, epicPlusWaits: [], legendaryWaits: [],
     },
   });
 });
@@ -83,6 +88,8 @@ test('defaultStrategy matches the spec §6 default rule table', () => {
   });
   expect(defaultStrategy('cleric')).toEqual({
     rules: [
+      // Ruling R153: Revive leads, and stays silent while its rank is 0.
+      { skillId: 'revive', enabled: true, condition: { kind: 'ally-dead' } },
       { skillId: 'heal', enabled: true, condition: { kind: 'ally-hp-below', value: 60 } },
       { skillId: 'smite', enabled: true, condition: { kind: 'always' } },
     ],
@@ -223,12 +230,6 @@ test('rejects rest thresholds outside their ranges', () => {
     .toBe('INVALID_INPUT');
   expect(expectSimError(() => startState(content, grid, labInput({ rest: { hpStart: 50, mpStart: 80 } }))).code)
     .toBe('INVALID_INPUT');
-});
-
-test('rejects a wipeLimit outside 1..5', () => {
-  const grid = createGrid(content.grid);
-  expect(expectSimError(() => startState(content, grid, labInput({ wipeLimit: 0 }))).code).toBe('INVALID_INPUT');
-  expect(expectSimError(() => startState(content, grid, labInput({ wipeLimit: 6 }))).code).toBe('INVALID_INPUT');
 });
 
 test('rejects a seed outside 1..4294967295', () => {

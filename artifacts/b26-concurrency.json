@@ -1,0 +1,2567 @@
+{
+  "drill": "concurrency (B-26) and offline semantics (B-18)",
+  "ranAt": "2026-10-02T06:16:04.799Z",
+  "database": "narok_drill_concurrency",
+  "processes": 2,
+  "heartbeatsSent": 92,
+  "lockAttempts": 182,
+  "lockSuccesses": 150,
+  "lockConflicts": 32,
+  "lockLatencyMs": [
+    29,
+    20,
+    19,
+    20,
+    19,
+    11,
+    18,
+    18,
+    18,
+    20,
+    19,
+    19,
+    18,
+    19,
+    19,
+    10,
+    19,
+    19,
+    19,
+    19,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    18,
+    18,
+    22,
+    18,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    18,
+    19,
+    18,
+    19,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    18,
+    11,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    18,
+    19,
+    18,
+    19,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    17,
+    18,
+    17,
+    18,
+    18,
+    10,
+    18,
+    19,
+    20,
+    18,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    18,
+    18,
+    19,
+    18,
+    18,
+    10,
+    17,
+    18,
+    18,
+    18,
+    18,
+    10,
+    17,
+    18,
+    18,
+    19,
+    18,
+    10,
+    18,
+    19,
+    18,
+    18,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    17,
+    18,
+    19,
+    18,
+    18,
+    10,
+    18,
+    18,
+    18,
+    20,
+    18,
+    18,
+    18,
+    19,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    20,
+    10,
+    18,
+    18,
+    18,
+    18,
+    18,
+    10,
+    18,
+    18,
+    18,
+    18,
+    17,
+    18,
+    17,
+    18,
+    18,
+    10,
+    17,
+    18,
+    18,
+    19,
+    19,
+    10,
+    18,
+    18,
+    18,
+    20,
+    21,
+    19,
+    19,
+    18,
+    18,
+    10,
+    18,
+    19,
+    19,
+    19,
+    18,
+    10,
+    18,
+    18
+  ],
+  "huntSamples": 133,
+  "absence": {
+    "absenceMs": 46800000,
+    "settleWallMs": 62,
+    "statusBefore": "running",
+    "report": {
+      "mapId": "prototype",
+      "party": [
+        {
+          "deaths": 0,
+          "classId": "guardian",
+          "revives": 0,
+          "expAfter": 24,
+          "expBefore": 24,
+          "levelAfter": 1,
+          "characterId": "606ce45c-b9e9-4635-89bd-6737f560606d",
+          "levelBefore": 1
+        },
+        {
+          "deaths": 0,
+          "classId": "cleric",
+          "revives": 0,
+          "expAfter": 12,
+          "expBefore": 12,
+          "levelAfter": 1,
+          "characterId": "bcdb760f-7496-4c7d-91ff-43dd675dc709",
+          "levelBefore": 1
+        },
+        {
+          "deaths": 1,
+          "classId": "ranger",
+          "revives": 0,
+          "expAfter": 36,
+          "expBefore": 36,
+          "levelAfter": 1,
+          "characterId": "2ab57892-1de2-472c-ba0a-cabafc4b0bf5",
+          "levelBefore": 1
+        }
+      ],
+      "huntId": "b0d127f0-c2cc-4af7-a7cd-4a8a305c9f65",
+      "status": "stopped",
+      "actions": [
+        "start-hunt"
+      ],
+      "copyKey": "away.stopped.wipe",
+      "notable": [],
+      "outcomes": {
+        "wins": 0,
+        "drops": {
+          "kept": 0,
+          "lost": 0,
+          "rolled": 0,
+          "ignored": 0,
+          "autoSold": 0
+        },
+        "kills": 0,
+        "wipes": 1,
+        "rawExp": 0,
+        "rawGold": 0,
+        "consumed": {}
+      },
+      "timeline": [
+        {
+          "kind": "death",
+          "count": 1,
+          "reason": null,
+          "atWallMs": 1790874985954,
+          "characterId": "2ab57892-1de2-472c-ba0a-cabafc4b0bf5"
+        },
+        {
+          "kind": "wipe",
+          "count": 1,
+          "reason": null,
+          "atWallMs": 1790874985954,
+          "characterId": null
+        },
+        {
+          "kind": "stop",
+          "count": 1,
+          "reason": "wipe",
+          "atWallMs": 1790874985954,
+          "characterId": null
+        }
+      ],
+      "uncovered": {
+        "afterCapMs": 3603064,
+        "afterStopMs": 43172671
+      },
+      "generation": 1,
+      "stopReason": "wipe",
+      "timeAwayMs": 46803064,
+      "simulatedMs": 27329,
+      "awayFromWall": 1790874958625,
+      "memberDeaths": 1,
+      "notableTotal": 0,
+      "capCutoffWall": 1790918158625,
+      "reportVersion": 3,
+      "wipesThisHunt": 1,
+      "returnedAtWall": 1790921761689,
+      "rewardsCredited": 0,
+      "timelineOmitted": 0,
+      "accrualEndedAtWall": 1790874985954
+    }
+  },
+  "outcomes": [
+    {
+      "attempt": 0,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 6,
+          "stateVersion": 7,
+          "ms": 29
+        }
+      ]
+    },
+    {
+      "attempt": 1,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 7,
+          "stateVersion": 8,
+          "ms": 20
+        }
+      ]
+    },
+    {
+      "attempt": 2,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 9,
+          "stateVersion": 10,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 3,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 10,
+          "stateVersion": 11,
+          "ms": 20
+        }
+      ]
+    },
+    {
+      "attempt": 4,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 11,
+          "stateVersion": 12,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 5,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 12,
+          "stateVersion": 13,
+          "ms": 11
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 13,
+          "stateVersion": 14,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 6,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 14,
+          "stateVersion": 15,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 7,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 16,
+          "stateVersion": 17,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 8,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 17,
+          "stateVersion": 18,
+          "ms": 20
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 18,
+          "stateVersion": 19,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 9,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 19,
+          "stateVersion": 20,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 10,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 21,
+          "stateVersion": 22,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 11,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 22,
+          "stateVersion": 23,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 12,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 23,
+          "stateVersion": 24,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 13,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 24,
+          "stateVersion": 25,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 25,
+          "stateVersion": 26,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 14,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 26,
+          "stateVersion": 27,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 15,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 28,
+          "stateVersion": 29,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 16,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 29,
+          "stateVersion": 30,
+          "ms": 19
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 30,
+          "stateVersion": 31,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 17,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 31,
+          "stateVersion": 32,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 18,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 33,
+          "stateVersion": 34,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 19,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 34,
+          "stateVersion": 35,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 20,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 35,
+          "stateVersion": 36,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 21,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 36,
+          "stateVersion": 37,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 37,
+          "stateVersion": 38,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 22,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 38,
+          "stateVersion": 39,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 23,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 40,
+          "stateVersion": 41,
+          "ms": 22
+        }
+      ]
+    },
+    {
+      "attempt": 24,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 41,
+          "stateVersion": 42,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 25,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 42,
+          "stateVersion": 43,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 26,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 43,
+          "stateVersion": 44,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 44,
+          "stateVersion": 45,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 27,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 45,
+          "stateVersion": 46,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 28,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 47,
+          "stateVersion": 48,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 29,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 48,
+          "stateVersion": 49,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 30,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 49,
+          "stateVersion": 50,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 31,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 50,
+          "stateVersion": 51,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 51,
+          "stateVersion": 52,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 32,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 52,
+          "stateVersion": 53,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 33,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 54,
+          "stateVersion": 55,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 34,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 55,
+          "stateVersion": 56,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 35,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 56,
+          "stateVersion": 57,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 36,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 57,
+          "stateVersion": 58,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 58,
+          "stateVersion": 59,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 37,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 59,
+          "stateVersion": 60,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 38,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 61,
+          "stateVersion": 62,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 39,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 62,
+          "stateVersion": 63,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 40,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 63,
+          "stateVersion": 64,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 41,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 64,
+          "stateVersion": 65,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 65,
+          "stateVersion": 66,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 42,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 66,
+          "stateVersion": 67,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 43,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 68,
+          "stateVersion": 69,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 44,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 69,
+          "stateVersion": 70,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 45,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 70,
+          "stateVersion": 71,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 46,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 71,
+          "stateVersion": 72,
+          "ms": 11
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 72,
+          "stateVersion": 73,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 47,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 73,
+          "stateVersion": 74,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 48,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 75,
+          "stateVersion": 76,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 49,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 76,
+          "stateVersion": 77,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 50,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 77,
+          "stateVersion": 78,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 51,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 78,
+          "stateVersion": 79,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 79,
+          "stateVersion": 80,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 52,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 80,
+          "stateVersion": 81,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 53,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 82,
+          "stateVersion": 83,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 54,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 83,
+          "stateVersion": 84,
+          "ms": 19
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 84,
+          "stateVersion": 85,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 55,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 85,
+          "stateVersion": 86,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 56,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 87,
+          "stateVersion": 88,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 57,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 88,
+          "stateVersion": 89,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 58,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 89,
+          "stateVersion": 90,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 59,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 90,
+          "stateVersion": 91,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 91,
+          "stateVersion": 92,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 60,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 92,
+          "stateVersion": 93,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 61,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 94,
+          "stateVersion": 95,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 62,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 95,
+          "stateVersion": 96,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 63,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 96,
+          "stateVersion": 97,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 64,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 97,
+          "stateVersion": 98,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 98,
+          "stateVersion": 99,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 65,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 99,
+          "stateVersion": 100,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 66,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 101,
+          "stateVersion": 102,
+          "ms": 20
+        }
+      ]
+    },
+    {
+      "attempt": 67,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 102,
+          "stateVersion": 103,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 68,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 103,
+          "stateVersion": 104,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 69,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 104,
+          "stateVersion": 105,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 105,
+          "stateVersion": 106,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 70,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 106,
+          "stateVersion": 107,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 71,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 108,
+          "stateVersion": 109,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 72,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 109,
+          "stateVersion": 110,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 73,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 110,
+          "stateVersion": 111,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 74,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 111,
+          "stateVersion": 112,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 112,
+          "stateVersion": 113,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 75,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 113,
+          "stateVersion": 114,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 76,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 115,
+          "stateVersion": 116,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 77,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 116,
+          "stateVersion": 117,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 78,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 117,
+          "stateVersion": 118,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 79,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 118,
+          "stateVersion": 119,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 119,
+          "stateVersion": 120,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 80,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 120,
+          "stateVersion": 121,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 81,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 122,
+          "stateVersion": 123,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 82,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 123,
+          "stateVersion": 124,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 83,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 124,
+          "stateVersion": 125,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 84,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 125,
+          "stateVersion": 126,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 126,
+          "stateVersion": 127,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 85,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 127,
+          "stateVersion": 128,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 86,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 129,
+          "stateVersion": 130,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 87,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 130,
+          "stateVersion": 131,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 88,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 131,
+          "stateVersion": 132,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 89,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 132,
+          "stateVersion": 133,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 133,
+          "stateVersion": 134,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 90,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 134,
+          "stateVersion": 135,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 91,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 136,
+          "stateVersion": 137,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 92,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 137,
+          "stateVersion": 138,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 93,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 138,
+          "stateVersion": 139,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 94,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 139,
+          "stateVersion": 140,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 140,
+          "stateVersion": 141,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 95,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 141,
+          "stateVersion": 142,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 96,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 143,
+          "stateVersion": 144,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 97,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 144,
+          "stateVersion": 145,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 98,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 145,
+          "stateVersion": 146,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 99,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 146,
+          "stateVersion": 147,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 147,
+          "stateVersion": 148,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 100,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 148,
+          "stateVersion": 149,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 101,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 150,
+          "stateVersion": 151,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 102,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 151,
+          "stateVersion": 152,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 103,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 152,
+          "stateVersion": 153,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 104,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 153,
+          "stateVersion": 154,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 154,
+          "stateVersion": 155,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 105,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 155,
+          "stateVersion": 156,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 106,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 157,
+          "stateVersion": 158,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 107,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 158,
+          "stateVersion": 159,
+          "ms": 20
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 159,
+          "stateVersion": 160,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 108,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 160,
+          "stateVersion": 161,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 109,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 162,
+          "stateVersion": 163,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 110,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 163,
+          "stateVersion": 164,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 111,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 164,
+          "stateVersion": 165,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 112,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 165,
+          "stateVersion": 166,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 166,
+          "stateVersion": 167,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 113,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 167,
+          "stateVersion": 168,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 114,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 169,
+          "stateVersion": 170,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 115,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 170,
+          "stateVersion": 171,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 116,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 171,
+          "stateVersion": 172,
+          "ms": 20
+        }
+      ]
+    },
+    {
+      "attempt": 117,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 172,
+          "stateVersion": 173,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 173,
+          "stateVersion": 174,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 118,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 174,
+          "stateVersion": 175,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 119,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 176,
+          "stateVersion": 177,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 120,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 177,
+          "stateVersion": 178,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 121,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 178,
+          "stateVersion": 179,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 122,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 179,
+          "stateVersion": 180,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 180,
+          "stateVersion": 181,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 123,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 181,
+          "stateVersion": 182,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 124,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 183,
+          "stateVersion": 184,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 125,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 184,
+          "stateVersion": 185,
+          "ms": 18
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 185,
+          "stateVersion": 186,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 126,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 186,
+          "stateVersion": 187,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 127,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 188,
+          "stateVersion": 189,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 128,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 189,
+          "stateVersion": 190,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 129,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 190,
+          "stateVersion": 191,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 130,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 191,
+          "stateVersion": 192,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 192,
+          "stateVersion": 193,
+          "ms": 17
+        }
+      ]
+    },
+    {
+      "attempt": 131,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 193,
+          "stateVersion": 194,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 132,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 195,
+          "stateVersion": 196,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 133,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 196,
+          "stateVersion": 197,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 134,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 197,
+          "stateVersion": 198,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 135,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 198,
+          "stateVersion": 199,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 199,
+          "stateVersion": 200,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 136,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 200,
+          "stateVersion": 201,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 137,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 202,
+          "stateVersion": 203,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 138,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 203,
+          "stateVersion": 204,
+          "ms": 20
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 204,
+          "stateVersion": 205,
+          "ms": 21
+        }
+      ]
+    },
+    {
+      "attempt": 139,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 205,
+          "stateVersion": 206,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 140,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 207,
+          "stateVersion": 208,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 141,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 208,
+          "stateVersion": 209,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 142,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 209,
+          "stateVersion": 210,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 143,
+      "locked": false,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 210,
+          "stateVersion": 211,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 211,
+          "stateVersion": 212,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 144,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 212,
+          "stateVersion": 213,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 145,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 214,
+          "stateVersion": 215,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 146,
+      "locked": true,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 215,
+          "stateVersion": 216,
+          "ms": 19
+        }
+      ]
+    },
+    {
+      "attempt": 147,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 216,
+          "stateVersion": 217,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 148,
+      "locked": true,
+      "tries": [
+        {
+          "status": 409,
+          "code": "CONFLICT_STATE_VERSION",
+          "formedAt": 217,
+          "stateVersion": 218,
+          "ms": 10
+        },
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 218,
+          "stateVersion": 219,
+          "ms": 18
+        }
+      ]
+    },
+    {
+      "attempt": 149,
+      "locked": false,
+      "tries": [
+        {
+          "status": 200,
+          "code": null,
+          "formedAt": 219,
+          "stateVersion": 220,
+          "ms": 18
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "the race was real: settlements committed and at least one mutation lost to one",
+      "ok": true,
+      "detail": "32 conflicts"
+    },
+    {
+      "name": "every answer is a success or CONFLICT_STATE_VERSION (no 5xx, no other refusal)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every conflict names the current version to retry against",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every intent eventually landed after retrying against fresh state",
+      "ok": true,
+      "detail": "max tries 2"
+    },
+    {
+      "name": "no two successes share a state_version (one writer wins each version)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the item's final lock is the last success's",
+      "ok": true,
+      "detail": "locked=false"
+    },
+    {
+      "name": "the committed hunt never moved backwards (no stale worker result applied)",
+      "ok": true,
+      "detail": "133 samples"
+    },
+    {
+      "name": "a replayed idempotency key returns the stored result on both processes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the same key with a different body is refused, not applied",
+      "ok": true,
+      "detail": "409 IDEMPOTENCY_KEY_REUSED"
+    },
+    {
+      "name": "B-18 a second tab joining a live stream gets no away report",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "B-18 both tabs keep receiving the stream",
+      "ok": true,
+      "detail": "tab1 59 frames, tab2 22"
+    },
+    {
+      "name": "B-18 repeated heartbeats from two tabs credited EXP once (columns equal the checkpoint)",
+      "ok": true,
+      "detail": "columns 72, checkpoint 72"
+    },
+    {
+      "name": "B-18 reward ids stay unique across the storm and the tabs",
+      "ok": true,
+      "detail": "0 rewards"
+    },
+    {
+      "name": "B-18 time away and simulated duration are reported separately",
+      "ok": true,
+      "detail": "away 46803064, simulated 27329"
+    },
+    {
+      "name": "B-18 no retroactive accrual: simulated time never exceeds the offline cap",
+      "ok": true,
+      "detail": "simulated 27329 <= cap 43200000"
+    },
+    {
+      "name": "B-18 the settlement window starts at the previous presence (settle before presence refresh)",
+      "ok": true,
+      "detail": "1790874958625 vs 1790874958625"
+    },
+    {
+      "name": "B-18 presence was refreshed by that settlement, to now",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "B-18 an immediate second return credits nothing retroactively",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "passed": true
+}

@@ -11,9 +11,11 @@ import type {
   SkillDefinition,
   SkillId,
 } from '@narok/data';
+import { IDUN_APPLE_ID, RARITY_RULES, content } from '@narok/data';
 import { createGrid, gridPosition } from '../src/battlefield/grid';
 import type { Battlefield } from '../src/battlefield/types';
 import { schedule } from '../src/scheduler';
+import { defaultBag, emptyDropMetrics, starterLoot } from '../src/rewards';
 import type { Actor, ActorId, LabInput, Metrics, SimState, Strategy } from '../src/types';
 
 /**
@@ -53,7 +55,7 @@ export const STRESS_GRID_HASH = 'engine-stress-grid-1';
 
 const CLASS_IDS: readonly ClassId[] = ['guardian', 'cleric', 'ranger', 'arcanist'];
 const SKILL_IDS: readonly SkillId[] = [
-  'taunt', 'cleave', 'heal', 'smite', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
+  'taunt', 'cleave', 'heal', 'smite', 'revive', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
 ];
 const RECIPE_IDS: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
 const ELEMENTS: readonly Element[] = ['neutral', 'fire', 'water', 'earth', 'wind'];
@@ -147,7 +149,19 @@ function buildFillerContent(): Content {
     walkMs: 1,
     regenMs: 1,
     encounterLimitMs: STRESS_ENCOUNTER_LIMIT_MS,
-    respawnMs: 1,
+    townReturnTravelMs: null,
+    // Inert: the stress fight equips nothing and rolls no drops.
+    items: {},
+    bonuses: {},
+    rarities: structuredClone(RARITY_RULES),
+    onboardingGrant: {} as Content['onboardingGrant'],
+    pity: { guaranteeEnabled: false, epicPlusThreshold: null, legendaryThreshold: null },
+    // Inert too: the stress fight carries no progression and drinks nothing.
+    progression: structuredClone(content.progression),
+    // Idun's Apple is required content; the stress bag holds none.
+    consumables: { [IDUN_APPLE_ID]: structuredClone(content.consumables[IDUN_APPLE_ID]) },
+    potionCooldownMs: content.potionCooldownMs,
+    starterKit: {} as Content['starterKit'],
   };
 }
 
@@ -242,12 +256,11 @@ export function buildStressFixture(seed = 1): StressFixture {
     },
     strategies,
     rest: { hpStart: 0, mpStart: 0 },
-    wipeLimit: 1,
   };
 
   const state: SimState = {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs: 0,
@@ -260,6 +273,14 @@ export function buildStressFixture(seed = 1): StressFixture {
     phase: 'fighting',
     stopReason: null,
     input,
+    pendingRules: null,
+    nextRewardSeq: 0,
+    pendingRewards: [],
+    dropProtection: { epicPlus: 0, legendary: 0 },
+    lootPresetSnapshot: starterLoot(),
+    pendingLoot: [],
+    bagState: defaultBag(),
+    progression: null,
     actors,
     queue: [],
     metrics: {
@@ -273,8 +294,9 @@ export function buildStressFixture(seed = 1): StressFixture {
       walkMs: 0,
       fightMs: 0,
       restMs: 0,
-      respawnMs: 0,
+      consumed: {},
       actors: metricsActors,
+      drops: emptyDropMetrics(),
     },
   };
 

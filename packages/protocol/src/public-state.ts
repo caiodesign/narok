@@ -19,8 +19,9 @@ import type { SkillId } from '@narok/data';
 const count = z.number().int();
 const timestamp = z.number().int().nonnegative();
 
-export const phaseSchema = z.enum(['walking', 'fighting', 'resting', 'respawning', 'stopped']);
-export const stopReasonSchema = z.enum(['wipe-limit', 'stalemate', 'operator']);
+/** No respawn phase and no wipe limit: a full wipe ends the hunt with `wipe` (owner decision 2026-09-30, R154). */
+export const phaseSchema = z.enum(['walking', 'fighting', 'resting', 'stopped']);
+export const stopReasonSchema = z.enum(['wipe', 'stalemate', 'operator', 'retreat', 'potion-floor']);
 
 /**
  * Three fields whose runtime check is "a string" but whose *type* is narrower
@@ -62,6 +63,29 @@ export const publicActorSchema = z
   })
   .strict();
 
+const raritySchema = z.enum(['common', 'uncommon', 'rare', 'epic', 'legendary']);
+
+/**
+ * Drop accounting (part 3 §7; ruling R127). Counts and past waits only: no
+ * reward payload, no bad-luck counter in flight, nothing about the RNG.
+ */
+export const dropMetricsSchema = z
+  .object({
+    rolled: z
+      .object({ common: count, uncommon: count, rare: count, epic: count, legendary: count })
+      .strict(),
+    consumables: count,
+    kept: count,
+    autoSold: count,
+    ignored: count,
+    lost: count,
+    firstDropMs: timestamp.nullable(),
+    firstDropRarity: raritySchema.nullable(),
+    epicPlusWaits: z.array(count),
+    legendaryWaits: z.array(count),
+  })
+  .strict();
+
 export const metricsSchema = z
   .object({
     kills: count,
@@ -74,11 +98,13 @@ export const metricsSchema = z
     walkMs: timestamp,
     fightMs: timestamp,
     restMs: timestamp,
-    respawnMs: timestamp,
     actors: z.record(
       z.string(),
       z.object({ damageDealt: count, damageReceived: count, healingDone: count }).strict(),
     ),
+    drops: dropMetricsSchema,
+    /** Units of each consumable the hunt has spent — Idun's Apples (ruling R152). */
+    consumed: z.record(z.string(), count),
   })
   .strict();
 

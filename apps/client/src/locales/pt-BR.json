@@ -45,10 +45,9 @@
     "placementHelp": "Selecione um personagem e escolha uma célula nas fileiras do grupo com o clique ou com as setas e Enter.",
     "invalidCell": "Fora da zona do grupo",
     "invalidCellMark": "×",
-    "restAndWipe": "Descanso e limite de derrotas",
+    "rest": "Descanso",
     "restHp": "HP de descanso %",
     "restMp": "MP de descanso %",
-    "wipeLimit": "Limite de derrotas totais",
     "strategy": "Regras de estratégia",
     "strategyFor": "Estratégia: {{actor}}",
     "targetMode": "Modo de alvo",
@@ -59,8 +58,6 @@
     "ruleOrderHelp": "As regras são verificadas em ordem; a primeira cuja condição for verdadeira é usada.",
     "run": "Execução",
     "start": "Iniciar experimento",
-    "pause": "Pausar",
-    "resume": "Retomar",
     "stop": "Parar experimento",
     "startHelp": "Iniciar entrega a configuração atual a um novo experimento. A execução anterior fica retida como comparação A.",
     "orders": "Ordens da execução",
@@ -90,8 +87,6 @@
     "partyRules": "Regras do grupo",
     "recipeAside": "o encontro que esta execução repete",
     "restBetween": "Descanso entre lutas",
-    "wipeLimitOption": "Parar após {{count}}",
-    "wipeLimitNote": "Parar o experimento após {{count}} aniquilações",
     "rosterSizeOption": "Grupo de {{count}}"
   },
   "validation": {
@@ -103,7 +98,6 @@
     "duplicatePlacement": "Dois integrantes não podem ocupar a mesma célula.",
     "invalidCell": "Essa célula está fora da zona do grupo.",
     "restRange": "O HP de descanso deve ficar entre 0 e 89% e o MP entre 0 e 79%.",
-    "wipeLimit": "O limite de derrotas totais deve ficar entre 1 e 5.",
     "ruleThreshold": "Esse limite está fora do intervalo permitido.",
     "unknownTargetParty": "Esse personagem não está mais no grupo."
   },
@@ -117,6 +111,7 @@
     "always": "Usar sempre que estiver pronta",
     "ally-targeted": "Usar quando um inimigo estiver atacando um aliado",
     "ally-hp-below": "Usar quando o HP de um aliado estiver abaixo de",
+    "ally-dead": "Usar quando um aliado tiver caído",
     "targets-at-least": "Usar quando atingir pelo menos"
   },
   "skill": {
@@ -125,6 +120,7 @@
     "cleave": "Talho",
     "heal": "Cura",
     "smite": "Castigo",
+    "revive": "Reviver",
     "double-shot": "Tiro Duplo",
     "arrow-rain": "Chuva de Flechas",
     "fire-bolt": "Dardo de Fogo",
@@ -158,13 +154,14 @@
     "walking": "Caminhando",
     "fighting": "Em combate",
     "resting": "Descansando",
-    "respawning": "Ressurgindo",
     "stopped": "Parado"
   },
   "stopReason": {
-    "wipe-limit": "Limite de derrotas atingido",
+    "wipe": "O grupo foi aniquilado",
     "stalemate": "Limite de tempo do encontro atingido",
     "operator": "Parado pelo operador",
+    "retreat": "Retirada para a cidade",
+    "potion-floor": "Poções de HP abaixo do mínimo",
     "none": "Nenhuma parada registrada"
   },
   "error": {
@@ -207,7 +204,8 @@
     "active": "Ativa",
     "cooldown": "Recarga",
     "casting": "Conjurando",
-    "unavailable": "MP insuficiente"
+    "unavailable": "MP insuficiente",
+    "passive": "Passiva"
   },
   "castbar": {
     "text": "{{actor}}: {{skill}}",
@@ -227,7 +225,8 @@
     "unavailable": "Precisa de {{cost}} MP; {{actor}} tem {{mp}} MP.",
     "cost": "Custo de MP: {{cost}}",
     "editRule": "Editar a regra de {{skill}}",
-    "noSelection": "Nenhuma habilidade selecionada."
+    "noSelection": "Nenhuma habilidade selecionada.",
+    "passive": "Uma passiva está sempre em efeito e nunca é conjurada."
   },
   "event": {
     "move": "{{actor}} move-se para a célula {{position}}.",
@@ -245,6 +244,10 @@
     },
     "heal": "{{actor}} restaura {{amount}} de HP em {{target}} com {{skill}}.",
     "death": "{{actor}} é derrotado por {{target}}.",
+    "revive": {
+      "apple": "{{actor}} é revivido pela Maçã de Idun com {{amount}} de HP.",
+      "spell": "{{target}} revive {{actor}} com {{amount}} de HP."
+    },
     "status": {
       "slow": "{{actor}} é retardado por {{target}}.",
       "other": "{{actor}} é afetado por {{target}}."
@@ -254,7 +257,6 @@
       "walking": "O grupo caminha até o próximo encontro.",
       "fighting": "Um encontro começa.",
       "resting": "O grupo descansa.",
-      "respawning": "O grupo está ressurgindo.",
       "stopped": "O experimento está parado.",
       "other": "O grupo muda de fase."
     },
@@ -266,8 +268,9 @@
     },
     "win": "O encontro foi vencido.",
     "wipe": "O grupo foi derrotado por completo.",
+    "dropLost": "Um item foi perdido: a bolsa está cheia.",
     "stop": {
-      "wipe-limit": "O experimento parou: o limite de derrotas foi atingido.",
+      "wipe": "A caçada parou: o grupo foi aniquilado.",
       "stalemate": "O experimento parou: o encontro atingiu seu limite de tempo.",
       "operator": "O experimento foi parado pelo operador.",
       "other": "O experimento parou."
@@ -280,7 +283,8 @@
     "rows": "Linhas de evento",
     "empty": "Nenhum evento ainda.",
     "returnToLatest": "Voltar ao mais recente",
-    "cap": "Mostrando os {{limit}} eventos mais recentes."
+    "cap": "Mostrando os {{limit}} eventos mais recentes.",
+    "loot": "Saque"
   },
   "actor": {
     "label": "{{name}} {{id}}",
@@ -304,7 +308,9 @@
     "gridRange": "{{width}} × {{height}} células",
     "noRun": "Nenhuma execução",
     "noRunRange": "Nenhuma receita vinculada ainda",
-    "wipes": "{{used}} de {{limit}} derrotas totais"
+    "wallet": "Carteira",
+    "bag": "Bolsa",
+    "bagValue": "{{used}} / {{capacity}}"
   },
   "metrics": {
     "elapsed": "Tempo simulado",
@@ -323,7 +329,6 @@
     "walkMs": "Tempo caminhando",
     "fightMs": "Tempo em combate",
     "restMs": "Tempo descansando",
-    "respawnMs": "Tempo ressurgindo",
     "seed": "Semente",
     "recipe": "Receita"
   },
@@ -352,5 +357,534 @@
     "tokenCasting": "{{label}}, conjurando {{skill}}",
     "critical": "Crítico",
     "laneNeutral": "Faixa neutra, sem surgimentos"
+  },
+  "hunt": {
+    "orders": "Ordens da caçada",
+    "start": "Iniciar caçada",
+    "stop": "Parar",
+    "newHunt": "Iniciar nova caçada",
+    "startPending": "Iniciando a caçada…",
+    "stopPending": "Voltando à cidade…",
+    "openStrategy": "Editar estratégia",
+    "strategy": "Estratégia",
+    "idleHelp": "Inicie uma caçada com o seu grupo e o preset de estratégia selecionado.",
+    "runningHelp": "Parar leva o grupo de volta à cidade e abandona o encontro atual.",
+    "stoppedHelp": {
+      "operator": "Você parou a caçada. O encontro em andamento foi abandonado, a volta à cidade levou o tempo da viagem, e o grupo inteiro chegou com a vida restaurada.",
+      "wipe": "O grupo inteiro caiu. Ele voltou à cidade, e a cidade restaurou a vida de todos.",
+      "stalemate": "O encontro chegou a um impasse: nenhum lado conseguia derrotar o outro. O grupo voltou à cidade e chegou com a vida restaurada.",
+      "retreat": "O grupo recuou do encontro e voltou à cidade, onde chegou com a vida restaurada.",
+      "potion-floor": "As poções de vida ficaram abaixo do mínimo definido, então o grupo voltou à cidade e chegou com a vida restaurada.",
+      "unknown": "A caçada parou. O grupo está na cidade, com a vida restaurada."
+    },
+    "faultedHelp": "A caçada está com falha. Ela precisa de uma recuperação explícita antes que uma nova caçada possa começar.",
+    "unavailable": "Uma caçada precisa de um personagem, um preset de estratégia e um preset de saque nesta conta.",
+    "report": "Um relatório de ausência está pronto.",
+    "lootFilter": "Filtro de saque",
+    "openBag": "Bolsa",
+    "party": "Grupo",
+    "openCharacter": "Personagem",
+    "openReport": "Relatório de ausência"
+  },
+  "playbackState": {
+    "label": "Reprodução",
+    "connecting": "Conectando",
+    "idle": "Sem caçada",
+    "live": "Ao vivo",
+    "buffering": "Carregando",
+    "resyncing": "Ressincronizando",
+    "disconnected": "Reconectando",
+    "closed": "Desconectado",
+    "faulted": "Caçada com falha",
+    "error": "Erro de conexão"
+  },
+  "serverError": {
+    "title": "O servidor recusou isso",
+    "VALIDATION": "O servidor rejeitou a solicitação por estar malformada.",
+    "UNAUTHENTICATED": "Você não está conectado.",
+    "INVALID_CREDENTIALS": "O e-mail e a senha não conferem.",
+    "FORBIDDEN_ORIGIN": "A solicitação veio de uma origem que o servidor não aceita.",
+    "NOT_OWNED": "Isso não pertence à sua conta.",
+    "NOT_FOUND": "Isso não foi encontrado.",
+    "EMAIL_TAKEN": "Esse e-mail já está cadastrado.",
+    "CONFLICT_STATE_VERSION": "Sua conta mudou depois desta leitura, então nada foi aplicado.",
+    "IDEMPOTENCY_KEY_REUSED": "Essa solicitação já foi enviada com outro conteúdo.",
+    "CONTENT_VERSION_MISMATCH": "O conteúdo do jogo foi atualizado. Recarregue para continuar.",
+    "HUNT_FAULTED": "A caçada falhou e precisa de uma recuperação explícita.",
+    "RULE_VIOLATION": "Isso não é permitido agora.",
+    "RATE_LIMITED": "Solicitações demais. Aguarde um momento e tente de novo.",
+    "INTERNAL": "O servidor falhou inesperadamente.",
+    "MAINTENANCE": "O jogo está em manutenção.",
+    "STALE_GENERATION": "Essa mensagem pertencia a um estado da caçada que não é mais o atual.",
+    "PROTOCOL": "A conexão quebrou o contrato de mensagens.",
+    "BACKPRESSURE": "A conexão ficou para trás e foi reiniciada."
+  },
+  "strategy": {
+    "title": "Estratégia",
+    "subtitle": "seus presets salvos",
+    "presets": "Presets de estratégia salvos",
+    "unsaved": "Alterações não salvas",
+    "unsavedDraft": "Rascunho não salvo",
+    "saved": "Salvo v{{version}}",
+    "revert": "Reverter",
+    "save": "Salvar preset",
+    "saving": "Salvando…",
+    "apply": "Aplicar no próximo encontro",
+    "applying": "Aplicando…",
+    "active": "Ativo: {{name}} v{{version}}",
+    "pending": "Pendente: {{name}} v{{version}}, vale a partir do próximo encontro",
+    "applyNote": "Editando um rascunho. Salvar guarda este preset; Aplicar salva e o coloca na fila para o próximo encontro. Esta luta mantém as regras atuais.",
+    "huntRunning": "Caçada ainda em andamento",
+    "close": "Fechar o editor de estratégia",
+    "closePrompt": "Este preset tem alterações não salvas.",
+    "keepEditing": "Continuar editando",
+    "discard": "Descartar",
+    "conflictHelp": "Seu rascunho continua aqui. Salve ou aplique de novo sobre a versão atual.",
+    "presetConflictHelp": "Este preset foi salvo em outro lugar depois que você o abriu. Seu rascunho continua aqui: salve de novo para substituir essa versão, ou reverta para carregá-la.",
+    "noPresets": "Nenhum preset de estratégia está salvo nesta conta.",
+    "savedNote": "{{name}} salvo como v{{version}}. As regras da caçada não mudaram. Aplique quando quiser.",
+    "queuedNote": "{{name}} v{{version}} salvo e na fila. Vale a partir do próximo encontro; a luta atual mantém as regras.",
+    "revertedNote": "O último preset salvo foi restaurado. As regras da caçada atual não mudaram.",
+    "noHunt": "Nenhuma caçada está em andamento, então não há encontro onde aplicá-lo."
+  },
+  "map": {
+    "prototype": "Mapa protótipo"
+  },
+  "item": {
+    "arcanist-staff": "Cajado de Aprendiz",
+    "bone-charm": "Amuleto de Osso",
+    "cleric-mace": "Maça de Clérigo",
+    "copper-ring": "Anel de Cobre",
+    "guardian-sword": "Espada de Guardião",
+    "leather-boots": "Botas de Couro",
+    "leather-cap": "Gorro de Couro",
+    "padded-vest": "Colete Acolchoado",
+    "ranger-bow": "Arco de Patrulheiro",
+    "wooden-buckler": "Broquel de Madeira",
+    "wool-cloak": "Capa de Lã"
+  },
+  "consumable": {
+    "idun-apple": "Maçã de Idun",
+    "small-hp-potion": "Poção de HP Pequena",
+    "small-mp-potion": "Poção de MP Pequena"
+  },
+  "bonus": {
+    "agi": "AGI",
+    "atk-pct": "ATQ",
+    "attack-speed": "Velocidade de ataque",
+    "beast-damage": "Dano contra Bestas",
+    "crit": "Chance de crítico",
+    "demon-damage": "Dano contra Demônios",
+    "dex": "DES",
+    "earth-damage": "Dano de terra",
+    "earth-resist": "Resistência a terra",
+    "fire-damage": "Dano de fogo",
+    "fire-resist": "Resistência a fogo",
+    "heal-power": "Poder de cura",
+    "hp-regen": "Regeneração de HP",
+    "humanoid-damage": "Dano contra Humanoides",
+    "insect-damage": "Dano contra Insetos",
+    "int": "INT",
+    "luk": "SOR",
+    "matk-pct": "ATQM",
+    "max-hp": "HP máximo",
+    "mp-regen": "Regeneração de MP",
+    "plant-damage": "Dano contra Plantas",
+    "str": "FOR",
+    "undead-damage": "Dano contra Mortos-vivos",
+    "vit": "VIT",
+    "water-damage": "Dano de água",
+    "water-resist": "Resistência a água",
+    "wind-damage": "Dano de vento",
+    "wind-resist": "Resistência a vento"
+  },
+  "base": {
+    "weaponAtk": "ATQ da arma",
+    "weaponMatk": "ATQM da arma",
+    "armorDef": "DEF",
+    "armorMdef": "DEFM",
+    "basicIntervalMs": "Intervalo de ataque"
+  },
+  "slot": {
+    "weapon": "Arma",
+    "offhand": "Mão secundária",
+    "head": "Cabeça",
+    "body": "Corpo",
+    "cloak": "Capa",
+    "shoes": "Calçados",
+    "accessory1": "Acessório",
+    "accessory2": "Acessório"
+  },
+  "rarity": {
+    "common": "Comum",
+    "uncommon": "Incomum",
+    "rare": "Raro",
+    "epic": "Épico",
+    "legendary": "Lendário"
+  },
+  "attribute": {
+    "str": {
+      "abbr": "FOR",
+      "name": "Força"
+    },
+    "agi": {
+      "abbr": "AGI",
+      "name": "Agilidade"
+    },
+    "vit": {
+      "abbr": "VIT",
+      "name": "Vitalidade"
+    },
+    "int": {
+      "abbr": "INT",
+      "name": "Inteligência"
+    },
+    "dex": {
+      "abbr": "DES",
+      "name": "Destreza"
+    },
+    "luk": {
+      "abbr": "SOR",
+      "name": "Sorte"
+    }
+  },
+  "loot": {
+    "action": {
+      "keep": "Manter",
+      "auto-sell": "Vender automaticamente",
+      "ignore": "Ignorar"
+    },
+    "category": {
+      "equipment": "Equipamento",
+      "consumable": "Consumível"
+    },
+    "condition": {
+      "minRarity": "{{rarity}} ou melhor",
+      "minBonusCount": "{{count}}+ bônus",
+      "bonus": "com {{bonus}}",
+      "minItemLevel": "nível de item {{level}}+",
+      "and": " e "
+    }
+  },
+  "town": {
+    "name": "Cidade",
+    "account": "Conta",
+    "gold": "Ouro",
+    "bag": "Bolsa",
+    "state": {
+      "inTown": "Na cidade",
+      "hunting": "Caçando"
+    },
+    "back": {
+      "hunting": "Caçando, voltar à caçada",
+      "inTown": "Na cidade, voltar à caçada"
+    },
+    "nav": {
+      "label": "Menu da cidade",
+      "character": "Personagem",
+      "bag": "Bolsa",
+      "hunt": "Caçada"
+    },
+    "refused": "O servidor recusou: {{reason}}"
+  },
+  "bag": {
+    "screen": "Bolsa e filtro de saque",
+    "title": "Bolsa",
+    "shared": "Compartilhada por todo o grupo",
+    "categories": "Categorias da bolsa",
+    "category": {
+      "all": "Tudo",
+      "equipment": "Equipamentos",
+      "consumable": "Consumíveis"
+    },
+    "search": "Buscar na bolsa",
+    "searchPlaceholder": "Buscar",
+    "sort": "Ordenar",
+    "sortBy": {
+      "rarity": "Raridade",
+      "level": "Nível do item",
+      "name": "Nome"
+    },
+    "slots": "Espaços da bolsa, {{used}} de {{capacity}} em uso",
+    "occupancy": "{{used}} / {{capacity}}",
+    "cell": {
+      "consumable": "{{name}} ×{{quantity}}, consumível",
+      "locked": "trancado"
+    },
+    "noSelection": "Selecione um item para inspecioná-lo.",
+    "pinned": "Fixado",
+    "selected": "Selecionado",
+    "pin": "Fixar",
+    "unpin": "Desafixar",
+    "consumableKind": "Consumível",
+    "quantity": "Quantidade",
+    "stacks": "Pilhas",
+    "kind": "{{slot}} {{rarity}}",
+    "itemLevel": "Nível do item",
+    "requiresLabel": "Requer",
+    "levelShort": "Nv {{level}}",
+    "bonuses": "Bônus",
+    "boundTo": "Vinculado a {{name}}",
+    "compareWith": "Comparar com",
+    "emptySlot": "O espaço {{slot}} de {{name}} está vazio",
+    "comparedWith": "Comparado com {{item}} de {{name}}",
+    "comparison": "Comparação de {{item}}",
+    "stat": "Atributo",
+    "equipped": "Equipado",
+    "thisItem": "Este item",
+    "change": "Diferença",
+    "percent": "{{value}}%",
+    "block": {
+      "hunting": "Volte à cidade para equipar",
+      "class": "Somente para {{classes}}",
+      "level": "Disponível no nível {{required}} · {{name}} está no nível {{current}}",
+      "bound": "Vinculado a outro personagem",
+      "unknown": "Este item não está no conteúdo carregado"
+    },
+    "cannotEquip": "Não pode equipar",
+    "requires": "Requer nível {{level}}",
+    "equipOn": "Equipar em {{name}}",
+    "lock": "Trancar",
+    "unlock": "Destrancar",
+    "sell": "Vender",
+    "confirmSell": "Confirmar venda",
+    "unlockToSell": "Destranque para vender",
+    "saleRefused": {
+      "equipped": "Desequipe para vender",
+      "bound": "Itens vinculados não são vendidos",
+      "protected": "Protegido"
+    },
+    "bulk": {
+      "label": "Vender todos os {{rarity}}",
+      "confirm": "Confirmar a venda",
+      "meta_one": "{{count}} item, {{slots}} espaço liberado, {{locked}} trancado mantido",
+      "meta_many": "{{count}} itens, {{slots}} espaços liberados, {{locked}} trancados mantidos",
+      "meta_other": "{{count}} itens, {{slots}} espaços liberados, {{locked}} trancados mantidos"
+    },
+    "capacityLine": "{{used}} / {{capacity}} espaços em uso, {{free}} livres",
+    "capacityMeter": "Capacidade da bolsa",
+    "filter": {
+      "title": "Filtro de saque",
+      "tag": {
+        "active": "Ativo",
+        "start": "Usado ao iniciar",
+        "pending": "Aplicado a seguir"
+      },
+      "edited": "editado",
+      "saved_one": "{{count}} filtro salvo",
+      "saved_many": "{{count}} filtros salvos",
+      "saved_other": "{{count}} filtros salvos",
+      "presets": "Filtros de saque salvos",
+      "unsaved": "Alterações não salvas",
+      "byRarity": "Por raridade",
+      "bonuses_one": "{{count}} bônus",
+      "bonuses_many": "{{count}} bônus",
+      "bonuses_other": "{{count}} bônus",
+      "alwaysKept": "Sempre mantido",
+      "precedence": "Proteção primeiro: itens trancados nunca são vendidos em lote e drops Lendários são sempre mantidos. Depois as exceções, a primeira que corresponder vence; as regras de raridade por último.",
+      "exceptions": "Exceções",
+      "firstMatch": "após a proteção · a primeira correspondência vence",
+      "preview": "O que este filtro faria",
+      "previewOver_one": "com o {{count}} item da bolsa",
+      "previewOver_many": "com os {{count}} itens da bolsa",
+      "previewOver_other": "com os {{count}} itens da bolsa",
+      "matched": {
+        "protected": "protegido",
+        "default": "por raridade ou padrão",
+        "exception": "pela exceção {{number}}"
+      },
+      "rowNote": "{{rarity}}, nível {{level}}, {{matched}}",
+      "savedWould": "Filtro salvo: {{action}}.",
+      "tally": "{{keep}} mantidos, {{sold}} vendidos automaticamente, {{ignored}} ignorados",
+      "previewOnly": "Só pré-visualização · os itens da bolsa não mudam",
+      "cannotApplyDraft": "As regras editadas não estão salvas, então não podem ser aplicadas. Reverta para aplicar o filtro salvo.",
+      "revert": "Reverter",
+      "apply": "Aplicar aos próximos drops",
+      "noHunt": "Aplica-se aos próximos drops de uma caçada em andamento"
+    }
+  },
+  "character": {
+    "title": "Personagem",
+    "roster": "Membros do grupo",
+    "flag_one": "{{count}} ponto de atributo livre",
+    "flag_many": "{{count}} pontos de atributo livres",
+    "flag_other": "{{count}} pontos de atributo livres",
+    "ident": "{{class}} nível {{level}}",
+    "vitals": "Estado de {{name}}",
+    "health": "Vida",
+    "mana": "Mana",
+    "expTo": "Experiência até o nível {{level}}",
+    "expMax": "Nível máximo alcançado",
+    "experience": "Experiência",
+    "gear": "Equipamento",
+    "empty": "Vazio",
+    "fit_one": "{{count}} na bolsa serve",
+    "fit_many": "{{count}} na bolsa servem",
+    "fit_other": "{{count}} na bolsa servem",
+    "unequip": "Desequipar",
+    "itemLevel": "Nv do item {{level}}",
+    "attributes": "Atributos",
+    "unspent": "livres",
+    "raise": "Aumentar {{attr}}, custa {{cost}} pontos",
+    "raiseRefused": "Aumentar {{attr}}, custa {{cost}} pontos, pontos insuficientes",
+    "raiseCapped": "{{attr}} está no limite",
+    "stepPreview": "{{attr}} {{from}} → {{to}} · custa {{cost}} pontos",
+    "choose": "Use + para reservar um ponto. Nada é gasto até você aplicar.",
+    "pending": "Reservado {{pending}} · restariam {{remaining}}",
+    "insufficient": "O reservado ({{pending}}) passa dos {{unspent}} pontos livres. Redefina antes de aplicar.",
+    "stale": "Sua conta mudou antes de aplicar, então nada foi gasto. Seu rascunho foi mantido e conferido com o novo estado.",
+    "allocateTown": "Volte à cidade para distribuir",
+    "bar": "{{value}} / {{max}}",
+    "apply": "Aplicar distribuição",
+    "applying": "Aplicando…",
+    "reset": "Redefinir",
+    "autoSpend": "Modelo de distribuição automática",
+    "autoSpendTarget": "{{attr}} até {{value}}",
+    "autoSpendRest": "Restante em {{attr}}",
+    "combat": "Combate",
+    "stat": {
+      "atk": "ATQ",
+      "matk": "ATQM",
+      "def": "DEF",
+      "mdef": "DEFM",
+      "hit": "PRE",
+      "flee": "ESQ",
+      "crit": "Chance de crítico",
+      "interval": "Intervalo de ataque"
+    },
+    "skills": "Habilidades",
+    "skillPoints_one": "ponto de habilidade",
+    "skillPoints_many": "pontos de habilidade",
+    "skillPoints_other": "pontos de habilidade",
+    "skill": {
+      "rank": "Grau {{rank}} de {{max}}",
+      "raise": "Aprender {{skill}} grau {{rank}}",
+      "missing": {
+        "town": "Volte à cidade para aprender",
+        "points": "Precisa de um ponto de habilidade",
+        "max-rank": "Grau máximo alcançado"
+      }
+    },
+    "skillPreview": "{{skill}}: grau {{from}} → {{to}}",
+    "skillChoose": "Use + para reservar um grau de habilidade.",
+    "learn": "Aprender",
+    "learning": "Aprendendo…",
+    "cancel": "Cancelar",
+    "notLearnable": "Não pode subir agora",
+    "nextSkillPoint": "Próximo ponto de habilidade no nível {{level}}. Pontos de habilidade são sempre gastos à mão.",
+    "noNextSkillPoint": "Nenhum outro ponto de habilidade vem com um nível.",
+    "returnToHunt": "Voltar à caçada"
+  },
+  "away": {
+    "title": "Enquanto você esteve fora",
+    "running": "Sua caçada continua. As recompensas obtidas foram creditadas.",
+    "capped": "O acúmulo parou no limite offline. A caçada não parou, e as recompensas obtidas foram creditadas.",
+    "bagFull": "A bolsa encheu enquanto você esteve fora. Novos drops mantidos foram perdidos; vendas automáticas, EXP e ouro continuaram.",
+    "stopped": {
+      "wipe": "O grupo inteiro caiu. A caçada terminou e o grupo voltou à cidade, totalmente curado.",
+      "stalemate": "Um encontro esgotou o tempo, então a caçada terminou e o grupo voltou à cidade.",
+      "operator": "A caçada foi parada e o grupo voltou à cidade.",
+      "retreat": "O grupo recuou para a cidade e a caçada terminou.",
+      "potion-floor": "As poções de HP ficaram abaixo do mínimo, então a caçada terminou e o grupo voltou à cidade.",
+      "unknown": "A caçada terminou."
+    },
+    "fact": {
+      "away": "Tempo fora",
+      "simulated": "Simulado {{simulated}} do limite offline de {{cap}}",
+      "map": "Mapa"
+    },
+    "capMeter": "Tempo simulado em relação ao limite offline",
+    "wipes": {
+      "label": "Derrotas do grupo",
+      "thisHunt_one": "{{count}} derrota do grupo nesta caçada",
+      "thisHunt_many": "{{count}} derrotas do grupo nesta caçada",
+      "thisHunt_other": "{{count}} derrotas do grupo nesta caçada",
+      "thisAbsence_one": "{{count}} enquanto você esteve fora",
+      "thisAbsence_many": "{{count}} enquanto você esteve fora",
+      "thisAbsence_other": "{{count}} enquanto você esteve fora",
+      "memberDeaths_one": "{{count}} morte de membro enquanto você esteve fora",
+      "memberDeaths_many": "{{count}} mortes de membros enquanto você esteve fora",
+      "memberDeaths_other": "{{count}} mortes de membros enquanto você esteve fora"
+    },
+    "party": {
+      "title": "Grupo",
+      "outcomes": "{{won}} encontros vencidos, {{lost}} perdidos enquanto você esteve fora",
+      "level": "Nível {{level}}",
+      "levelUp": "Subiu de nível",
+      "to": "para",
+      "expLabel": "EXP no nível",
+      "exp": "{{from}} → {{to}}",
+      "deaths": "Mortes enquanto fora",
+      "revives": "Reviveu"
+    },
+    "totals": "Totais",
+    "kills": "Abates",
+    "wins": "Encontros vencidos",
+    "rawExp": "EXP obtida",
+    "rawGold": "Ouro obtido",
+    "consumed": "Consumíveis usados",
+    "loot": {
+      "title": "Saque",
+      "rolled_one": "{{count}} drop",
+      "rolled_many": "{{count}} drops",
+      "rolled_other": "{{count}} drops",
+      "kept_one": "{{count}} mantido",
+      "kept_many": "{{count}} mantidos",
+      "kept_other": "{{count}} mantidos",
+      "ignored_one": "{{count}} ignorado",
+      "ignored_many": "{{count}} ignorados",
+      "ignored_other": "{{count}} ignorados",
+      "autoSold_one": "{{count}} vendido automaticamente ao cair",
+      "autoSold_many": "{{count}} vendidos automaticamente ao cair",
+      "autoSold_other": "{{count}} vendidos automaticamente ao cair",
+      "lost_one": "{{count}} drop mantido perdido pela bolsa cheia",
+      "lost_many": "{{count}} drops mantidos perdidos pela bolsa cheia",
+      "lost_other": "{{count}} drops mantidos perdidos pela bolsa cheia",
+      "lostNote": "Drops perdidos não podem ser recuperados."
+    },
+    "notable": {
+      "label": "Drops notáveis",
+      "note_one": "{{rarity}}, {{count}} bônus, item nv {{level}}",
+      "note_many": "{{rarity}}, {{count}} bônus, item nv {{level}}",
+      "note_other": "{{rarity}}, {{count}} bônus, item nv {{level}}",
+      "more_one": "Mais {{count}} drop mantido está na sua bolsa",
+      "more_many": "Mais {{count}} drops mantidos estão na sua bolsa",
+      "more_other": "Mais {{count}} drops mantidos estão na sua bolsa"
+    },
+    "timeline": {
+      "title": "Linha do tempo",
+      "label": "Eventos enquanto você esteve fora",
+      "omitted_one": "{{count}} evento anterior não mostrado",
+      "omitted_many": "{{count}} eventos anteriores não mostrados",
+      "omitted_other": "{{count}} eventos anteriores não mostrados",
+      "won_one": "{{count}} encontro vencido",
+      "won_many": "{{count}} encontros vencidos",
+      "won_other": "{{count}} encontros vencidos",
+      "wipe": "Grupo aniquilado",
+      "death": "{{name}} caiu",
+      "revived": "{{name}} reviveu",
+      "apple": "{{name}} reviveu com {{item}}",
+      "dropLost_one": "Bolsa cheia: {{count}} drop mantido perdido",
+      "dropLost_many": "Bolsa cheia: {{count}} drops mantidos perdidos",
+      "dropLost_other": "Bolsa cheia: {{count}} drops mantidos perdidos",
+      "stop": "Caçada encerrada: {{reason}}",
+      "cap": "Limite offline atingido",
+      "returned": "Você voltou",
+      "member": "Um membro do grupo"
+    },
+    "action": {
+      "view-hunt": "Voltar à caçada",
+      "start-hunt": "Iniciar nova caçada",
+      "manage-bag": "Gerenciar bolsa"
+    },
+    "note": {
+      "full_one": "Bolsa {{used}} / {{capacity}}. Abra espaço para os próximos drops; o {{count}} drop perdido não pode ser recuperado.",
+      "full_many": "Bolsa {{used}} / {{capacity}}. Abra espaço para os próximos drops; os {{count}} drops perdidos não podem ser recuperados.",
+      "full_other": "Bolsa {{used}} / {{capacity}}. Abra espaço para os próximos drops; os {{count}} drops perdidos não podem ser recuperados.",
+      "room": "Bolsa {{used}} / {{capacity}}: há espaço para novos drops."
+    },
+    "filter": "Filtro de saque atual",
+    "review": "Revisar",
+    "credited": "As recompensas foram creditadas quando a caçada foi acertada. Abrir este relatório não credita nada."
   }
 }

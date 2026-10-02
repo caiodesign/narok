@@ -16,6 +16,7 @@
  *   client forgot it.
  */
 import { z } from 'zod';
+import type { Slot } from '@narok/data';
 
 const uuid = z.uuid();
 const positiveInt = z.number().int().positive();
@@ -57,17 +58,27 @@ export const meResponseSchema = z
   })
   .strict();
 
-/** The eight equipment slots of layer-1 §7.1. */
+/**
+ * The eight equipment slots of layer-1 §7.1 — weapon, off-hand, head, body,
+ * cloak, shoes and two accessories — which content declares once as
+ * `@narok/data`'s `EQUIPMENT_SLOTS` (ruling R142: this list said `hands` and
+ * `feet`, which no other package knew). The protocol may not import content
+ * at runtime (P-01's boundary), so the tuple is repeated here and pinned to
+ * content's `Slot` both ways at compile time, and to its order by test.
+ */
 export const EQUIPMENT_SLOTS = [
   'weapon',
   'offhand',
   'head',
   'body',
-  'hands',
-  'feet',
+  'cloak',
+  'shoes',
   'accessory1',
   'accessory2',
-] as const;
+] as const satisfies readonly Slot[];
+type ProtocolSlot = (typeof EQUIPMENT_SLOTS)[number];
+/** Compiles only while the two lists name the same slots. */
+export const SLOTS_MATCH_CONTENT: [Slot] extends [ProtocolSlot] ? true : never = true;
 export const equipmentSlotSchema = z.enum(EQUIPMENT_SLOTS);
 
 export const createCharacterSchema = z
@@ -79,14 +90,36 @@ export const createCharacterSchema = z
  * amounts are the delta the player staged, never the resulting total, so a
  * stale draft cannot overwrite a newer one with an absolute value.
  */
+const attributeKey = z.enum(['str', 'agi', 'vit', 'int', 'dex', 'luk']);
 export const allocateAttributesSchema = z
   .object({
-    spend: z.record(z.enum(['str', 'agi', 'vit', 'int', 'dex', 'luk']), z.number().int().nonnegative()),
+    spend: z.record(attributeKey, z.number().int().nonnegative()),
+    /**
+     * The total the client's staging showed (part 3 §5.3 step 5): the server
+     * replays the cost point by point and refuses a mismatch with
+     * `COST_MISMATCH` rather than charging a number the player never saw.
+     */
+    quotedCost: z.number().int().nonnegative(),
   })
   .strict();
 
 export const upgradeSkillSchema = z.object({ skillId: z.string(), targetRank: positiveInt }).strict();
 export const respecSchema = z.object({ scope: z.enum(['attributes', 'skills', 'both']) }).strict();
+
+/**
+ * The stat auto-spend template (layer-1 §5.5; part 3 §5.2): ordered build
+ * targets and a remainder attribute, or `null` to switch auto-spend off. The
+ * attribute cap and the one-target-per-attribute rule are content and rule
+ * checks, made by `@narok/progression` against the pinned content.
+ */
+export const autoSpendTemplateSchema = z
+  .object({
+    targets: z.array(z.object({ attribute: attributeKey, value: positiveInt }).strict()).max(6),
+    remainder: attributeKey.nullable(),
+  })
+  .strict()
+  .nullable();
+export const autoSpendSchema = z.object({ template: autoSpendTemplateSchema }).strict();
 
 export const equipRequestSchema = z
   .object({ itemId: uuid, characterId: uuid, slot: equipmentSlotSchema })
@@ -104,6 +137,56 @@ export const buyRequestSchema = z
 
 export const presetPayloadSchema = z
   .object({ payload: z.unknown(), payloadSchemaVersion: positiveInt, name: z.string().min(1).max(40) })
+  .strict();
+
+/**
+ * What a saved strategy preset holds, payload schema version 1 (owner decision
+ * 2026-09-25, spec §4.0.1): placement and one strategy per party slot, plus
+ * the rest thresholds. It holds no wipe limit: a full wipe ends the hunt
+ * (owner decision 2026-09-30, ruling R154), so `.strict()` refuses one. Slots are `p0`–`p2` in party order.
+ * The rules inside each strategy are validated by the engine itself at start,
+ * so there is one validator for them, not two.
+ */
+const partySlot = z.string().regex(/^p[0-2]$/);
+export const STRATEGY_PAYLOAD_SCHEMA_VERSION = 1;
+export const strategyPresetPayloadSchema = z
+  .object({
+    placement: z.record(partySlot, z.string().min(1).max(16)),
+    strategies: z.record(partySlot, z.unknown()),
+    rest: z.object({ hpStart: z.number().int(), mpStart: z.number().int() }).strict(),
+  })
+  .strict();
+export type StrategyPresetPayload = z.infer<typeof strategyPresetPayloadSchema>;
+
+/**
+ * Save preset (part 1 §3, `PUT /api/presets/:id`; UI spec §5): the payload the
+ * player saved and its schema version, guarded by the preset version it was
+ * loaded from and sequenced by the account version. It never names the version
+ * to write — the server allocates the next one — and, unlike
+ * `presetPayloadSchema`, no name: a save changes the rules, not the preset's
+ * identity, so a smuggled rename is refused rather than ignored (ruling R171).
+ *
+ * Ruling R171: the client reads its presets from `GET /api/presets` and saves a
+ * new version with `PUT /api/presets/:id`, sending payload and schema version
+ * only, never a name or a version to write — because part 1 §3 lists both
+ * routes, the Strategy screen (part 4 §3.2) cannot exist without them, and the
+ * server alone allocates versions.
+ *
+ * Ruling R176: a save also names `expectedPresetVersion`, the preset version
+ * the draft was loaded from, and the server refuses any other with
+ * `CONFLICT_STATE_VERSION` (field `expectedPresetVersion`). This supersedes
+ * R170/R171's account-version-only guard — because the client read the account
+ * version just before the PUT, that guard fired only in a sub-request race, so
+ * a tab holding v2 silently overwrote another tab's v3. The account version
+ * stays as the write sequencer; the preset version is the staleness guard.
+ */
+export const savePresetCommandSchema = z
+  .object({
+    payload: z.unknown(),
+    payloadSchemaVersion: positiveInt,
+    expectedPresetVersion: positiveInt,
+    expectedStateVersion: version,
+  })
   .strict();
 
 export const lootPreviewSchema = z.object({ payload: z.unknown(), payloadSchemaVersion: positiveInt }).strict();
@@ -129,6 +212,12 @@ export const startHuntSchema = z
 export const applyStrategySchema = z.object({ presetId: uuid, presetVersion: positiveInt }).strict();
 
 /**
+ * Apply loot filter (UI spec §6, part 3 §3.3): the preset and the version the
+ * player saw. It governs drops after the acknowledged cutoff only.
+ */
+export const applyLootSchema = z.object({ presetId: uuid, presetVersion: positiveInt }).strict();
+
+/**
  * Adds the optimistic-concurrency guard to a command formed against a read
  * (P-23). Required, never optional: a missing guard is a validation failure
  * rather than an unguarded write.
@@ -144,9 +233,29 @@ export function guardedSchema<T extends z.ZodObject>(schema: T) {
  */
 export const lockCommandSchema = lockRequestSchema.extend({ expectedStateVersion: version });
 export const equipCommandSchema = equipRequestSchema.extend({ expectedStateVersion: version });
+export const unequipCommandSchema = unequipRequestSchema.extend({ expectedStateVersion: version });
+export const createCharacterCommandSchema = createCharacterSchema.extend({ expectedStateVersion: version });
+export const allocateAttributesCommandSchema = allocateAttributesSchema.extend({ expectedStateVersion: version });
+export const upgradeSkillCommandSchema = upgradeSkillSchema.extend({ expectedStateVersion: version });
+export const respecCommandSchema = respecSchema.extend({ expectedStateVersion: version });
+export const autoSpendCommandSchema = autoSpendSchema.extend({ expectedStateVersion: version });
 export const sellCommandSchema = sellRequestSchema.extend({ expectedStateVersion: version });
 export const startHuntCommandSchema = startHuntSchema.extend({ expectedStateVersion: version });
-export const applyStrategyCommandSchema = applyStrategySchema.extend({ expectedStateVersion: version });
+/**
+ * Apply-next-encounter is an intervention on the running hunt, so besides the
+ * account guard it carries the hunt generation the player was looking at
+ * (part 2 §4): a command formed before another intervention is refused as
+ * stale rather than merged.
+ */
+export const applyStrategyCommandSchema = applyStrategySchema.extend({
+  expectedStateVersion: version,
+  expectedGeneration: z.number().int().nonnegative(),
+});
+/** Apply loot filter is the same kind of intervention, guarded the same way (part 2 §4). */
+export const applyLootCommandSchema = applyLootSchema.extend({
+  expectedStateVersion: version,
+  expectedGeneration: z.number().int().nonnegative(),
+});
 
 export type RouteAuth = 'none' | 'session';
 
@@ -171,6 +280,10 @@ export const ROUTES: readonly RouteSpec[] = [
   { method: 'POST', path: '/api/characters/:id/attributes', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/characters/:id/skills', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/characters/:id/respec', auth: 'session', guarded: true, idempotent: true },
+  // Task 7b (ruling R143): the town-only auto-spend template edit part 3 §4's
+  // table lists and §5.2 relies on, which part 1 §3 lacked. Guarded and
+  // idempotent like every other character command.
+  { method: 'PUT', path: '/api/characters/:id/auto-spend', auth: 'session', guarded: true, idempotent: true },
   { method: 'GET', path: '/api/inventory', auth: 'session', guarded: false, idempotent: false },
   { method: 'POST', path: '/api/inventory/equip', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/inventory/unequip', auth: 'session', guarded: true, idempotent: true },
@@ -183,6 +296,9 @@ export const ROUTES: readonly RouteSpec[] = [
   { method: 'POST', path: '/api/hunts', auth: 'session', guarded: true, idempotent: true },
   { method: 'POST', path: '/api/hunts/current/stop', auth: 'session', guarded: false, idempotent: true },
   { method: 'POST', path: '/api/hunts/current/strategy', auth: 'session', guarded: true, idempotent: true },
+  // Task 6 (ruling R131): the loot filter's apply, "versioned with the hunt
+  // state" (UI spec §6) — the command part 4 §3.3 lists and part 1 §3 lacked.
+  { method: 'POST', path: '/api/hunts/current/loot', auth: 'session', guarded: true, idempotent: true },
   { method: 'GET', path: '/api/hunts/current', auth: 'session', guarded: false, idempotent: false },
   { method: 'GET', path: '/api/reports/:id', auth: 'session', guarded: false, idempotent: false },
 ];

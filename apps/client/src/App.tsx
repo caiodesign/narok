@@ -1,141 +1,107 @@
 /**
- * The Realm HUD.
+ * The Realm HUD over the server's authoritative hunt (milestone B Task 9).
  *
  * `codex-examples/realm-refined/hunt.html` is the approved design. Its stylesheet
  * is ported verbatim into `styles.css` and its regions are ported into
  * `src/hud/*`, so this file is only the composition: the `.realm` fixed viewport
- * and the regions the reference anchors inside it.
+ * and the regions the reference anchors inside it, fed by `useHunt`.
  *
- * Everything on screen comes from a real `PublicState`. Milestone A publishes no
- * loot, wallet, inventory, zone, level curve, buff list or threat table, so the
- * reference's panels for those are either bound to a measured figure of the same
- * shape or left out — never filled with a placeholder. `src/hud/model.ts` records
- * which is which.
+ * The client runs no simulation (gate B-02). Milestone A's laboratory moved to
+ * `apps/lab` and composes the same HUD from `@narok/client` (ruling R164: the lab
+ * may import the client, the client never imports the lab). Here every region is
+ * fed what the socket released behind the render horizon (`playback.ts`), and
+ * the account reads — wallet, bag occupancy, zone — the server publishes; a
+ * figure the server does not publish is left out, never filled in (R108).
+ *
+ * Every mutation is a command (part 4 §3.1): Start hunt and Stop in the Orders
+ * window, Save preset and Apply next encounter on the Strategy screen. Each is
+ * shown pending until the server answers; a refusal is rendered from the
+ * server's stable code (`serverError.<CODE>`).
+ *
+ * Milestone B Task 10 adds three routes over the same `useHunt` account state
+ * — Bag, Character and Away — so one coherent account state feeds every
+ * screen and their counters reconcile (part 4 §4). Strategy stays the
+ * `SetupOverlay` panel R113 exists for. Each town screen mounts its own
+ * stylesheet while it is shown and removes it when it closes (ruling R181).
+ * A report notice from the socket opens Away once per report id.
+ *
+ * Ruling R190: wherever a loot filter is named — the Orders window, Away's
+ * "Current loot filter", the Bag's filter pane — it is the running hunt's
+ * active loot preset (`HuntResponse.activeLoot`), and in town the preset a
+ * start would use; because the first preset in the list is only an
+ * alphabetical accident, and naming a filter the hunt is not running misleads
+ * the player about what happens to their drops (part 4 §3.3, §4).
+ *
+ * Ruling R195: town commands reach their screens unswallowed, and each screen
+ * renders its own command's refusal; the hook's `commandError` stays the Hunt
+ * shell's.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { content } from '@narok/data';
-import type { LabInput } from '@narok/sim';
-import type { ComparisonRun } from './Comparison';
+import { content, type ClassId } from '@narok/data';
 import { Battlefield } from './hud/Battlefield';
 import { ChatPanel } from './hud/ChatPanel';
 import { CommandBar } from './hud/CommandBar';
 import { Compass } from './hud/Compass';
-import { LabStrip } from './hud/LabStrip';
 import { OrdersPanel } from './hud/OrdersPanel';
 import { PartyPanel } from './hud/PartyPanel';
-import { RunsPanel } from './hud/RunsPanel';
 import { SessionPanel } from './hud/SessionPanel';
-import { SetupOverlay } from './hud/SetupOverlay';
 import { SpriteSheet } from './hud/SpriteSheet';
 import { TargetFrame } from './hud/TargetFrame';
 import { WorldBackdrop } from './hud/WorldBackdrop';
-import { buildSessionExport, downloadJson, sessionExportFilename } from './exportSession';
-import { EVENT_HISTORY_LIMIT, useExperiment } from './useExperiment';
+import { StrategyScreen } from './hud/strategy/StrategyScreen';
+import { SHOP_ENABLED } from './features';
+import type { BagCommands } from './town/BagScreen';
+import { SALE_KIT } from './town/SaleControls';
+import { useHunt, type UseHuntOptions } from './useHunt';
 
-export function App(): React.JSX.Element {
+export type Route = 'hunt' | 'bag' | 'character' | 'away';
+
+// Each town screen is its own chunk, loaded when first opened: it carries its
+// own ported sheet as text (R181), and Hunt — the screen a session opens on —
+// should not pay for three screens it may never show.
+const BagScreen = lazy(() => import('./town/BagScreen').then((module) => ({ default: module.BagScreen })));
+const CharacterScreen = lazy(() => import('./town/CharacterScreen').then((module) => ({ default: module.CharacterScreen })));
+const AwayReport = lazy(() => import('./town/AwayReport').then((module) => ({ default: module.AwayReport })));
+
+/** Swallows a refusal the hook has already recorded as `commandError` (the flagged sale only, R185). */
+const settled = (promise: Promise<void>): Promise<void> => promise.catch(() => undefined);
+
+export interface AppProps {
+  /** The hook's collaborators; tests substitute the socket, the clock and the API (R56). */
+  huntOptions?: UseHuntOptions;
+}
+
+export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
   const { t } = useTranslation();
-
-  const { state, events, status, comparisonA, comparisonB, start, pause, resume, stop, setSpeed } =
-    useExperiment();
+  const hunt = useHunt(huntOptions);
+  const { state, events, status } = hunt;
 
   const [inspected, setInspected] = useState<{ actorId: string; skillId: string } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [speed, setLocalSpeed] = useState(1);
-  const [setupOpen, setSetupOpen] = useState(true);
+  const [strategyOpen, setStrategyOpen] = useState(false);
+  const [route, setRoute] = useState<Route>('hunt');
 
-  // The input the *running* experiment was started with. Editing the draft
-  // afterwards never touches it; only a new start replaces it.
-  const [activeInput, setActiveInput] = useState<LabInput | null>(null);
-  // The draft the setup form currently describes, so the Orders window can start
-  // it without owning the form's state. It is held in state because the compass
-  // renders from it — a ref alone would leave the recipe and wipe limit stale
-  // whenever the draft changed without `canStart` changing with it — and mirrored
-  // into a ref so `onStartDraft` never closes over a stale copy.
-  const [draft, setDraft] = useState<{ input: LabInput | null; canStart: boolean }>({
-    input: null,
-    canStart: false,
-  });
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-
-  const onDraftChange = useCallback((input: LabInput, startable: boolean) => {
-    setDraft((current) =>
-      current.input === input && current.canStart === startable ? current : { input, canStart: startable },
-    );
-  }, []);
-
-  const onStart = useCallback(
-    (input: LabInput) => {
-      setActiveInput(input);
-      setInspected(null);
-      // Ruling R80: a fresh generation's clock always begins at 1x.
-      setLocalSpeed(1);
-      setSetupOpen(false);
-      start(input);
-    },
-    [start],
-  );
-
-  const onStartDraft = useCallback(() => {
-    const { input, canStart: startable } = draftRef.current;
-    if (input === null || !startable) return;
-    onStart(input);
-  }, [onStart]);
-
-  const onStop = useCallback(() => {
-    stop();
-    // A finished run is the moment to set up the next one.
-    setSetupOpen(true);
-  }, [stop]);
-
-  const onSpeedChange = useCallback(
-    (next: number) => {
-      setLocalSpeed(next);
-      setSpeed(next);
-    },
-    [setSpeed],
-  );
+  // A newly read report opens Away, once per report id; reopening it is a read.
+  const shownReport = useRef<string | null>(null);
+  useEffect(() => {
+    if (hunt.report === null || hunt.reportId === null || shownReport.current === hunt.reportId) return;
+    shownReport.current = hunt.reportId;
+    setRoute('away');
+  }, [hunt.report, hunt.reportId]);
 
   /**
-   * Writes the whole session to a local JSON file. Enabled as soon as a run has
-   * started, because a run that errored or stopped early is exactly the one worth
-   * sending on. `simulationVersion` is the literal `'a1'` the sim stamps into
-   * every state; the projection does not carry it and `PublicState` is not ours
-   * to extend (ruling R83), so this mirrors `tools/balance`'s benchmark metadata.
+   * `styles.css` pauses the world's ambient animation under
+   * `body[data-paused="true"]`. It tracks the *authoritative* hunt status, not
+   * the playback state (R110): a client that is buffering, resynchronising or
+   * reconnecting is still watching a running hunt.
    */
-  const onExport = useCallback(() => {
-    const bundle = buildSessionExport({
-      versions: {
-        simulationVersion: 'a1',
-        contentVersion: content.version,
-        gridHash: content.gridHash,
-      },
-      status,
-      input: activeInput,
-      state,
-      events,
-      eventHistoryLimit: EVENT_HISTORY_LIMIT,
-      comparisonA,
-      comparisonB,
-      now: () => new Date(),
-    });
-    downloadJson(sessionExportFilename(bundle), bundle);
-  }, [status, activeInput, state, events, comparisonA, comparisonB]);
-
-  const canExport = activeInput !== null || comparisonA !== null || comparisonB !== null;
-
-  // Slot A is the earlier retained run, slot B the latest (R54/R63).
-  const runs = useMemo<ComparisonRun[]>(
-    () =>
-      [comparisonA, comparisonB]
-        .filter((summary) => summary !== null)
-        .map((summary) => ({ input: summary.input, state: summary.state })),
-    [comparisonA, comparisonB],
-  );
-
-  // The run the compass describes: the live one while it lasts, else the draft.
-  const shownInput = activeInput ?? draft.input;
+  useEffect(() => {
+    document.body.dataset.paused = status === 'running' ? 'false' : 'true';
+    return () => {
+      delete document.body.dataset.paused;
+    };
+  }, [status]);
 
   // Keep the inspected skill and the selected member honest across roster changes.
   useEffect(() => {
@@ -145,33 +111,96 @@ export function App(): React.JSX.Element {
     if (inspected !== null && !ids.has(inspected.actorId)) setInspected(null);
   }, [state, selectedId, inspected]);
 
-  const onCloseSetup = useCallback(() => setSetupOpen(false), []);
-  const onToggleSetup = useCallback(() => setSetupOpen((open) => !open), []);
-
-  /**
-   * The approved stylesheet already ships the switch
-   * (`styles.css`: `body[data-paused="true"] .realm * { animation-play-state: paused }`)
-   * but nothing was writing the attribute, so the world's fog, embers, sparks,
-   * target rings and cast bars ran forever — including while the lab sat idle
-   * with no experiment loaded, or paused behind the setup form. Animations now
-   * run exactly while the hunt does.
-   */
-  useEffect(() => {
-    const paused = status !== 'running';
-    document.body.dataset.paused = paused ? 'true' : 'false';
-    return () => {
-      delete document.body.dataset.paused;
-    };
-  }, [status]);
-
   const onInspect = useCallback((actorId: string, skillId: string) => {
     setInspected((current) =>
-      current !== null && current.actorId === actorId && current.skillId === skillId
-        ? null
-        : { actorId, skillId },
+      current !== null && current.actorId === actorId && current.skillId === skillId ? null : { actorId, skillId },
     );
     setSelectedId(actorId);
   }, []);
+
+  const strategyPresets = hunt.presets?.strategy ?? [];
+  // While a hunt runs the Orders window names the strategy it is running, not
+  // the editor's selected tab, which is only what a start would use (§3.1).
+  const namedPresetId = status === 'running' ? (hunt.hunt?.activeStrategy.presetId ?? null) : hunt.selectedPresetId;
+  const strategyName = strategyPresets.find((preset) => preset.id === namedPresetId)?.name ?? null;
+  const classes = hunt.characters.slice(0, 3).map((character) => character.classId as ClassId);
+  const wallet =
+    hunt.inventory === null
+      ? null
+      : { gold: hunt.inventory.gold, usedSlots: hunt.inventory.usedSlots, capacity: hunt.inventory.capacity };
+  const fault = hunt.commandError ?? hunt.error;
+  const hunting = status === 'running';
+  const lootPresets = hunt.presets?.loot ?? [];
+  const zone = hunt.hunt?.mapId ?? null;
+  // R190: the loot filter the hunt runs; in town, the one a start would use.
+  const activeLootId = hunting ? (hunt.hunt?.activeLoot?.presetId ?? null) : hunt.startLootPresetId;
+  const pendingLootId = hunting ? (hunt.hunt?.pendingLoot?.presetId ?? null) : null;
+  const lootFilterName = lootPresets.find((preset) => preset.id === activeLootId)?.name ?? null;
+
+  // R195: refusals reach the screen that sent the command.
+  const bagCommands: BagCommands = {
+    equip: hunt.town.equip,
+    lock: hunt.town.lock,
+    applyLoot: hunt.town.applyLoot,
+    sell: (itemIds) => settled(hunt.town.sell(itemIds)),
+  };
+
+  if (route === 'bag') {
+    return (
+      <Suspense fallback={<div className="realm" />}>
+        <BagScreen
+        content={content}
+        inventory={hunt.inventory}
+        characters={hunt.characters}
+        lootPresets={lootPresets}
+        activeLootId={activeLootId}
+        pendingLootId={pendingLootId}
+        hunting={hunting}
+        zone={zone}
+        commands={bagCommands}
+        sale={SHOP_ENABLED ? SALE_KIT : null}
+        onBack={() => setRoute('hunt')}
+        />
+      </Suspense>
+    );
+  }
+
+  if (route === 'character') {
+    return (
+      <Suspense fallback={<div className="realm" />}>
+        <CharacterScreen
+        content={content}
+        characters={hunt.characters}
+        inventory={hunt.inventory}
+        hunting={hunting}
+        zone={zone}
+        commands={hunt.town}
+        onNavigate={setRoute}
+        />
+      </Suspense>
+    );
+  }
+
+  if (route === 'away' && hunt.report !== null) {
+    return (
+      <Suspense fallback={<div className="realm" />}>
+        <AwayReport
+        report={hunt.report}
+        content={content}
+        characters={hunt.characters}
+        inventory={hunt.inventory}
+        lootPresetName={lootFilterName}
+        onManageBag={() => setRoute('bag')}
+        onReturnToHunt={() => setRoute('hunt')}
+        onStartHunt={() => {
+          setRoute('hunt');
+          hunt.start();
+        }}
+        onReviewFilter={() => setRoute('bag')}
+        />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="realm">
@@ -181,53 +210,69 @@ export function App(): React.JSX.Element {
 
       <TargetFrame state={state} />
 
-      {/* The reference's left column is party + session and is sized to fit
-          above the chat window; adding a third panel here clipped the session's
-          figures, so the laboratory's own readouts live in the rail, which
-          scrolls. */}
       <div className="leftcol">
         <PartyPanel state={state} selectedId={selectedId} onSelect={setSelectedId} />
         <SessionPanel state={state} />
       </div>
 
       <aside className="rail" aria-label={t('app.session')}>
-        <LabStrip state={state} status={status} canExport={canExport} onExport={onExport} />
         <Compass
           state={state}
           grid={content.grid}
           status={status}
-          wipeLimit={shownInput?.wipeLimit ?? null}
-          recipeId={shownInput?.recipe ?? null}
+          recipeId={null}
+          zone={hunt.hunt?.mapId ?? null}
+          wallet={wallet}
+          playback={hunt.playback}
         />
-        <RunsPanel runs={runs} />
         <OrdersPanel
           status={status}
-          speed={speed}
-          canStart={draft.canStart}
-          onStart={onStartDraft}
-          onPause={pause}
-          onResume={resume}
-          onStop={onStop}
-          onSpeedChange={onSpeedChange}
-          onOpenSetup={onToggleSetup}
+          stopReason={hunt.stopReason}
+          faulted={hunt.faulted}
+          canStart={hunt.canStart}
+          pending={hunt.pending}
+          strategyName={strategyName}
+          onStart={hunt.start}
+          onStop={hunt.stop}
+          onOpenStrategy={() => setStrategyOpen(true)}
+          lootFilterName={lootFilterName}
+          onOpenBag={() => setRoute('bag')}
+          onOpenCharacter={() => setRoute('character')}
+          partyLabel={hunt.characters.length === 0 ? null : hunt.characters.map((character) => character.name).join(', ')}
         />
+        {fault !== null && (
+          <p className="hint" role="alert" data-testid="hunt-fault">
+            {t(`serverError.${fault.code}`)}
+          </p>
+        )}
+        {hunt.reportId !== null && (
+          <p className="hint" role="status">
+            {t('hunt.report')}{' '}
+            {hunt.report !== null && (
+              <button className="preset-edit" type="button" onClick={() => setRoute('away')}>
+                {t('hunt.openReport')}
+              </button>
+            )}
+          </p>
+        )}
       </aside>
 
       <ChatPanel events={events} actors={state?.actors ?? []} />
 
       <CommandBar state={state} selectedId={selectedId} inspected={inspected} onInspect={onInspect} />
 
-      <SetupOverlay
-        open={setupOpen}
+      <StrategyScreen
+        open={strategyOpen}
         content={content}
+        presets={strategyPresets}
+        classes={classes}
+        selectedPresetId={hunt.selectedPresetId}
+        onSelectPreset={hunt.selectPreset}
+        active={hunt.hunt?.activeStrategy ?? null}
+        pending={hunt.hunt?.pendingStrategy ?? null}
         status={status}
-        onStart={onStart}
-        onPause={pause}
-        onResume={resume}
-        onStop={onStop}
-        onSpeedChange={onSpeedChange}
-        onDraftChange={onDraftChange}
-        onClose={onCloseSetup}
+        commands={hunt.strategy}
+        onClose={() => setStrategyOpen(false)}
       />
     </div>
   );

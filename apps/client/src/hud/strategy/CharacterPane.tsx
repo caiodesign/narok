@@ -7,11 +7,13 @@
  * strategy. Each row carries the skill's real MP cost from `content.skills`,
  * its enable toggle and, when its condition takes one, its threshold.
  *
- * Dropped from the reference, because milestone A publishes nothing behind
- * them (R108): the Mana reserve rule (no reserve exists in the simulation), the
- * unsaved-changes pips (a setup edit starts a new experiment, so there is no
- * draft to be dirty against) and the drag grips (replaced by the labelled move
- * buttons R79 requires, which a keyboard can reach).
+ * Dropped from the reference, because nothing publishes them (R108): the Mana
+ * reserve rule (no reserve exists in the simulation) and the drag grips
+ * (replaced by the labelled move buttons R79 requires, which a keyboard can
+ * reach). The unsaved-changes pips return in milestone B, where a saved preset
+ * exists to be dirty against (`unsavedActors`, part 4 §3.2); and on a preset
+ * the party is the account's characters, so the class is shown, not chosen
+ * (`classLocked`).
  *
  * The reference's party-wide "Focus target" chips become a per-character select
  * here: the simulation's target mode is per strategy, and one of its five modes
@@ -33,6 +35,7 @@ const SKILL_GLYPHS: Record<string, string> = {
   cleave: 's-cleave',
   heal: 's-heal',
   smite: 's-smite',
+  revive: 's-groupheal',
   'double-shot': 's-doubleshot',
   'arrow-rain': 's-arrowrain',
   'fire-bolt': 's-focus',
@@ -54,6 +57,10 @@ export interface CharacterPaneProps {
   onTargetKind: (actorId: ActorId, kind: TargetMode['kind']) => void;
   onTargetPartyId: (actorId: ActorId, partyId: ActorId) => void;
   issuesFor: (field: string) => ValidationIssue[];
+  /** Characters whose rules differ from the saved preset; each tab carries the reference's pip. */
+  unsavedActors?: ReadonlySet<ActorId>;
+  /** A preset's party is its characters: the class is displayed, never swapped here. */
+  classLocked?: boolean;
 }
 
 /** The sentence the design puts next to a rule's control, per condition kind. */
@@ -196,7 +203,12 @@ export function CharacterPane(props: CharacterPaneProps): React.JSX.Element {
                   <use href={`#${classGlyphId(classId)}`} />
                 </svg>
               </span>
-              <span className="char-tab-name">{actorId}</span>
+              <span className="char-tab-name">
+                {actorId}
+                {props.unsavedActors?.has(actorId) === true && (
+                  <span className="unsaved" role="img" aria-label={t('strategy.unsaved')} />
+                )}
+              </span>
               <span className="char-tab-class">{t(`class.${classId}`)}</span>
             </button>
           );
@@ -205,7 +217,7 @@ export function CharacterPane(props: CharacterPaneProps): React.JSX.Element {
 
       <div className="pane-body" id={`char-rules-${activeActorId}`} role="tabpanel" aria-labelledby={`char-tab-${activeActorId}`}>
         <div role="group" aria-label={t('controls.strategyFor', { actor: activeActorId })}>
-          <div className="section">
+          <div className="section" hidden={props.classLocked === true}>
             <div className="inline-rule">
               <label className="rule-label" htmlFor={`class-${activeActorId}`}>
                 {t('controls.member', { actor: activeActorId })}

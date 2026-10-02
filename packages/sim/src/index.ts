@@ -1,12 +1,26 @@
-import { ContentError, validateContent } from '@narok/data';
+import { ContentError, PositionError, validateContent } from '@narok/data';
 import type { Content } from '@narok/data';
+import type { LootPreset } from '@narok/loot';
 import { advance as runAdvance, cloneState } from './advance';
 import { SimError } from './errors';
 import { project as projectState } from './project';
+import { returnToTown } from './lifecycle';
+import { applyLoot, dispositionRewards } from './rewards';
 import { decodeSnapshot, encodeSnapshot } from './snapshot';
-import { startState } from './state';
+import { startState, validateLoot, validatePendingRules } from './state';
 import type { Battlefield } from './battlefield/types';
-import type { AdvanceOptions, AdvanceResult, LabInput, PublicState, Simulation, SimState } from './types';
+import type {
+  AdvanceOptions,
+  AdvanceResult,
+  Context,
+  HuntSetup,
+  LabInput,
+  PendingReward,
+  PendingRules,
+  PublicState,
+  Simulation,
+  SimState,
+} from './types';
 
 export * from './types';
 export { drawBelow, nextU32 } from './rng';
@@ -16,12 +30,23 @@ export { createGrid, gridCoordinates, gridPosition, defaultPlacement } from './b
 export type { Battlefield } from './battlefield/types';
 export { derive, damage, effectiveHeal } from './math';
 export type { DamageInput } from './math';
-export { startState, defaultStrategy } from './state';
+export { resolveLoadout, deriveCharacter, offenseBonusFor, resistFor, characterMaxima, refreshPartyActor } from './loadout';
+export type { ResolvedLoadout } from './loadout';
+export {
+  startState, defaultStrategy, validatePendingRules, validateBag, validateLoot, validateProtection,
+  validateProgress, validateEquipped, validateHuntCharacter,
+} from './state';
+export {
+  bandFor, rollReward, rollKill, dispositionRewards, raiseToGuarantee, emptyDropMetrics, defaultBag, starterLoot,
+  awardKillExp,
+} from './rewards';
 export { encodeSnapshot, decodeSnapshot } from './snapshot';
 export { compareScheduled, schedule, takeNext, isStale } from './scheduler';
 export { decide, resolveCast } from './actions';
 export { expire } from './effects';
-export { transition, regenerate, finishEncounter, deadline } from './lifecycle';
+export {
+  transition, regenerate, finishEncounter, deadline, activatePending, returnToTown, reviveMember, reviveWithApples,
+} from './lifecycle';
 export { advance } from './advance';
 export { project } from './project';
 
@@ -29,7 +54,7 @@ export { project } from './project';
  * Runs `operation`, translating the errors raised beneath the public boundary into
  * `SimError` with the documented codes (ruling R43): a `ContentError` becomes
  * `INVALID_CONTENT` and a `RangeError` (the arithmetic guards in `math.ts`/`rng.ts`)
- * becomes `UNSAFE_INTEGER`, each keeping a bounded diagnostic field path. `SimError`
+ * becomes `UNSAFE_INTEGER` and a `PositionError` keeps its `INVALID_INPUT` (R165), each keeping a bounded diagnostic field path. `SimError`
  * passes through unchanged; nothing ever embeds a serialized state in its message.
  */
 function guard<T>(field: string, operation: () => T): T {
@@ -43,6 +68,11 @@ function guard<T>(field: string, operation: () => T): T {
     if (error instanceof RangeError) {
       throw new SimError('UNSAFE_INTEGER', field, error.message);
     }
+    // The position codec moved to `@narok/data` (rulings R163, R165); a
+    // malformed id it rejects is the same `INVALID_INPUT` it always was here.
+    if (error instanceof PositionError) {
+      throw new SimError(error.code, error.field, error.message);
+    }
     throw error;
   }
 }
@@ -54,12 +84,26 @@ function guard<T>(field: string, operation: () => T): T {
  * state nor the bound content is ever written to, and none of them reads wall time
  * or `Math.random()`.
  */
+/**
+ * Splits off the rewards that have been dispositioned (ruling R127), for the
+ * commit that credits them: the returned state keeps only the rewards still
+ * waiting for their encounter to end. Pure — the caller's state is cloned —
+ * and harmless to the simulation, which never reads a dispositioned reward
+ * again, so draining between two segments cannot change what follows.
+ */
+export function takeDispositionedRewards(state: SimState): { state: SimState; rewards: PendingReward[] } {
+  const next = cloneState(state);
+  const rewards = next.pendingRewards.filter((reward) => reward.disposition !== null);
+  next.pendingRewards = next.pendingRewards.filter((reward) => reward.disposition === null);
+  return { state: next, rewards };
+}
+
 export function createSimulation(content: Content, battlefield: Battlefield): Simulation {
   const bound = guard('content', () => validateContent(content));
 
   return {
-    start(input: LabInput): SimState {
-      return guard('input', () => startState(bound, battlefield, input));
+    start(input: LabInput, setup?: HuntSetup): SimState {
+      return guard('input', () => startState(bound, battlefield, input, setup));
     },
 
     advance(state: SimState, untilMs: number, options?: AdvanceOptions): AdvanceResult {
@@ -67,17 +111,42 @@ export function createSimulation(content: Content, battlefield: Battlefield): Si
     },
 
     /**
-     * Operator stop (ruling R43): the experiment keeps its exact time, metrics,
-     * RNG and actor conditions, drops all scheduled work, and emits nothing — no
-     * win, no wipe, no rewards.
+     * Operator stop (ruling R43): the experiment keeps its exact time, metrics
+     * and RNG — the return to town heals the whole party to full (rulings R149,
+     * R155) — drops all scheduled work, and emits nothing — no
+     * win, no wipe, no new reward. Drops the abandoned encounter's kills already
+     * rolled are dispositioned silently, so none is left waiting for an
+     * encounter end that will never come (ruling R127).
      */
     stop(state: SimState): SimState {
       return guard('state', () => {
         const stopped = cloneState(state);
-        stopped.phase = 'stopped';
-        stopped.stopReason = 'operator';
-        stopped.queue = [];
+        const silent: Context = { content: bound, battlefield, emit: () => undefined };
+        dispositionRewards(stopped, silent);
+        // The return to town, which heals the whole party (rulings R149, R155).
+        returnToTown(stopped, 'operator');
         return stopped;
+      });
+    },
+
+    /**
+     * Queues a strategy for the next spawn (ruling R115). Pure: the caller's
+     * state is cloned, the rules are validated against its roster and copied,
+     * and nothing else changes — no RNG, no time, no event.
+     */
+    queueRules(state: SimState, rules: PendingRules | null): SimState {
+      return guard('state', () => {
+        const queued = cloneState(state);
+        queued.pendingRules = rules === null ? null : validatePendingRules(rules, queued.input, bound, battlefield);
+        return queued;
+      });
+    },
+
+    queueLoot(state: SimState, preset: LootPreset): SimState {
+      return guard('state', () => {
+        const applied = cloneState(state);
+        applyLoot(applied, validateLoot(preset, 'loot', 'INVALID_INPUT'));
+        return applied;
       });
     },
 

@@ -16,6 +16,10 @@
  * — "no code outside the table reaches a client" — a property of the server
  * rather than of each route's discipline.
  */
+import { CommandSequencer } from './hunt/commands';
+import { registerHuntRoutes, type HuntServices } from './routes/hunts';
+import { registerReportRoutes } from './routes/reports';
+import { registerTownRoutes } from './routes/town';
 import cookie from '@fastify/cookie';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -28,6 +32,7 @@ import { registerOriginGuard } from './plugins/origin';
 import { requireSession } from './plugins/session';
 import { registerAuthRoutes } from './routes/auth';
 import { registerAccountRoutes } from './routes/me';
+import { registerSocket, type HuntFeed } from './ws/socket';
 import { memoryStores } from './store/memory';
 import type { RouteContext } from './routes/context';
 import type { Stores } from './store/ports';
@@ -40,6 +45,17 @@ export interface AppDeps {
   readonly now?: () => number;
   /** Captures the startup line and every request log, for the P-06 test. */
   readonly onLog?: (line: string) => void;
+  /**
+   * The hunt lifecycle as the socket sees it. Absent until the lifecycle is
+   * wired, in which case `/ws` keeps its task 1 refusals and answers
+   * MAINTENANCE past them.
+   */
+  readonly huntFeed?: HuntFeed;
+  /**
+   * The lifecycle behind the hunt routes. Absent, `POST /api/hunts` keeps its
+   * task 1 stub, which validates and refuses.
+   */
+  readonly hunts?: HuntServices;
 }
 
 /**
@@ -73,33 +89,10 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
   registerOriginGuard(app, config);
   await app.register(cookie);
 
-  const ctx: RouteContext = {
-    stores,
-    config,
-    hasher,
-    now,
-    hashToken,
-    limiters: { auth: fixedWindow(config.rateLimits.auth), command: fixedWindow(config.rateLimits.command) },
-    parse: makeParse(),
-  };
-
-  registerAuthRoutes(app, ctx);
-  registerAccountRoutes(app, ctx);
-
-  /**
-   * The socket endpoint exists from task 1 so its *refusals* are decided here
-   * with everything else: a foreign origin never reaches it, and a caller
-   * without a live session is `UNAUTHENTICATED` rather than upgraded. The
-   * protocol it would speak is task 3, so a call that passes both checks is
-   * told plainly that there is nothing to upgrade to yet.
-   */
-  app.get('/ws', async (request) => {
-    await requireSession(request, stores, config, now());
-    // Not a fault: the endpoint exists and is not serving yet. INTERNAL would
-    // have put a known-absent feature into the fault metrics of P-41.
-    throw new AppError('MAINTENANCE', 'ws');
-  });
-
+  // Installed before any route. Fastify binds a route to the error handler in
+  // force when the route is loaded, and an awaited plugin registration (the
+  // socket's) loads every route declared so far — so a handler set after it
+  // silently misses them all and they answer in Fastify's shape, not ours.
   app.setNotFoundHandler(async (_request, reply) => {
     const error = new AppError('NOT_FOUND', 'route');
     return reply.code(error.status).send(error.toEnvelope());
@@ -126,6 +119,46 @@ export async function createApp(deps: AppDeps = {}): Promise<FastifyInstance> {
     const envelope = toEnvelope(error, 'request');
     return reply.code(500).send(envelope);
   });
+
+  const ctx: RouteContext = {
+    stores,
+    config,
+    hasher,
+    now,
+    hashToken,
+    limiters: { auth: fixedWindow(config.rateLimits.auth), command: fixedWindow(config.rateLimits.command) },
+    parse: makeParse(),
+  };
+
+  registerAuthRoutes(app, ctx);
+  registerAccountRoutes(app, ctx, { huntsWired: deps.hunts !== undefined });
+  if (deps.hunts !== undefined) {
+    // One command order per account for the hunt and the town commands alike
+    // (R116, R144): a town write can never interleave with a settlement.
+    const sequencer = deps.hunts.sequencer ?? new CommandSequencer(deps.hunts.lifecycle.now);
+    registerHuntRoutes(app, ctx, { ...deps.hunts, sequencer });
+    registerReportRoutes(app, ctx, deps.hunts.lifecycle.db);
+    registerTownRoutes(app, ctx, { lifecycle: deps.hunts.lifecycle, sequencer });
+  }
+
+  /**
+   * The socket endpoint's *refusals* are decided here with everything else: a
+   * foreign origin never reaches it, and a caller without a live session is
+   * `UNAUTHENTICATED` rather than upgraded. Without a hunt feed there is no
+   * protocol to speak, so a call that passes both checks is told plainly that
+   * there is nothing to upgrade to.
+   */
+  if (deps.huntFeed === undefined) {
+    app.get('/ws', async (request) => {
+      await requireSession(request, stores, config, now());
+      // Not a fault: the endpoint exists and is not serving. INTERNAL would
+      // have put a known-absent feature into the fault metrics of P-41.
+      throw new AppError('MAINTENANCE', 'ws');
+    });
+  } else {
+    await registerSocket(app, ctx, deps.huntFeed);
+  }
+
 
   await app.ready();
   return app;

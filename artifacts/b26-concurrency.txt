@@ -1,0 +1,31 @@
+[+   0.3 s] database narok_drill_concurrency migrated
+[+   2.1 s] server A pid 20468 on 8793; server B pid 33588 on 8794; one database
+[+   2.9 s] account 76ba15e8-1674-4338-93ee-0328f66f09b2; hunt b0d127f0-c2cc-4af7-a7cd-4a8a305c9f65 running
+[+   2.9 s] the contested item: c59066c2-3caf-43dc-aa96-427b9dd883c8 (guardian-sword)
+[+  17.3 s] 92 heartbeats on A; 182 lock attempts on B: 150 succeeded, 32 lost the race
+[+  17.3 s] hunt checkpoint seq 1 -> 67 during the storm (133 samples)
+[+  17.3 s] PASS the race was real: settlements committed and at least one mutation lost to one — 32 conflicts
+[+  17.3 s] PASS every answer is a success or CONFLICT_STATE_VERSION (no 5xx, no other refusal)
+[+  17.3 s] PASS every conflict names the current version to retry against
+[+  17.3 s] PASS every intent eventually landed after retrying against fresh state — max tries 2
+[+  17.3 s] PASS no two successes share a state_version (one writer wins each version)
+[+  17.3 s] PASS the item's final lock is the last success's — locked=false
+[+  17.3 s] PASS the committed hunt never moved backwards (no stale worker result applied) — 133 samples
+[+  17.3 s] replay of key dbf69546-af17-496b-8fcf-f138a2e70898: B 200 v220, A 200 v220; original v220
+[+  17.3 s] PASS a replayed idempotency key returns the stored result on both processes
+[+  17.3 s] account version 221 before the replays, 221 after (settlements may move it); stored results for the key: 1
+[+  17.3 s] PASS the same key with a different body is refused, not applied — 409 IDEMPOTENCY_KEY_REUSED
+[+  18.8 s] PASS B-18 a second tab joining a live stream gets no away report
+[+  42.1 s] PASS B-18 both tabs keep receiving the stream — tab1 59 frames, tab2 22
+[+  42.7 s] PASS B-18 repeated heartbeats from two tabs credited EXP once (columns equal the checkpoint) — columns 72, checkpoint 72
+[+  42.7 s] PASS B-18 reward ids stay unique across the storm and the tabs — 0 rewards
+[+  42.7 s] both servers stopped; no socket holds the hunt
+[+  42.7 s] INJECT backdated the hunt 46800000 ms (status running); last_seen_at now 2026-10-01T17:15:58.625Z
+[+  43.7 s] return after 46800000 ms: settled in 62 ms wall; report 56e79f96-e21b-4800-b811-ae16f7760c30
+[+  43.7 s] report: status stopped; time away 46803064 ms; simulated 27329 ms; cap 43200000 ms
+[+  43.7 s] PASS B-18 time away and simulated duration are reported separately — away 46803064, simulated 27329
+[+  43.7 s] PASS B-18 no retroactive accrual: simulated time never exceeds the offline cap — simulated 27329 <= cap 43200000
+[+  43.7 s] PASS B-18 the settlement window starts at the previous presence (settle before presence refresh) — 1790874958625 vs 1790874958625
+[+  43.7 s] PASS B-18 presence was refreshed by that settlement, to now
+[+  46.7 s] immediate second return: report none simulated n/a ms; audit rows 4 -> 4
+[+  46.7 s] PASS B-18 an immediate second return credits nothing retroactively

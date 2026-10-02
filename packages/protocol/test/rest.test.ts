@@ -5,8 +5,15 @@
  * trusts a client's assertion.
  */
 import { describe, expect, test } from 'vitest';
+import { EQUIPMENT_SLOTS as CONTENT_SLOTS } from '@narok/data';
 import {
+  EQUIPMENT_SLOTS,
   ROUTES,
+  allocateAttributesCommandSchema,
+  autoSpendCommandSchema,
+  strategyPresetPayloadSchema,
+  applyLootCommandSchema,
+  applyLootSchema,
   applyStrategySchema,
   buyRequestSchema,
   equipRequestSchema,
@@ -19,12 +26,15 @@ import {
 
 describe('the route table', () => {
   test('lists every row of part 1 §3 with its method, auth, guard and idempotency', () => {
-    expect(ROUTES.length).toBe(23);
+    expect(ROUTES.length).toBe(25);
     const paths = ROUTES.map((route) => `${route.method} ${route.path}`);
     expect(paths).toContain('POST /api/auth/register');
     expect(paths).toContain('POST /api/auth/login');
     expect(paths).toContain('POST /api/hunts/current/strategy');
+    expect(paths).toContain('POST /api/hunts/current/loot');
     expect(paths).toContain('POST /api/presets/loot/preview');
+    // Ruling R143: the town-only auto-spend template edit (part 3 §4, §5.2).
+    expect(paths).toContain('PUT /api/characters/:id/auto-spend');
   });
 
   test('the preview route mutates nothing, so it takes no idempotency key and no guard', () => {
@@ -64,6 +74,33 @@ describe('request schemas', () => {
     expect(equipRequestSchema.safeParse({ ...request, slot: 'wings' }).success).toBe(false);
   });
 
+  test('the equipment slots are layer-1 §7.1 eight, the same list content declares (ruling R142)', () => {
+    expect([...EQUIPMENT_SLOTS]).toEqual([...CONTENT_SLOTS]);
+    expect(EQUIPMENT_SLOTS).toContain('cloak');
+    expect(EQUIPMENT_SLOTS).toContain('shoes');
+  });
+
+  test('a staged allocation carries the cost the client quoted, so the server can replay it (part 3 §5.3)', () => {
+    const spend = { str: 2, agi: 0, vit: 0, int: 0, dex: 0, luk: 0 };
+    expect(allocateAttributesCommandSchema.parse({ spend, quotedCost: 4, expectedStateVersion: 1 }))
+      .toEqual({ spend, quotedCost: 4, expectedStateVersion: 1 });
+    expect(allocateAttributesCommandSchema.safeParse({ spend, expectedStateVersion: 1 }).success).toBe(false);
+    expect(allocateAttributesCommandSchema.safeParse({ spend, quotedCost: -1, expectedStateVersion: 1 }).success).toBe(false);
+  });
+
+  test('an auto-spend template is ordered targets and a remainder, or null to switch it off', () => {
+    const template = { targets: [{ attribute: 'vit', value: 20 }], remainder: 'str' };
+    expect(autoSpendCommandSchema.parse({ template, expectedStateVersion: 2 })).toEqual({ template, expectedStateVersion: 2 });
+    expect(autoSpendCommandSchema.parse({ template: null, expectedStateVersion: 2 }).template).toBeNull();
+    expect(autoSpendCommandSchema.safeParse({ template: { ...template, extra: 1 }, expectedStateVersion: 2 }).success).toBe(false);
+  });
+
+  test('a strategy preset holds no wipe limit: a wipe ends the hunt (owner decision 2026-09-30)', () => {
+    const payload = { placement: {}, strategies: {}, rest: { hpStart: 50, mpStart: 30 } };
+    expect(strategyPresetPayloadSchema.safeParse(payload).success).toBe(true);
+    expect(strategyPresetPayloadSchema.safeParse({ ...payload, wipeLimit: 1 }).success).toBe(false);
+  });
+
   test('sell takes a bounded list of owned ids', () => {
     expect(sellRequestSchema.safeParse({ itemIds: [] }).success).toBe(false);
     expect(sellRequestSchema.safeParse({ itemIds: ['11111111-1111-4111-8111-111111111111'] }).success).toBe(true);
@@ -91,6 +128,16 @@ describe('request schemas', () => {
     const request = { presetId: '33333333-3333-4333-8333-333333333333', presetVersion: 4 };
     expect(applyStrategySchema.parse(request)).toEqual(request);
     expect(applyStrategySchema.safeParse({ presetId: request.presetId }).success).toBe(false);
+  });
+
+  test('applying a loot filter names the preset, the version the player saw, and both guards', () => {
+    const request = { presetId: '44444444-4444-4444-8444-444444444444', presetVersion: 2 };
+    expect(applyLootSchema.parse(request)).toEqual(request);
+    const guarded = { ...request, expectedStateVersion: 3, expectedGeneration: 1 };
+    expect(applyLootCommandSchema.parse(guarded)).toEqual(guarded);
+    expect(applyLootCommandSchema.safeParse(request).success).toBe(false);
+    // The cutoff is the server's: a client-sent instant is refused, not read.
+    expect(applyLootCommandSchema.safeParse({ ...guarded, cutoffMs: 5 }).success).toBe(false);
   });
 });
 

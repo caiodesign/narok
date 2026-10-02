@@ -64,7 +64,7 @@ function summarizePercentiles(values: number[]): BenchmarkPercentiles {
 
 /**
  * Whether a sample stopped before reaching its requested horizon (rulings R49): a
- * normal party can hit its wipe limit or stalemate deadline early; the engine-stress
+ * normal party can wipe or hit its stalemate deadline early; the engine-stress
  * fixture never does (its HP budget survives the horizon by construction), so this
  * only ever marks gameplay samples. Never used to extrapolate a full-duration cost —
  * short samples are reported, not rescaled.
@@ -111,7 +111,7 @@ function buildMetadata(): BenchmarkMetadata {
     cpuModel: cpuList[0]?.model ?? 'unknown',
     cpuCount: cpuList.length,
     totalMemoryBytes: totalmem(),
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     commandLine: process.argv.slice(1).join(' '),

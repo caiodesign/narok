@@ -1,0 +1,65 @@
+[+   0.2 s] database narok_drill_recovery migrated (postgres://narok:***@127.0.0.1:5433/narok_drill_recovery)
+[+   1.1 s] server #1 up, pid 29212
+[+   1.9 s] account 75dc14b6-7ad3-43d3-88ec-b97497f25b1e onboarded (three characters, presets seeded per R197)
+[+   3.8 s] round 0: hunt 04c01e30-eb1c-4a8c-8a0a-9eb12b21bc7a backdated 3600000 ms, settled in 49 ms wall to sim 597103 ms, status stopped (wipe)
+[+   5.8 s] round 1: hunt e2ff227b-d002-4079-97c6-6b6f536128a2 backdated 3600000 ms, settled in 31 ms wall to sim 527501 ms, status stopped (wipe)
+[+   7.7 s] round 2: hunt 47c0171e-7265-45ce-9352-b60c555ac5ee backdated 3600000 ms, settled in 22 ms wall to sim 43458 ms, status stopped (wipe)
+[+   9.6 s] round 3: hunt 557bbc57-7505-46c4-abb0-7e154a2744c8 backdated 3600000 ms, settled in 27 ms wall to sim 422003 ms, status stopped (wipe)
+[+  11.5 s] round 4: hunt 03af023b-e2a5-4b9a-927c-d3034e9b8732 backdated 3600000 ms, settled in 30 ms wall to sim 441903 ms, status stopped (wipe)
+[+  13.4 s] round 5: hunt ceeb5fee-b3e5-461b-9938-74cbccbba40d backdated 3600000 ms, settled in 22 ms wall to sim 32516 ms, status stopped (wipe)
+[+  15.3 s] round 6: hunt 7be6f8c1-b246-4970-9c27-9b16ac7088e7 backdated 3600000 ms, settled in 24 ms wall to sim 157608 ms, status stopped (wipe)
+[+  17.2 s] round 7: hunt 16f13e3e-ea50-4305-9e8e-4bb561a6cb3c backdated 3600000 ms, settled in 23 ms wall to sim 47633 ms, status stopped (wipe)
+[+  19.1 s] round 8: hunt 5a015e9c-b68f-451b-8fe3-55849f6fa08b backdated 3600000 ms, settled in 22 ms wall to sim 27914 ms, status stopped (wipe)
+[+  21.0 s] round 9: hunt 0aed1151-0506-4c26-bdc2-a889ecd144f9 backdated 3600000 ms, settled in 28 ms wall to sim 339409 ms, status stopped (wipe)
+[+  22.8 s] round 10: hunt 128b3c1c-efa6-4a87-af64-b3f44bfcaf5f backdated 3600000 ms, settled in 24 ms wall to sim 154506 ms, status stopped (wipe)
+[+  24.7 s] round 11: hunt 5ef663a3-43e8-499a-b448-b5a3f26547a4 backdated 3600000 ms, settled in 35 ms wall to sim 508484 ms, status stopped (wipe)
+[+  26.6 s] round 12: hunt fbfd3b31-8b66-4902-bbe0-6c082f606ef0 backdated 3600000 ms, settled in 24 ms wall to sim 171082 ms, status stopped (wipe)
+[+  28.5 s] round 13: hunt 31db7603-8715-4358-91e0-3ca0bdc5ea52 backdated 3600000 ms, settled in 25 ms wall to sim 285807 ms, status stopped (wipe)
+[+  30.4 s] round 14: hunt 531b5503-775b-43ef-87f4-ebdbd7db68fb backdated 3600000 ms, settled in 25 ms wall to sim 333008 ms, status stopped (wipe)
+[+  32.3 s] round 15: hunt 8b410d2e-496c-4b68-9f02-c7b1f04b8fa9 backdated 3600000 ms, settled in 33 ms wall to sim 1211511 ms, status stopped (wipe)
+[+  34.3 s] round 16: hunt eba0a71a-7d58-4309-847b-e898d69e2142 backdated 3600000 ms, settled in 38 ms wall to sim 1682108 ms, status stopped (wipe)
+[+  36.2 s] round 17: hunt 5d2bcfd2-4f91-4dae-a553-0f9594dc8dcb backdated 3600000 ms, settled in 22 ms wall to sim 43544 ms, status stopped (wipe)
+[+  38.1 s] round 18: hunt 80cf7fa3-2245-48e0-8ee1-746096dc52d4 backdated 3600000 ms, settled in 26 ms wall to sim 443305 ms, status stopped (wipe)
+[+  40.0 s] round 19: hunt b487705f-897a-4123-a3a4-6c5edde5b7e8 backdated 3600000 ms, settled in 59 ms wall to sim 3018006 ms, status stopped (wipe)
+[+  41.9 s] round 20: hunt ab50f682-c015-4320-95cc-27be6a123d08 backdated 3600000 ms, settled in 29 ms wall to sim 511081 ms, status stopped (wipe)
+[+  43.8 s] round 21: hunt 3822f574-4fde-4c04-a8e7-79d66fa0f203 backdated 3600000 ms, settled in 23 ms wall to sim 179120 ms, status stopped (wipe)
+[+  45.7 s] round 22: hunt 88040079-6f8a-4860-bd79-8d9cfeec3d3a backdated 3600000 ms, settled in 28 ms wall to sim 746608 ms, status stopped (wipe)
+[+  47.6 s] round 23: hunt 13387bbc-26fe-4152-8ec7-84579baaa010 backdated 3600000 ms, settled in 32 ms wall to sim 842862 ms, status stopped (wipe)
+[+  49.5 s] round 24: hunt cb920bc1-ee44-49d1-8f1b-dc5937786e90 backdated 3600000 ms, settled in 26 ms wall to sim 513403 ms, status stopped (wipe)
+[+  51.4 s] round 25: hunt 46b183e4-1d3f-4fa3-ba3a-584ee579a809 backdated 3600000 ms, settled in 35 ms wall to sim 968006 ms, status stopped (wipe)
+[+  51.4 s] rewards committed by the absence settlements: 3 drop audit rows
+[+  51.4 s] live hunt b74a7d94-c3e1-4f53-ab0b-4536982715df started
+[+  81.6 s] at the crash: released sim 30178 ms; committed checkpoint seq 2 at sim 20132 ms; 3 drop rows
+[+  81.6 s] PASS the server had released time ahead of the committed checkpoint (precomputation existed) — released 30178 > committed 20132
+[+  81.6 s] B-25 SIGKILL server #1 mid-hunt (no shutdown hook ran)
+[+  81.6 s] PASS the durable checkpoint is exactly what was committed before the crash
+[+  82.5 s] server #2 (same build, same pins) up, pid 31268
+[+  83.1 s] after replay: checkpoint seq 3 at sim 31130 ms; snapshot at sim 31166 ms; 3 drop rows
+[+  83.1 s] PASS replay ran under the pinned versions (unchanged across the crash) — b1/2afa20bacd8473db84d2ef8043832507ecdd7467b1996499a7cbec1575013bdd/c2c839371c6faddb0756adef80f3fcb3d17c841fef809acc419dea7ddb43e4b9
+[+  83.1 s] PASS replay resumed from the durable checkpoint and moved forward
+[+  83.1 s] PASS every reward id is unique (no reward committed twice) — 3 rows, 3 distinct
+[+  83.1 s] PASS every hunt has a reward sequence is contiguous from 0 (none skipped, none repeated) — 3 hunts, 3 rewards
+[+  83.1 s] PASS every reward committed before the crash survives unchanged
+[+  83.1 s] PASS kept-drop audit rows and reward-sourced items agree one to one — 1 items, 1 kept audits
+[+  83.1 s] PASS at the crash the database held exactly the rewards the committed checkpoint had rolled — nothing from the released precomputation — 6 frames released past sim 20132; live-hunt rewards in the database 0, committed checkpoint nextRewardSeq 0 with 0 pending
+[+  83.1 s] drops rolled past the committed checkpoint (in flight at the crash, replayed once): 0 — item half not exercised by this run
+[+  83.1 s] EXP: 4100 at the crash (as committed), 4172 after replay
+[+  83.1 s] PASS character EXP columns equal the committed checkpoint progression (no double credit) — columns 4172, checkpoint 4172
+[+  83.1 s] server #2 stopped
+[+  83.1 s] INJECT hunts.content_version := 'drill-other-content' (a checkpoint pinned to content this build does not carry)
+[+  84.0 s] server #3 up, pid 37392
+[+  84.3 s] GET /api/hunts/current -> 409 {"code":"CONTENT_VERSION_MISMATCH","field":"contentVersion","retryable":true}; socket -> {"type":"error","generation":0,"code":"CONTENT_VERSION_MISMATCH","field":"contentVersion"}
+[+  84.3 s] PASS B-29 the read refuses with CONTENT_VERSION_MISMATCH — CONTENT_VERSION_MISMATCH
+[+  84.3 s] PASS B-29 the checkpoint is untouched: no replay under the deployed content
+[+  84.4 s] RESTORE hunts.content_version := '2afa20bacd8473db84d2ef8043832507ecdd7467b1996499a7cbec1575013bdd'
+[+  84.4 s] INJECT the first actor's definitionId := 'drill-no-such-class' (an engine state no content can produce)
+[+  85.3 s] server #4 up, pid 20160
+[+  85.3 s] socket after the injection -> {"type":"error","generation":0,"code":"HUNT_FAULTED","field":"hunt.status"}
+[+  85.8 s] hunts.status=faulted faulted_reason={"code":"INVALID_STATE","field":"actors.p0.definitionId","simTarget":33900,"wallMs":1790948886337}; archive rows: [{"captured_for":"fault","simulation_version":"b1","content_version":"2afa20bacd8473db84d2ef8043832507ecdd7467b1996499a7cbec1575013bdd"}]
+[+  85.8 s] PASS B-30 the hunt is marked faulted with a reason
+[+  85.8 s] PASS B-30 a fault archive row keeps the reproduction inputs
+[+  85.8 s] PASS B-30 no wipe was charged by the fault — wipes 0 -> 0
+[+  85.9 s] PASS B-30 automatic retries are stopped: three reconnects with heartbeats wrote nothing — fault archive rows 1
+[+  85.9 s] PASS B-30 a normal stop is refused with HUNT_FAULTED — 409 HUNT_FAULTED
+[+  85.9 s] PASS B-30 a normal start is refused with HUNT_FAULTED — 409 HUNT_FAULTED hunt.status
+[+  85.9 s] POST /api/hunts/current/recover -> 404 {"code":"NOT_FOUND","field":"route","retryable":false} (the explicit recovery has no route in this build)

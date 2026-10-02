@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import { benchmark, classifyShort } from '../src/benchmark';
 import { csvCell, percentile, writeCsv } from '../src/csv';
-import { classMultisets, runMatrix } from '../src/run';
+import { emptyDropMetrics } from '@narok/sim';
+import { buildLabInput, classMultisets, formatWaits, runBatch, runMatrix } from '../src/run';
 import type { RunResult } from '../src/types';
 
 // --- CSV quote escaping (rulings R50) ---
@@ -46,9 +47,22 @@ test('writeCsv quotes a roster field naturally, since it always joins with comma
     damage_dealt: 0,
     effective_healing: 0,
     kills_per_hour: null,
+    items_rolled_common: 0,
+    items_rolled_uncommon: 0,
+    items_rolled_rare: 0,
+    items_rolled_epic: 0,
+    items_rolled_legendary: 0,
+    items_kept: 0,
+    items_autosold: 0,
+    drops_lost: 0,
+    first_drop_ms: null,
+    first_drop_rarity: null,
+    epic_wait_kills: '',
+    legendary_wait_kills: '',
+    drop_protection: { epicPlus: 0, legendary: 0 },
     metrics: {
       kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
-      walkMs: 1000, fightMs: 0, restMs: 0, respawnMs: 0, actors: {},
+      walkMs: 1000, fightMs: 0, restMs: 0, consumed: {}, actors: {}, drops: emptyDropMetrics(),
     },
   };
   const csv = writeCsv([row]);
@@ -56,14 +70,48 @@ test('writeCsv quotes a roster field naturally, since it always joins with comma
   expect(lines[0]).toBe(
     'simulation_version,content_version,seed,roster,recipe,placement,requested_ms,elapsed_ms,' +
       'stop_reason,kills,wins,wipes,rest_ms,walk_ms,fight_ms,raw_exp,raw_gold,damage_dealt,' +
-      'effective_healing,kills_per_hour',
+      'effective_healing,kills_per_hour,items_rolled_common,items_rolled_uncommon,items_rolled_rare,' +
+      'items_rolled_epic,items_rolled_legendary,items_kept,items_autosold,drops_lost,first_drop_ms,' +
+      'first_drop_rarity,epic_wait_kills,legendary_wait_kills',
   );
   expect(lines[1]).toContain('"guardian,cleric,ranger"');
   expect(lines[1]).toContain('"p0:2,3"');
   // stop_reason (null) and kills_per_hour (null) both render as empty fields.
   expect(lines[1]).toBe(
-    'a1,c1,1,"guardian,cleric,ranger",mixed,"p0:2,3",1000,1000,,0,0,0,0,1000,0,0,0,0,0,',
+    'a1,c1,1,"guardian,cleric,ranger",mixed,"p0:2,3",1000,1000,,0,0,0,0,1000,0,0,0,0,0,,0,0,0,0,0,0,0,0,,,,',
   );
+});
+
+// --- drop columns (task 6; layer-1 §12) ---
+
+test('waits are reported per seed as the distribution of completed waits plus the open one, never a mean', () => {
+  expect(formatWaits([], 0)).toBe('');
+  expect(formatWaits([], 37)).toBe('>37');
+  expect(formatWaits([412, 1_033], 0)).toBe('412;1033');
+  expect(formatWaits([412, 1_033], 77)).toBe('412;1033;>77');
+});
+
+test('a run reports its drops from the simulation state, one row per seed', () => {
+  const rows = runBatch(buildLabInput(1, ['guardian', 'cleric', 'ranger'], 'mixed', 'default'), [1, 2], 3_600_000);
+  for (const row of rows) {
+    const drops = row.metrics.drops;
+    expect([
+      row.items_rolled_common, row.items_rolled_uncommon, row.items_rolled_rare,
+      row.items_rolled_epic, row.items_rolled_legendary,
+    ]).toEqual([drops.rolled.common, drops.rolled.uncommon, drops.rolled.rare, drops.rolled.epic, drops.rolled.legendary]);
+    expect(row.items_kept).toBe(drops.kept);
+    expect(row.items_autosold).toBe(drops.autoSold);
+    expect(row.drops_lost).toBe(drops.lost);
+    expect(row.first_drop_ms).toBe(drops.firstDropMs);
+    expect(row.first_drop_rarity).toBe(drops.firstDropRarity);
+    expect(row.epic_wait_kills).toBe(formatWaits(drops.epicPlusWaits, row.drop_protection.epicPlus));
+    expect(row.legendary_wait_kills).toBe(formatWaits(drops.legendaryWaits, row.drop_protection.legendary));
+    // Every kill of an equipment-dropping monster is one opportunity: the open
+    // wait plus the completed ones account for every kill.
+    const epicKills = drops.epicPlusWaits.reduce((sum, wait) => sum + wait, 0) + row.drop_protection.epicPlus;
+    expect(epicKills).toBe(row.kills);
+    expect(row.items_rolled_common + row.items_rolled_uncommon).toBeGreaterThan(0);
+  }
 });
 
 test('percentile uses the nearest-rank formula sorted[max(0, ceil(f*n)-1)]', () => {
@@ -135,7 +183,7 @@ test(
     expect(typeof report.metadata.cpuModel).toBe('string');
     expect(report.metadata.cpuCount).toBeGreaterThan(0);
     expect(report.metadata.totalMemoryBytes).toBeGreaterThan(0);
-    expect(report.metadata.simulationVersion).toBe('a1');
+    expect(report.metadata.simulationVersion).toBe('b1');
     expect(typeof report.metadata.contentVersion).toBe('string');
     expect(typeof report.metadata.gridHash).toBe('string');
     expect(typeof report.metadata.commandLine).toBe('string');

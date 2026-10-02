@@ -7,6 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@narok/data": "workspace:*"
+    "@narok/data": "workspace:*",
+    "@narok/loot": "workspace:*",
+    "@narok/progression": "workspace:*"
   }
 }

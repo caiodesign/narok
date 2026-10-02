@@ -34,8 +34,14 @@ function copyMetrics(metrics: Metrics): Metrics {
     walkMs: metrics.walkMs,
     fightMs: metrics.fightMs,
     restMs: metrics.restMs,
-    respawnMs: metrics.respawnMs,
     actors,
+    drops: {
+      ...metrics.drops,
+      rolled: { ...metrics.drops.rolled },
+      epicPlusWaits: [...metrics.drops.epicPlusWaits],
+      legendaryWaits: [...metrics.drops.legendaryWaits],
+    },
+    consumed: { ...metrics.consumed },
   };
 }
 

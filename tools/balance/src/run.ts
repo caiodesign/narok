@@ -17,15 +17,15 @@ const MATRIX_RECIPES: readonly RecipeId[] = ['melee', 'ranged', 'clustered'];
 const MATRIX_PLACEMENTS: readonly PlacementName[] = ['default', 'front', 'spread'];
 
 /**
- * Fixed rest thresholds and wipe limit every run/matrix job uses (rulings R48). Never
- * user-configurable in this CLI surface.
+ * Fixed rest thresholds every run/matrix job uses (rulings R48). Never
+ * user-configurable in this CLI surface. There is no wipe limit: a wipe ends
+ * the run (owner decision 2026-09-30).
  */
 const REST = { hpStart: 50, mpStart: 30 };
-const WIPE_LIMIT = 1;
 
 /**
  * Builds an explicit `LabInput` (rulings R48): the parsed roster in class order
- * (`p0`…), each class's own default strategy, fixed rest/wipe-limit, the chosen
+ * (`p0`…), each class's own default strategy, fixed rest thresholds, the chosen
  * recipe/seed, and the named placement.
  */
 export function buildLabInput(
@@ -45,7 +45,6 @@ export function buildLabInput(
     placement: buildPlacement(placementName, classes),
     strategies,
     rest: { ...REST },
-    wipeLimit: WIPE_LIMIT,
   };
 }
 
@@ -76,11 +75,24 @@ export function drainSummary(
   }
 }
 
+/**
+ * One seed's waits as a distribution (layer-1 §12): the completed waits in
+ * order, then the open one as `>n` when the run ended partway into a wait.
+ * Never averaged — a mean over a long-tailed wait hides exactly the tail the
+ * bad-luck thresholds are chosen from.
+ */
+export function formatWaits(completed: readonly number[], open: number): string {
+  const parts = completed.map(String);
+  if (open > 0) parts.push(`>${open}`);
+  return parts.join(';');
+}
+
 function runOne(input: LabInput, untilMs: number): RunResult {
   const started = sim.start(input);
   const final = drainSummary(sim, started, untilMs);
   const elapsedMs = final.nowMs;
   const killsPerHour = elapsedMs === 0 ? null : (final.metrics.kills * 3_600_000) / elapsedMs;
+  const drops = final.metrics.drops;
 
   return {
     simulation_version: final.simulationVersion,
@@ -103,6 +115,19 @@ function runOne(input: LabInput, untilMs: number): RunResult {
     damage_dealt: final.metrics.damageDealt,
     effective_healing: final.metrics.effectiveHealing,
     kills_per_hour: killsPerHour,
+    items_rolled_common: drops.rolled.common,
+    items_rolled_uncommon: drops.rolled.uncommon,
+    items_rolled_rare: drops.rolled.rare,
+    items_rolled_epic: drops.rolled.epic,
+    items_rolled_legendary: drops.rolled.legendary,
+    items_kept: drops.kept,
+    items_autosold: drops.autoSold,
+    drops_lost: drops.lost,
+    first_drop_ms: drops.firstDropMs,
+    first_drop_rarity: drops.firstDropRarity,
+    epic_wait_kills: formatWaits(drops.epicPlusWaits, final.dropProtection.epicPlus),
+    legendary_wait_kills: formatWaits(drops.legendaryWaits, final.dropProtection.legendary),
+    drop_protection: { ...final.dropProtection },
     metrics: final.metrics,
   };
 }

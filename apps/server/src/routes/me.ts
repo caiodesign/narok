@@ -30,7 +30,11 @@ function requireIdempotencyKey(request: FastifyRequest): string {
   return key;
 }
 
-export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): void {
+export function registerAccountRoutes(
+  app: FastifyInstance,
+  ctx: RouteContext,
+  options: { readonly huntsWired?: boolean } = {},
+): void {
   const { stores, config, now, parse } = ctx;
   const caller = (request: FastifyRequest) => requireSession(request, stores, config, now());
 
@@ -42,14 +46,16 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
       stateVersion: account.stateVersion,
       premium: account.premium,
       versions: {
-        simulationVersion: 'a1',
+        simulationVersion: 'b1',
         contentVersion: content.version,
         gridHash: content.gridHash,
       },
     };
   });
 
-  app.post('/api/inventory/lock', async (request) => {
+  // With the database wired, `routes/town.ts` owns this route and does the
+  // guard and the increment inside the write's own transaction (R144).
+  if (options.huntsWired !== true) app.post('/api/inventory/lock', async (request) => {
     const { account } = await caller(request);
     requireIdempotencyKey(request);
     const body = parse(lockCommandSchema, request.body);
@@ -58,8 +64,8 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
     const item = await stores.items.byId(body.itemId);
     if (item === undefined || item.accountId !== account.id) throw notOwned('itemId');
 
-    // P-20's guard. Task 2 moves this inside the transaction that also does the
-    // version increment; here it decides the same answer over the same read.
+    // P-20's guard, over the in-memory stores: the same answer over the same
+    // read. The database route checks it inside the write's transaction.
     if (body.expectedStateVersion !== account.stateVersion) {
       throw new AppError('CONFLICT_STATE_VERSION', 'expectedStateVersion', account.stateVersion);
     }
@@ -68,7 +74,8 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
     return { itemId: item.id, locked: body.locked, stateVersion: account.stateVersion };
   });
 
-  app.post('/api/hunts', async (request) => {
+  // With the lifecycle wired, `routes/hunts.ts` owns this route.
+  if (options.huntsWired !== true) app.post('/api/hunts', async (request) => {
     await caller(request);
     requireIdempotencyKey(request);
     // Strict schemas: a smuggled `seed`, `elapsedMs` or `commandAt` is rejected
@@ -78,7 +85,8 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
     throw new AppError('RULE_VIOLATION', 'hunts.start');
   });
 
-  app.post('/api/hunts/current/strategy', async (request) => {
+  // With the lifecycle wired, `routes/hunts.ts` owns this route.
+  if (options.huntsWired !== true) app.post('/api/hunts/current/strategy', async (request) => {
     await caller(request);
     requireIdempotencyKey(request);
     parse(applyStrategyCommandSchema, request.body);
@@ -95,7 +103,8 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: RouteContext): 
     throw new AppError('RULE_VIOLATION', 'shop.buy');
   });
 
-  app.get('/api/reports/:id', async (request) => {
+  // With the lifecycle wired, `routes/reports.ts` owns this route.
+  if (options.huntsWired !== true) app.get('/api/reports/:id', async (request) => {
     const { account } = await caller(request);
     const { id } = request.params as { id: string };
     // No report exists yet (task 4). Answering NOT_OWNED keeps absence and

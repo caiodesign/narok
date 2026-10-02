@@ -160,19 +160,21 @@ export function skillActivity(actor: PublicActor, skill: SkillDefinition, nowMs:
 }
 
 /** `hunt.html`'s slot state modifiers, keyed by the activity above. */
-const SLOT_MODIFIERS: Record<SkillActivity, string> = {
+const SLOT_MODIFIERS: Record<SkillActivity | 'passive', string> = {
   ready: 'slot--ready',
   active: 'slot--active',
   cooldown: 'slot--cooldown',
   casting: 'slot--casting',
   unavailable: 'slot--starved',
+  // Never yielded by `skillActivity` (R84); drawn only by `SkillSlot` (R173).
+  passive: 'slot--passive',
 };
 
-export function slotModifier(activity: SkillActivity): string {
+export function slotModifier(activity: SkillActivity | 'passive'): string {
   return SLOT_MODIFIERS[activity];
 }
 
-/** Milestone A's eight skills, mapped onto the sheet's twelve skill emblems. */
+/** The nine skills, mapped onto the sheet's twelve skill emblems. */
 const SKILL_GLYPHS: Record<SkillId, string> = {
   taunt: 's-taunt',
   cleave: 's-cleave',
@@ -180,6 +182,7 @@ const SKILL_GLYPHS: Record<SkillId, string> = {
   // Divine damage reads as the sheet's halo rather than its bolt, which the
   // arcanist's fire-bolt has the better claim to.
   smite: 's-blessing',
+  revive: 's-groupheal',
   'double-shot': 's-doubleshot',
   'arrow-rain': 's-arrowrain',
   'fire-bolt': 's-smite',
@@ -282,21 +285,6 @@ export function sessionRates(metrics: Metrics | null, elapsedMs: number): Sessio
     gold: rate(metrics.rawGold),
     damage: rate(metrics.damageDealt),
   };
-}
-
-/**
- * The reference's death pips. Milestone A's analogue of "2 of 5 deaths used" is
- * the run's wipes against its configured wipe limit — a real measured count
- * against a real configured bound, not an invented life total.
- */
-export interface DeathPips {
-  readonly used: number;
-  readonly limit: number;
-}
-
-export function deathPips(metrics: Metrics | null, wipeLimit: number | null): DeathPips | null {
-  if (metrics === null || wipeLimit === null || wipeLimit <= 0) return null;
-  return { used: Math.min(metrics.wipes, wipeLimit), limit: wipeLimit };
 }
 
 /** Floating combat numbers the battlefield draws, newest first. */

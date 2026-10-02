@@ -35,6 +35,8 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { EQUIPMENT_SLOTS } from '@narok/data';
+import { EXP_SHARE_DENOMINATOR } from '@narok/progression';
 
 /** Raw bytes, so a canonical encoding survives the round trip unchanged. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
@@ -98,6 +100,12 @@ export const characters = pgTable(
     classId: text('class_id').notNull(),
     level: integer('level').notNull().default(1),
     exp: bigint('exp', { mode: 'number' }).notNull().default(0),
+    /**
+     * The party-split remainder in 1/60,000ths of an EXP point (ruling R135),
+     * so EXP totals do not depend on how hunts are cut into settlements. The
+     * sim's checkpoint `progression` is the source; a settlement copies it here.
+     */
+    expCarry: integer('exp_carry').notNull().default(0),
     awardedLevel: integer('awarded_level').notNull().default(1),
     unspentStatPoints: integer('unspent_stat_points').notNull().default(0),
     unspentSkillPoints: integer('unspent_skill_points').notNull().default(0),
@@ -117,6 +125,14 @@ export const characters = pgTable(
     check('characters_level_positive', sql`${table.level} >= 1`),
     // A level may not be rewarded twice (layer-1 §5.3).
     check('characters_awarded_level', sql`${table.awardedLevel} <= ${table.level}`),
+    check(
+      'characters_exp_carry_range',
+      sql`${table.expCarry} >= 0 and ${table.expCarry} < ${sql.raw(String(EXP_SHARE_DENOMINATOR))}`,
+    ),
+    check(
+      'characters_points_nonnegative',
+      sql`${table.unspentStatPoints} >= 0 and ${table.unspentSkillPoints} >= 0`,
+    ),
     check('characters_hp_nonnegative', sql`${table.hp} >= 0`),
     check('characters_mp_nonnegative', sql`${table.mp} >= 0`),
   ],
@@ -136,8 +152,29 @@ export const items = pgTable(
     bonuses: jsonb('bonuses').notNull(),
     tradeable: boolean('tradeable').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
+    /** Assigned at acquisition: a Legendary drop is protected (part 3 §3.2). */
+    protected: boolean('protected').notNull().default(false),
+    /**
+     * Where the item came from: a reward id `"<huntId>:<rewardSeq>"` or a grant
+     * key. Unique per account, so a re-simulated commit can never credit one
+     * reward twice (part 2 §2, B-25).
+     */
+    sourceRef: text('source_ref'),
     equippedCharacterId: uuid('equipped_character_id').references(() => characters.id, { onDelete: 'set null' }),
     equippedSlot: text('equipped_slot'),
+    /**
+     * The definition's handedness, copied at acquisition from the pinned
+     * content the instance was made under (ruling R145), so the owner's
+     * two-handed rule can be a database fact: see `items_two_handed_offhand_idx`.
+     */
+    twoHanded: boolean('two_handed').notNull().default(false),
+    /**
+     * The one character that may wear this item (ruling R141, R145): the
+     * starter weapon is bound so it cannot be cycled for value. A bound item
+     * is never sellable. It leaves with its character — re-creating the slot
+     * grants nothing (part 3 §8 #10) — so the binding can never dangle.
+     */
+    boundTo: uuid('bound_to').references(() => characters.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -150,9 +187,29 @@ export const items = pgTable(
       'items_equipped_pairing',
       sql`(${table.equippedCharacterId} is null) = (${table.equippedSlot} is null)`,
     ),
+    // Layer-1 §7.1's eight slot names and no others (ruling R142).
+    check(
+      'items_equipped_slot_known',
+      sql`${table.equippedSlot} is null or ${table.equippedSlot} in (${sql.raw(EQUIPMENT_SLOTS.map((slot) => `'${slot}'`).join(', '))})`,
+    ),
+    // A two-handed weapon locks the off-hand (owner decision 2026-09-21;
+    // ruling R145): per character, at most one row is either the off-hand or
+    // a two-handed weapon — so the two can never be worn together, whichever
+    // write comes first. A one-handed weapon is outside the predicate.
+    uniqueIndex('items_two_handed_offhand_idx')
+      .on(table.equippedCharacterId)
+      .where(
+        sql`${table.equippedSlot} = 'offhand' or (${table.equippedSlot} = 'weapon' and ${table.twoHanded})`,
+      ),
+    // A bound item is worn by its own character or by no one.
+    check(
+      'items_bound_wearer',
+      sql`${table.boundTo} is null or ${table.equippedCharacterId} is null or ${table.equippedCharacterId} = ${table.boundTo}`,
+    ),
     // No trading before Layer 4 (layer-1 §7.1, §14).
     check('items_not_tradeable_in_beta', sql`${table.tradeable} = false`),
     index('items_bag_idx').on(table.accountId).where(sql`${table.equippedCharacterId} is null`),
+    uniqueIndex('items_source_idx').on(table.accountId, table.sourceRef).where(sql`${table.sourceRef} is not null`),
   ],
 );
 
@@ -168,8 +225,9 @@ export const stackItems = pgTable(
   (table) => [
     primaryKey({ columns: [table.accountId, table.definitionId] }),
     check('stack_items_quantity_nonnegative', sql`${table.quantity} >= 0`),
-    // Consumables stack to 999 (layer-1 §7.5).
-    check('stack_items_quantity_max', sql`${table.quantity} <= 999`),
+    // No upper bound here (ruling R137): `quantity` is the *total* held of one
+    // consumable, which occupies ceil(quantity / 999) bag slots — 999 bounds a
+    // stack, not a total, and the bag's capacity bounds the stacks.
   ],
 );
 

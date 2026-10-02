@@ -2,7 +2,8 @@ import { expect, test } from 'vitest';
 import { gridPosition } from '../src/battlefield/grid';
 import { project } from '../src/project';
 import type { Metrics, SimState } from '../src/types';
-import { actor, atFight } from './fixtures';
+import { actor, atFight, rewardFields } from './fixtures';
+import { emptyDropMetrics } from '../src/rewards';
 
 /**
  * A hand-built state exercising every `targetReason` branch (ruling R42) plus
@@ -36,12 +37,13 @@ function targetReasonState(): SimState {
   const zero = { damageDealt: 0, damageReceived: 0, healingDone: 0 };
   const metrics: Metrics = {
     kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
-    walkMs: 2_000, fightMs: 0, restMs: 0, respawnMs: 0,
+    walkMs: 2_000, fightMs: 0, restMs: 0, consumed: {},
     actors: { p0: { ...zero }, p1: { ...zero }, p2: { ...zero }, e0: { ...zero } },
+    drops: emptyDropMetrics(),
   };
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: 'test-content',
     gridHash: 'test-grid',
     nowMs: 2_000,
@@ -55,8 +57,10 @@ function targetReasonState(): SimState {
     stopReason: null,
     input: {
       seed: 1, classes: ['guardian'], recipe: 'melee', placement: {}, strategies: {},
-      rest: { hpStart: 50, mpStart: 30 }, wipeLimit: 1,
+      rest: { hpStart: 50, mpStart: 30 },
     },
+    pendingRules: null,
+    ...rewardFields(),
     // Deliberately out of ASCII order (e0 before p0/p1/p2) so the sort is exercised.
     actors: { e0, p2, p0, p1 },
     queue: [{ at: 3_000, kind: 'act', actorId: 'p0', seq: 0, epoch: 2, token: 7 }],

@@ -8,7 +8,8 @@ import { finishEncounter } from '../src/lifecycle';
 import { schedule } from '../src/scheduler';
 import { defaultStrategy } from '../src/state';
 import type { Actor, LabInput, Metrics, PositionId, SimState } from '../src/types';
-import { actor, context, fightFixture, lab, labInput, runTo } from './fixtures';
+import { actor, context, fightFixture, lab, labInput, rewardFields, runTo } from './fixtures';
+import { emptyDropMetrics } from '../src/rewards';
 
 /** Highest seed `validateLabInput` accepts (a nonzero uint32). */
 const MAX_SEED = 4_294_967_295;
@@ -75,12 +76,13 @@ function duelState(nowMs: number, enemyHp: number): SimState {
   const zero = { damageDealt: 0, damageReceived: 0, healingDone: 0 };
   const metrics: Metrics = {
     kills: 0, wins: 0, wipes: 0, rawExp: 0, rawGold: 0, damageDealt: 0, effectiveHealing: 0,
-    walkMs: 2_000, fightMs: 0, restMs: 0, respawnMs: 0,
+    walkMs: 2_000, fightMs: 0, restMs: 0, consumed: {},
     actors: { p0: { ...zero }, e0: { ...zero } },
+    drops: emptyDropMetrics(),
   };
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs,
@@ -93,6 +95,8 @@ function duelState(nowMs: number, enemyHp: number): SimState {
     phase: 'fighting',
     stopReason: null,
     input: soloInput(),
+    pendingRules: null,
+    ...rewardFields(),
     actors: { p0: caster, e0: boar('e0', enemyHp, gridPosition(1, 1)) },
     queue: [],
     metrics,
@@ -267,7 +271,7 @@ test('stale entries are skipped but still spend the work budget', () => {
 test('phase time accrues on every clock move, including between arbitrary targets', () => {
   const started = sim.start(labInput());
   const walking = sim.advance(started, 1_234).state;
-  expect(walking.metrics).toMatchObject({ walkMs: 1_234, fightMs: 0, restMs: 0, respawnMs: 0 });
+  expect(walking.metrics).toMatchObject({ walkMs: 1_234, fightMs: 0, restMs: 0, consumed: {} });
 
   const spawned = sim.advance(walking, 2_000).state;
   expect(spawned.phase).toBe('fighting');
@@ -314,7 +318,7 @@ test('incompatible states and targets are rejected with documented codes', () =>
     'state.schemaVersion',
   );
   expectSimError(
-    () => sim.advance({ ...state, simulationVersion: 'a2' as unknown as 'a1' }, 10),
+    () => sim.advance({ ...state, simulationVersion: 'a1' as unknown as 'b1' }, 10),
     'WRONG_VERSION',
     'state.simulationVersion',
   );
@@ -431,31 +435,21 @@ test('a hit that brings HP to exactly zero is a death; one point short is not', 
   expect(dies.state.metrics.wins).toBe(1);
 });
 
-test('a respawn completes at exactly its instant, not a millisecond before', () => {
+test('a wipe stops the hunt at its own instant, and nothing follows it (ruling R154)', () => {
   const state = fightFixture();
-  state.input.wipeLimit = 2; // not the final wipe, so the party respawns instead of stopping
   for (const id of ['p0', 'p1', 'p2'] as const) state.actors[id].hp = 0;
   finishEncounter(state, context(state, []));
-  expect(state.phase).toBe('respawning');
+  expect(state.phase).toBe('stopped');
+  expect(state.stopReason).toBe('wipe');
+  expect(state.queue).toEqual([]);
 
-  const respawnAt = state.nowMs + content.respawnMs;
-  expect(state.queue.some((event) => event.kind === 'transition' && event.at === respawnAt)).toBe(true);
-
-  const early = sim.advance(state, respawnAt - 1);
-  expect(early.state.phase).toBe('respawning');
-  expect(early.state.actors.p0.hp).toBe(0);
-  // Regen ticks keep firing while respawning but restore nothing (spec section 10).
-  expect(early.events).toEqual([]);
-
-  const onTime = sim.advance(early.state, respawnAt);
-  expect(onTime.state.phase).toBe('walking');
-  expect(onTime.events.map((event) => [event.kind, event.at, event.reason])).toEqual([
-    ['phase', respawnAt, 'walking'],
-  ]);
+  // No respawn transition waits in the queue: a far-future advance moves nothing.
+  const later = sim.advance(state, state.nowMs + 60_000);
+  expect(later.events).toEqual([]);
+  expect(later.state.nowMs).toBe(state.nowMs);
   for (const id of ['p0', 'p1', 'p2'] as const) {
-    const member = onTime.state.actors[id];
-    expect(member.hp).toBe(member.stats.maxHp);
-    expect(member.mp).toBe(member.stats.maxMp);
+    const member = later.state.actors[id];
+    expect([member.hp, member.mp]).toEqual([member.stats.maxHp, member.stats.maxMp]);
   }
 });
 

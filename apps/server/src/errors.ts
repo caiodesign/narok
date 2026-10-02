@@ -28,16 +28,19 @@ export class AppError extends Error {
   readonly code: ErrorCode;
   readonly field: string;
   readonly stateVersion?: number;
+  /** The hunt's current generation, carried by a stale-generation conflict (part 2 §4). */
+  readonly generation?: number;
   /** Seconds, for the `Retry-After` header a RATE_LIMITED refusal must carry. */
   retryAfter?: number;
 
-  constructor(code: ErrorCode, field: string, stateVersion?: number) {
+  constructor(code: ErrorCode, field: string, stateVersion?: number, generation?: number) {
     // The message is for a server log, never for a response body.
     super(`${code}:${field}`);
     this.name = 'AppError';
     this.code = code;
     this.field = field;
     this.stateVersion = stateVersion;
+    this.generation = generation;
   }
 
   get status(): number {
@@ -50,7 +53,11 @@ export class AppError extends Error {
       field: this.field,
       retryable: RETRYABLE.has(this.code),
     };
-    return this.stateVersion === undefined ? envelope : { ...envelope, stateVersion: this.stateVersion };
+    return {
+      ...envelope,
+      ...(this.stateVersion === undefined ? {} : { stateVersion: this.stateVersion }),
+      ...(this.generation === undefined ? {} : { generation: this.generation }),
+    };
   }
 }
 

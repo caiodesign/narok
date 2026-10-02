@@ -1,0 +1,904 @@
+{
+  "ranAt": "2026-10-02T06:01:54.586Z",
+  "viewports": [
+    "1440x900",
+    "1280x800",
+    "1100x800 (probe)"
+  ],
+  "languages": {
+    "en": {
+      "screens": {
+        "hunt": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "LI",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Guardian p0 hits Briar Boar e0 with Cleave"
+              },
+              {
+                "sel": "LI",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Guardian p0 hits Briar Boar e2 with Cleave"
+              },
+              {
+                "sel": "LI",
+                "dx": 27,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Ranger p2 misses Briar Boar e0 with Double"
+              },
+              {
+                "sel": "LI",
+                "dx": 27,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Ranger p2 misses Briar Boar e0 with Double"
+              },
+              {
+                "sel": "LI",
+                "dx": 41,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Briar Boar e1 hits Guardian p0 with Basic at"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 222,
+                "dy": 14,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Briar Boar e1 hits Guardian p0 with Basic attack"
+              }
+            ],
+            "scrolling": 1
+          }
+        },
+        "strategy": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "LI",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Guardian p0 hits Briar Boar e0 with Cleave"
+              },
+              {
+                "sel": "LI",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Guardian p0 hits Briar Boar e2 with Cleave"
+              },
+              {
+                "sel": "LI",
+                "dx": 27,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Ranger p2 misses Briar Boar e0 with Double"
+              },
+              {
+                "sel": "LI",
+                "dx": 27,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2.5 s Ranger p2 misses Briar Boar e0 with Double"
+              },
+              {
+                "sel": "LI",
+                "dx": 41,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Briar Boar e1 hits Guardian p0 with Basic at"
+              },
+              {
+                "sel": "line-cast",
+                "dx": 10,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3.5 s Briar Boar e0 begins Basic attack on Guard"
+              },
+              {
+                "sel": "line-cast",
+                "dx": 10,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3.5 s Briar Boar e2 begins Basic attack on Guard"
+              },
+              {
+                "sel": "LI",
+                "dx": 51,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3.5 s Briar Boar e0 hits Guardian p0 with Basic "
+              },
+              {
+                "sel": "LI",
+                "dx": 51,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3.5 s Briar Boar e2 hits Guardian p0 with Basic "
+              },
+              {
+                "sel": "sr-only",
+                "dx": 222,
+                "dy": 14,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Briar Boar e2 hits Guardian p0 with Basic attack"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 11,
+                "dy": 11,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "p0"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 11,
+                "dy": 11,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "p1"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 11,
+                "dy": 11,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "p2"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 116,
+                "dy": 26,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Strategy rules"
+              }
+            ],
+            "scrolling": 3
+          }
+        },
+        "away": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "track-wrap",
+                "dx": 30,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "7.1 sGuardiã5be3 fell16.6 sClérigo5be3 fell24.8 "
+              },
+              {
+                "sel": "mark.mark--up.mark--death",
+                "dx": 40,
+                "dy": 3,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "7.1 sGuardiã5be3 fell"
+              },
+              {
+                "sel": "mark.mark--down.mark--death",
+                "dx": 38,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "16.6 sClérigo5be3 fell"
+              },
+              {
+                "sel": "mark.mark--up.mark--death",
+                "dx": 48,
+                "dy": 3,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "24.8 sPatrulheira5be3 fell"
+              },
+              {
+                "sel": "mark.mark--down.mark--death",
+                "dx": 25,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "24.8 sParty wipe"
+              },
+              {
+                "sel": "mark.mark--up.mark--stop",
+                "dx": 90,
+                "dy": 4,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "24.8 sHunt ended: The party was wiped out"
+              },
+              {
+                "sel": "mark.mark--down.mark--end",
+                "dx": 30,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "2 h 0 minYou returned"
+              }
+            ],
+            "scrolling": 1
+          }
+        },
+        "bag": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "sr-only",
+                "dx": 79,
+                "dy": 17,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Search the bag"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 65,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Guardian’s Sword"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 40,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Cleric’s Mace"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 44,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Ranger’s Bow"
+              },
+              {
+                "sel": "tally",
+                "dx": 33,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "0 kept, 3 auto-sold, 0 ignoredPreview only · bag"
+              }
+            ],
+            "scrolling": 1
+          }
+        },
+        "character": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "nav",
+                "dx": 0,
+                "dy": 11,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "CharacterBagHunt Prototype map"
+              },
+              {
+                "sel": "navbtn",
+                "dx": 0,
+                "dy": 11,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Character"
+              },
+              {
+                "sel": "roster",
+                "dx": 47,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Guardiã5be3Guardian+301Clérigo5be3Cleric+301Pat"
+              },
+              {
+                "sel": "member",
+                "dx": 16,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Guardiã5be3Guardian+30"
+              },
+              {
+                "sel": "member",
+                "dx": 14,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Clérigo5be3Cleric+30"
+              },
+              {
+                "sel": "member",
+                "dx": 47,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Patrulheira5be3Ranger+30"
+              }
+            ],
+            "scrolling": 0
+          }
+        }
+      },
+      "a11y": {
+        "hunt": {
+          "stops": 38,
+          "withIndicator": 38,
+          "withoutIndicator": []
+        },
+        "strategy": {
+          "stops": 39,
+          "withIndicator": 39,
+          "withoutIndicator": []
+        },
+        "away": {
+          "stops": 27,
+          "withIndicator": 27,
+          "withoutIndicator": []
+        },
+        "bag": {
+          "stops": 39,
+          "withIndicator": 37,
+          "withoutIndicator": [
+            "input \"\"",
+            "input \"\""
+          ]
+        },
+        "character": {
+          "stops": 38,
+          "withIndicator": 38,
+          "withoutIndicator": []
+        }
+      },
+      "reducedMotion": {
+        "logRowsFirst": 11,
+        "logRowsLater": 15,
+        "newRowsArrived": true,
+        "runningAnimations": 0
+      }
+    },
+    "pt-BR": {
+      "screens": {
+        "hunt": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "LI",
+                "dx": 73,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2,5 s Guardião p0 acerta Musguinho e3 com Talho "
+              },
+              {
+                "sel": "line-cast",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Musguinho e4 começa Ataque básico em Guardiã"
+              },
+              {
+                "sel": "line-cast",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Patrulheiro p2 começa Tiro Duplo em Musguinh"
+              },
+              {
+                "sel": "LI",
+                "dx": 108,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Musguinho e4 acerta Guardião p0 com Ataque b"
+              },
+              {
+                "sel": "LI",
+                "dx": 101,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Patrulheiro p2 acerta Musguinho e3 com Tiro "
+              },
+              {
+                "sel": "LI",
+                "dx": 101,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Patrulheiro p2 acerta Musguinho e3 com Tiro "
+              },
+              {
+                "sel": "sr-only",
+                "dx": 263,
+                "dy": 14,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Patrulheiro p2 acerta Musguinho e3 com Tiro Dupl"
+              },
+              {
+                "sel": "LI",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "12Chuva de Flechas"
+              },
+              {
+                "sel": "skill",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "12Chuva de Flechas"
+              }
+            ],
+            "scrolling": 1
+          }
+        },
+        "strategy": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "LI",
+                "dx": 73,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "2,5 s Guardião p0 acerta Musguinho e3 com Talho "
+              },
+              {
+                "sel": "line-cast",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Musguinho e4 começa Ataque básico em Guardiã"
+              },
+              {
+                "sel": "line-cast",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Patrulheiro p2 começa Tiro Duplo em Musguinh"
+              },
+              {
+                "sel": "LI",
+                "dx": 108,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Musguinho e4 acerta Guardião p0 com Ataque b"
+              },
+              {
+                "sel": "LI",
+                "dx": 101,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Patrulheiro p2 acerta Musguinho e3 com Tiro "
+              },
+              {
+                "sel": "LI",
+                "dx": 101,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3 s Patrulheiro p2 acerta Musguinho e3 com Tiro "
+              },
+              {
+                "sel": "LI",
+                "dx": 72,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "3,6 s Clérigo p1 acerta Musguinho e3 com Castigo"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 165,
+                "dy": 14,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Musguinho e3 é derrotado por Clérigo p1."
+              },
+              {
+                "sel": "LI",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "12Chuva de Flechas"
+              },
+              {
+                "sel": "skill",
+                "dx": 24,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "12Chuva de Flechas"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 11,
+                "dy": 11,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "p0"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 11,
+                "dy": 11,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "p1"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 11,
+                "dy": 11,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "p2"
+              },
+              {
+                "sel": "sr-only",
+                "dx": 168,
+                "dy": 26,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Regras de estratégia"
+              }
+            ],
+            "scrolling": 3
+          }
+        },
+        "away": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "track-wrap",
+                "dx": 27,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "12,1 s1 encontro vencido19,1 sGuardiã46c5 caiu22"
+              },
+              {
+                "sel": "mark.mark--up.mark--level",
+                "dx": 45,
+                "dy": 3,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "12,1 s1 encontro vencido"
+              },
+              {
+                "sel": "mark.mark--down.mark--death",
+                "dx": 41,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "19,1 sGuardiã46c5 caiu"
+              },
+              {
+                "sel": "mark.mark--up.mark--death",
+                "dx": 39,
+                "dy": 3,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "22,1 sClérigo46c5 caiu"
+              },
+              {
+                "sel": "mark.mark--down.mark--death",
+                "dx": 49,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "26,1 sPatrulheira46c5 caiu"
+              },
+              {
+                "sel": "mark.mark--up.mark--death",
+                "dx": 42,
+                "dy": 3,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "26,1 sGrupo aniquilado"
+              },
+              {
+                "sel": "mark.mark--down.mark--stop",
+                "dx": 99,
+                "dy": 47,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "26,1 sCaçada encerrada: O grupo foi aniquilado"
+              },
+              {
+                "sel": "mark.mark--up.mark--end",
+                "dx": 27,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "2 h 0 minVocê voltou"
+              }
+            ],
+            "scrolling": 1
+          }
+        },
+        "bag": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "sr-only",
+                "dx": 82,
+                "dy": 17,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Buscar na bolsa"
+              },
+              {
+                "sel": "tier.t-common",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Comum0 bônusManterVender automaticamenteIgnorar"
+              },
+              {
+                "sel": "on-sell",
+                "dx": 0,
+                "dy": 12,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Vender automaticamente"
+              },
+              {
+                "sel": "tier.t-uncommon",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Incomum1 bônusManterVender automaticamenteIgnora"
+              },
+              {
+                "sel": "BUTTON",
+                "dx": 0,
+                "dy": 12,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Vender automaticamente"
+              },
+              {
+                "sel": "tier.t-rare",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Raro2 bônusManterVender automaticamenteIgnorar"
+              },
+              {
+                "sel": "BUTTON",
+                "dx": 0,
+                "dy": 12,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Vender automaticamente"
+              },
+              {
+                "sel": "tier.t-epic",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Épico3 bônusManterVender automaticamenteIgnorar"
+              },
+              {
+                "sel": "BUTTON",
+                "dx": 0,
+                "dy": 12,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Vender automaticamente"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 79,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Espada de Guardião"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 57,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Maça de Clérigo"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 76,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Arco de Patrulheiro"
+              },
+              {
+                "sel": "drop-name",
+                "dx": 80,
+                "dy": 0,
+                "overflow": "hidden/hidden",
+                "scrolls": false,
+                "text": "Espada de Guardião"
+              },
+              {
+                "sel": "tally",
+                "dx": 123,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1 mantidos, 3 vendidos automaticamente, 0 ignora"
+              }
+            ],
+            "scrolling": 1
+          }
+        },
+        "character": {
+          "probe1100": {
+            "documentOverflowX": 0,
+            "clipped": [
+              {
+                "sel": "nav",
+                "dx": 0,
+                "dy": 11,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "PersonagemBolsaCaçada Mapa protótipo"
+              },
+              {
+                "sel": "navbtn",
+                "dx": 0,
+                "dy": 11,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "Personagem"
+              },
+              {
+                "sel": "roster",
+                "dx": 45,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Guardiã46c5Guardião+301Clérigo46c5Clérigo+301Pa"
+              },
+              {
+                "sel": "member",
+                "dx": 15,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Guardiã46c5Guardião+30"
+              },
+              {
+                "sel": "member",
+                "dx": 12,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Clérigo46c5Clérigo+30"
+              },
+              {
+                "sel": "member",
+                "dx": 45,
+                "dy": 0,
+                "overflow": "visible/visible",
+                "scrolls": false,
+                "text": "1Patrulheira46c5Patrulheiro+30"
+              }
+            ],
+            "scrolling": 0
+          }
+        }
+      },
+      "a11y": {
+        "hunt": {
+          "stops": 38,
+          "withIndicator": 38,
+          "withoutIndicator": []
+        },
+        "strategy": {
+          "stops": 39,
+          "withIndicator": 39,
+          "withoutIndicator": []
+        },
+        "away": {
+          "stops": 27,
+          "withIndicator": 27,
+          "withoutIndicator": []
+        },
+        "bag": {
+          "stops": 39,
+          "withIndicator": 37,
+          "withoutIndicator": [
+            "input \"\"",
+            "input \"\""
+          ]
+        },
+        "character": {
+          "stops": 38,
+          "withIndicator": 38,
+          "withoutIndicator": []
+        }
+      },
+      "reducedMotion": {
+        "logRowsFirst": 9,
+        "logRowsLater": 19,
+        "newRowsArrived": true,
+        "runningAnimations": 0
+      }
+    }
+  },
+  "files": [
+    "artifacts/town/en-hunt-1440x900.png",
+    "artifacts/town/en-hunt-1280x800.png",
+    "artifacts/town/en-strategy-1440x900.png",
+    "artifacts/town/en-strategy-1280x800.png",
+    "artifacts/town/en-away-1440x900.png",
+    "artifacts/town/en-away-1280x800.png",
+    "artifacts/town/en-bag-1440x900.png",
+    "artifacts/town/en-bag-1280x800.png",
+    "artifacts/town/en-character-1440x900.png",
+    "artifacts/town/en-character-1280x800.png",
+    "artifacts/town/pt-BR-hunt-1440x900.png",
+    "artifacts/town/pt-BR-hunt-1280x800.png",
+    "artifacts/town/pt-BR-strategy-1440x900.png",
+    "artifacts/town/pt-BR-strategy-1280x800.png",
+    "artifacts/town/pt-BR-away-1440x900.png",
+    "artifacts/town/pt-BR-away-1280x800.png",
+    "artifacts/town/pt-BR-bag-1440x900.png",
+    "artifacts/town/pt-BR-bag-1280x800.png",
+    "artifacts/town/pt-BR-character-1440x900.png",
+    "artifacts/town/pt-BR-character-1280x800.png"
+  ]
+}

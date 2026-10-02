@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { content } from '@narok/data';
-import type { LabInput, Metrics, Phase, StopReason } from '../src/types';
+import type { DropProtection, LabInput, Metrics, Phase, StopReason } from '../src/types';
 import fixtureJson from './fixtures/one-hour-run.json';
 import { lab, runTo } from './fixtures';
 
@@ -9,7 +9,18 @@ import { lab, runTo } from './fixtures';
  * one full `runTo(sim, sim.start(input), 3_600_000)` run's observable outputs.
  * Recomputing the same run and comparing field by field turns any accidental
  * change to content, RNG consumption, or scheduling into a visible diff here,
- * without committing the full 13,648-event log or a multi-megabyte snapshot.
+ * without committing the full 13,382-event log or a multi-megabyte snapshot.
+ *
+ * Re-pinned for task 6 (milestone B part 3 §2): every enemy death now consumes
+ * the fixed drop draws in the kill handler, so `rng`, the combat that follows
+ * and the event count all moved, and the content digest moved with the rarity
+ * band widths and the pity switch. `simulationVersion` was already `b1`.
+ *
+ * Re-pinned for task 7c (owner decision 2026-09-30): only the content digest
+ * (Idun's Apple, Revive) and the input's shape moved — the Cleric's rules gain
+ * Revive and the wipe limit is gone — and the metrics lost `respawnMs` and
+ * gained `consumed`. The run has no deaths, and its `rng`, event count and
+ * every other metric are exactly the task-6 pin's.
  *
  * Loaded as a plain JSON module (the bundler's static import, not `node:fs`),
  * so `packages/sim` still imports no Node or browser globals anywhere,
@@ -18,7 +29,7 @@ import { lab, runTo } from './fixtures';
 interface PinnedFixture {
   contentVersion: string;
   gridHash: string;
-  simulationVersion: 'a1';
+  simulationVersion: 'b1';
   untilMs: number;
   input: LabInput;
   observed: {
@@ -27,6 +38,8 @@ interface PinnedFixture {
     stopReason: StopReason | null;
     rng: number;
     domainEventCount: number;
+    nextRewardSeq: number;
+    dropProtection: DropProtection;
     metrics: Metrics;
   };
 }
@@ -50,6 +63,8 @@ test('a recomputed one-hour run matches the pinned fixture field by field (R44)'
   expect(result.state.stopReason).toBe(pinned.observed.stopReason);
   expect(result.state.rng).toBe(pinned.observed.rng);
   expect(result.state.metrics).toEqual(pinned.observed.metrics);
+  expect(result.state.nextRewardSeq).toBe(pinned.observed.nextRewardSeq);
+  expect(result.state.dropProtection).toEqual(pinned.observed.dropProtection);
   expect(result.events.length).toBe(pinned.observed.domainEventCount);
   expect(result.events[result.events.length - 1]!.seq).toBe(pinned.observed.domainEventCount - 1);
 });

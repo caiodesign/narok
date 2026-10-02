@@ -8,6 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import {
   connect,
+  DATABASE_URL,
   databaseReachable,
   disconnect,
   expectViolation,
@@ -170,15 +171,57 @@ describe('items', () => {
 });
 
 describe('stacks', () => {
-  test('quantity is bounded below by zero and above by the stack size layer-1 §7.5 fixes', async () => {
+  test('quantity is bounded below by zero, and a total past 999 is several stacks, not a refusal (ruling R137)', async () => {
     const account = await insertAccount(db);
     expect(await expectViolation(() =>
       db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: -1 }),
     )).toContain('stack_items_quantity_nonnegative');
+    // One total per consumable: 1,000 units occupy two slots, which the server counts.
+    await db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: 1000 });
+  });
+});
+
+describe('the two-handed weapon and the off-hand (owner decision 2026-09-21; ruling R145)', () => {
+  test('a character wearing a two-handed weapon cannot also hold an off-hand item, in either order', async () => {
+    const account = await insertAccount(db);
+    const a = await insertCharacter(db, account.id, { slot: 0 });
+    await insertItem(db, account.id, { baseItemId: 'ranger-bow', twoHanded: true, equippedCharacterId: a.id, equippedSlot: 'weapon' });
     expect(await expectViolation(() =>
-      db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: 1000 }),
-    )).toContain('stack_items_quantity_max');
-    await db.insert(schema.stackItems).values({ accountId: account.id, definitionId: 'potion', quantity: 999 });
+      insertItem(db, account.id, { baseItemId: 'wooden-buckler', equippedCharacterId: a.id, equippedSlot: 'offhand' }),
+    )).toContain('items_two_handed_offhand_idx');
+
+    const b = await insertCharacter(db, account.id, { slot: 1 });
+    await insertItem(db, account.id, { baseItemId: 'wooden-buckler', equippedCharacterId: b.id, equippedSlot: 'offhand' });
+    expect(await expectViolation(() =>
+      insertItem(db, account.id, { baseItemId: 'ranger-bow', twoHanded: true, equippedCharacterId: b.id, equippedSlot: 'weapon' }),
+    )).toContain('items_two_handed_offhand_idx');
+  });
+
+  test('a one-handed weapon and an off-hand coexist, and a two-handed weapon in the bag locks nothing', async () => {
+    const account = await insertAccount(db);
+    const character = await insertCharacter(db, account.id);
+    await insertItem(db, account.id, { baseItemId: 'guardian-sword', equippedCharacterId: character.id, equippedSlot: 'weapon' });
+    await insertItem(db, account.id, { baseItemId: 'wooden-buckler', equippedCharacterId: character.id, equippedSlot: 'offhand' });
+    await insertItem(db, account.id, { baseItemId: 'ranger-bow', twoHanded: true });
+    expect(await db.select().from(schema.items)).toHaveLength(3);
+  });
+
+  test('slot names are layer-1 §7.1 names: an unknown slot is refused', async () => {
+    const account = await insertAccount(db);
+    const character = await insertCharacter(db, account.id);
+    expect(await expectViolation(() =>
+      insertItem(db, account.id, { equippedCharacterId: character.id, equippedSlot: 'hands' }),
+    )).toContain('items_equipped_slot_known');
+  });
+
+  test('a character-bound item can be worn by its own character only', async () => {
+    const account = await insertAccount(db);
+    const owner = await insertCharacter(db, account.id, { slot: 0 });
+    const other = await insertCharacter(db, account.id, { slot: 1 });
+    expect(await expectViolation(() =>
+      insertItem(db, account.id, { boundTo: owner.id, equippedCharacterId: other.id, equippedSlot: 'weapon' }),
+    )).toContain('items_bound_wearer');
+    await insertItem(db, account.id, { boundTo: owner.id, equippedCharacterId: owner.id, equippedSlot: 'weapon' });
   });
 });
 
@@ -270,6 +313,12 @@ describe('drop protection, grants and maintenance', () => {
  */
 describe('resource_audit is append-only', () => {
   test('a non-owner application role may insert and select, but never update or delete', async () => {
+    // The database this suite runs against (`DATABASE_URL`), never a hard-coded one.
+    const target = new URL(DATABASE_URL);
+    const database = decodeURIComponent(target.pathname.slice(1));
+    target.username = 'narok_app_test';
+    target.password = 'app';
+    const appUrl = target.toString();
     const account = await insertAccount(db);
     await db.insert(schema.resourceAudit).values({
       accountId: account.id,
@@ -281,12 +330,12 @@ describe('resource_audit is append-only', () => {
 
     await db.execute(sql`drop role if exists narok_app_test`);
     await db.execute(sql`create role narok_app_test login password 'app'`);
-    await db.execute(sql`grant connect on database narok to narok_app_test`);
+    await db.execute(sql`grant connect on database ${sql.identifier(database)} to narok_app_test`);
     await db.execute(sql`grant usage on schema public to narok_app_test`);
     await db.execute(sql`grant select, insert on resource_audit to narok_app_test`);
     await db.execute(sql`grant usage, select on all sequences in schema public to narok_app_test`);
 
-    const appRole = postgres('postgres://narok_app_test:app@127.0.0.1:5433/narok', { max: 1, onnotice: () => {} });
+    const appRole = postgres(appUrl, { max: 1, onnotice: () => {} });
     try {
       // Reading and appending are the two things it may do.
       const rows = await appRole`select count(*)::int as count from resource_audit`;
@@ -301,7 +350,7 @@ describe('resource_audit is append-only', () => {
       await db.execute(sql`revoke all on resource_audit from narok_app_test`);
       await db.execute(sql`revoke all on all sequences in schema public from narok_app_test`);
       await db.execute(sql`revoke usage on schema public from narok_app_test`);
-      await db.execute(sql`revoke connect on database narok from narok_app_test`);
+      await db.execute(sql`revoke connect on database ${sql.identifier(database)} from narok_app_test`);
       await db.execute(sql`drop role if exists narok_app_test`);
     }
   });

@@ -1,8 +1,10 @@
 /**
  * Milestone A browser smoke (plan task 11, ruling R69).
  *
- * Chromium only, against the built-and-previewed client (see
- * `playwright.config.ts`). Locators use accessible names and the `data-testid`
+ * Chromium only, against the built-and-previewed laboratory (`apps/lab`, the
+ * `lab` project in `playwright.config.ts`). The laboratory left `apps/client`
+ * in milestone B Task 8; these cases pass unchanged against it, which is the
+ * proof the split lost no behaviour. Locators use accessible names and the `data-testid`
  * hooks Task 10 shipped. Every wait is condition-based — `toHaveText`,
  * `not.toHaveText`, `toBeVisible`, `toHaveCount` — and there is no
  * `waitForTimeout` or other fixed sleep anywhere in this file.
@@ -13,7 +15,7 @@
  * the document holds two, and after the second three, so every later elapsed
  * assertion is scoped to the playback group.
  *
- * The Portuguese strings below are read from the committed `pt-BR.json` at run
+ * The Portuguese strings below are read from the committed `pt-BR.json` files at run
  * time rather than typed here, so the smoke can never drift from the shipped
  * translation (ruling R69).
  */
@@ -30,9 +32,18 @@ interface Locale {
   stopReason: { operator: string };
 }
 
+/**
+ * The client's strings with the laboratory's own layered on top, exactly as
+ * `apps/lab/src/i18n.ts` merges them at run time: Pause and Resume are the
+ * laboratory's alone since milestone B Task 9 (ruling R166).
+ */
 function locale(file: 'en.json' | 'pt-BR.json'): Locale {
-  const url = new URL(`../apps/client/src/locales/${file}`, import.meta.url);
-  return JSON.parse(readFileSync(url, 'utf8')) as Locale;
+  const read = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')) as Record<string, Record<string, unknown>>;
+  const client = read(`../apps/client/src/locales/${file}`);
+  const lab = read(`../apps/lab/src/locales/${file}`);
+  const merged: Record<string, Record<string, unknown>> = { ...client };
+  for (const [section, values] of Object.entries(lab)) merged[section] = { ...client[section], ...values };
+  return merged as unknown as Locale;
 }
 
 const en = locale('en.json');
@@ -71,7 +82,7 @@ test('a player can run, pause, resume and inspect an experiment', async ({ page 
   await page.goto('/');
 
   // Before any run completes there is exactly one `elapsed-time` in the document
-  // (asserted at unit level in apps/client/test/app.test.tsx), so the plan's
+  // (asserted at unit level in apps/lab/test/app.test.tsx), so the plan's
   // unscoped locator is legal here and reads the live playback clock.
   await expect(page.getByTestId('elapsed-time')).toHaveText('0 s');
 

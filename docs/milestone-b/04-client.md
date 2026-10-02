@@ -138,8 +138,10 @@ Reuses the whole ported shell: `App.tsx`'s `.realm` composition, `hud/Battlefiel
   that governs it; Combat/Loot/System log tabs over one bounded history with scroll preservation and
   return-to-latest; observed rates with their measurement window and an em dash at zero duration (UI
   spec §4, layer-1 §9). `ChatPanel` omits the Loot tab today because A publishes no loot event (R108);
-  B publishes loot, so the tab returns by **binding**, not by inventing a row. `hud/Compass`'s death
-  pips already count real wipes against a real limit and keep doing so.
+  B publishes loot, so the tab returns by **binding**, not by inventing a row. ~~`hud/Compass`'s death
+  pips already count real wipes against a real limit and keep doing so.~~ *Superseded (owner decision
+  2026-09-30, R154): there is no wipe limit; the compass shows the wipe count alone, with no limit to
+  measure it against (`hud/Compass.tsx`).*
 - **Never:** cast a skill on click — inspection only; show number-key casting hints; render a passive
   as a cast button; infer a guaranteed future cast; show "time until death" or any survival forecast;
   present Stop/Resume as done before the server acknowledges it; fill a panel with a placeholder (R108
@@ -249,7 +251,9 @@ New. `away.html` is the shape reference. The whole screen is a read of already-s
   acknowledgement and retention**.
 - **Must show:** time away and actual simulated duration separately, with cap or stoppage reasons where
   they differ; party outcomes, earned totals, notable loot and the chronological timeline; party wipes
-  used this hunt, wipes during this absence, and individual member deaths as three separate counts; the
+  used this hunt, wipes during this absence, and individual member deaths as three separate counts
+  (under the 2026-09-30 owner rules a wipe ends the hunt, so "wipes this hunt" is 0 or 1 — still its
+  own count, ruling of Task 10 fix 1); the
   actual stop reason and the correct restart action; a cap distinguished from a combat failure; lost
   Keep drops plus ongoing auto-sales, EXP and gold when the bag filled while hunting.
 - **Refresh:** after managing the bag, the report's action state is recomputed from current inventory.
@@ -270,7 +274,7 @@ UI spec §9 overrides the mockups. Restated so that each line is checkable.
 | Wipe caused 10% level loss | No EXP-loss or de-levelling copy in either locale; no client field represents one. |
 | One skill point every 2 levels | The curve comes from content: one at creation, one every four levels. No literal divisor in a component. |
 | Time until death / +45m forecast | No forecast component, string or translation key exists. Only observed metrics with an explicit window. |
-| Five wipes selected | The wipe limit defaults to one and is configurable 1–5; the bound is read, not typed. |
+| Five wipes selected | ~~The wipe limit defaults to one and is configurable 1–5; the bound is read, not typed.~~ *Superseded (owner decision 2026-09-30, R154; Task 11 sweep):* there is no wipe limit — a full wipe ends the hunt and returns the party to town, fully healed (R155). No wipe-limit control, bound or copy exists in either locale. |
 | Party focus Highest threat / Element-weak | Only the gameplay contract's per-character target modes appear; monster threat is not offered as a player priority. |
 | Extra mana-reserve / buff-refresh controls | Absent until the dependent rules are specified. |
 | Group Heal, Shield Wall, buffs, passive ranks | Absent; the skill list is content-driven. |
@@ -352,7 +356,7 @@ on the target VPS.
 | B-21 | Accessibility | Keyboard-only traversal of all five screens recorded as a stated human observation; automated checks for focus visibility and reduced-motion completeness; a review that no state is signalled by colour alone. |
 | B-22 | Visual composition of the three new screens | Human observation at 1440×900 and 1280×800, no horizontal clipping at 1100px, in EN and PT-BR, with screenshots committed. Automated overflow assertions are necessary and not sufficient — A's results say so explicitly. |
 | B-23 | Frame budget and R109 | Measured per-frame HUD cost under a live socket at the highest supported release rate, against the 16.7 ms budget, recorded with the method A used; plus a unit test that an empty batch preserves `events` identity. |
-| B-24 | End-to-end smoke | Playwright: login → configure → hunt → elapsed events → return/reconnect → away report (layer-1 §12), in both languages, against the built bundle and a real server. |
+| B-24 | End-to-end smoke | Playwright: login → configure → hunt → elapsed events → return/reconnect → away report (layer-1 §12), in both languages, against the built bundle and a real server. *Ruling R197 (Task 11): B ships no sign-in screen, no party-creation screen and no route that creates a preset, so `e2e/hunt.spec.ts` signs in and creates the party through the real REST routes and seeds the first presets with `apps/server/test/harness/provision-presets.ts`; everything after that is the shipped UI. `vite preview` proxies `/api` and `/ws` to the real server when `NAROK_API_PROXY` is set.* |
 | B-25 | Recovery | Kill the server mid-hunt; replay from the durable checkpoint under pinned versions; rewards committed exactly once; uncommitted precomputation never used as a reward source. Transcript and resulting diff recorded. |
 | B-26 | Concurrency | A town mutation and a hunt settlement racing on one account: one account state version wins, the loser retries against fresh state, no stale worker result is applied, retried commands are idempotent (layer-1 §8.1). |
 | B-27 | Load on the target VPS | Concurrent returning accounts against the single VPS with bounded worker queues, socket limits and output backpressure; p50/p95/p99 and peak RSS recorded on stated hardware. Never claimed from workstation numbers. |

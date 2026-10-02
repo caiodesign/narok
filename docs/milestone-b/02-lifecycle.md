@@ -7,6 +7,40 @@ implementable until they are recorded. [Layer 1 design](../../layer-1-design.md)
 
 Section numbers below are local to this part; cross-part references name the part. Requirement ids in this part are `B-Lnn`.
 
+> **Superseded passages (milestone B Task 11 sweep, 2026-10-02).** The owner decision of 2026-09-30
+> (Task 7c, rulings R151–R156; [part 3 §5.6's superseded block](03-town.md)) removed the wipe limit
+> and the respawn, and made every return to town a full heal. The text below is kept as written and
+> marked where it no longer holds:
+>
+> - §2's checkpoint table — `input.wipeLimit` and "wipe limit" in *Inputs*, "respawn state" in
+>   *Encounter*: no such input or state exists. A full wipe ends the hunt with stop reason `wipe`
+>   (R154).
+> - §2's `stopContext` row and §4's / §9 #5's **stop reason vocabulary** — A's `'wipe-limit'` is gone;
+>   the shipped union is `'wipe' | 'stalemate' | 'operator' | 'retreat' | 'potion-floor'`
+>   (`packages/sim`, Task 7c).
+> - §3's worked example — the engine stop at `46,000,000` would carry reason `wipe`, not `wipe-limit`;
+>   the arithmetic is unchanged.
+> - §4's and §9 #4's **pending activation boundary** — "wipe limit" is no longer a party-scope
+>   setting, and the consequence "activating a `wipeLimit` at or below `metrics.wipes` stops the hunt"
+>   has nothing left to govern.
+> - §5's transition table — the *Stop* row's "never grants: heal" and the *Retreat* row's "recovery
+>   of any kind on arrival" no longer hold: every return to town heals the whole party, living or
+>   dead, to full HP and MP (R155). The *Wipe → respawn* row is struck: there is no respawn. The
+>   *Resume* row and §9 #6 were already superseded by the owner's 2026-09-21 decision recorded in §5
+>   (Stop returns to town; there is no Resume).
+> - Shipped, for the record: a new hunt's first generation is one past the account's last
+>   (ruling R198, Task 11), not a literal `generation=1` as §1 step 1 states — `1` holds only for an
+>   account's first hunt. §2 already makes `generation` monotonic; this keeps it so across hunts.
+> - Shipped, for the record: §7's maintenance sequence runs as an offline operator command,
+>   `apps/server/src/ops/maintenance.ts` (`freeze`, `settle`, `resume`; ruling R199, Task 11). Steps
+>   2, 3 (settle under the pinned artifacts, persist) and 5 (resume with new anchors, downtime not
+>   billed) are wired; step 1's command refusal while frozen is not — the freeze is a stopped `api`
+>   process — and step 4's content transform has no migration to run in B. Ruling R201 (Task 11 fix
+>   round): `resume` keeps the freeze while any running hunt was not settled to the cutoff (it is
+>   reported `skipped`, left untouched, and the command exits 2); `resume --force` is the operator's
+>   explicit override. Lifting the freeze over an unsettled hunt would bill the outage to that
+>   player's offline allowance, which step 5 forbids.
+
 Milestone A built a pure, deterministic engine with no clock and no I/O (contracts §1). This section adds the authoritative envelope around it: who calls `advance`, with which target, what is written, what is sent, and in which order. It extends the A contracts and must not break them — every rule here is expressible as an envelope field, a call order, or a transaction boundary, never as a change to a transition A already proved.
 
 Vocabulary used throughout. **Sim time** is `state.nowMs`, integer milliseconds from the hunt's own origin (`startState` sets `nowMs: 0` and `rng: input.seed`, `packages/sim/src/state.ts`). **Wall time** is integer milliseconds UTC, read only by `apps/server`. **Segment** is one committed `advance` interval. **Generation** is the hunt's intervention counter; it increments on every authoritative mutation of hunt rules or lifecycle state, never on a plain settlement. `packages/sim` still reads no wall clock, no `Math.random()`, and no database (layer-1 §4.1); all wall arithmetic in this section belongs to the server.
@@ -38,8 +72,8 @@ What `packages/sim` already encodes (`packages/sim/src/types.ts`, `SimState`):
 |---|---|---|
 | Identity and pinning | `schemaVersion`, `simulationVersion`, `contentVersion`, `gridHash` | Simulation version, content version, checkpoint schema version |
 | Clock and sequences | `nowMs`, `rng`, `nextQueueSeq`, `nextDomainSeq`, `epoch` | Simulation time, PRNG state, event sequence counters |
-| Encounter | `encounterCount`, `encounterStartedAt`, `phase`, `stopReason` | Encounter state, rest/walk/respawn state, pause state |
-| Inputs | `input` (seed, classes, recipe, `placement`, `strategies`, `rest`, `wipeLimit`) | Strategy snapshot, saved placement, wipe limit |
+| Encounter | `encounterCount`, `encounterStartedAt`, `phase`, `stopReason` | Encounter state, rest/walk/respawn state, pause state *(superseded — see the block at the top: no wipe limit and no respawn since 2026-09-30, R154)* |
+| Inputs | `input` (seed, classes, recipe, `placement`, `strategies`, `rest`, `wipeLimit`) | Strategy snapshot, saved placement, wipe limit *(superseded — see the block at the top: no wipe limit and no respawn since 2026-09-30, R154)* |
 | Actors | `actors[*]`: level, attributes, `stats`, `hp`, `mp`, `position`, `cooldowns`, `statuses`, `threat`, `forcedTarget`, `currentTarget`, `pendingCast`, `actionToken` | Derived combat state, HP/MP, placements, targets, threat, pending casts, cooldowns, statuses, buff sources/expiry |
 | Schedule | `queue[*]`: `at`, `kind`, `actorId`, `seq`, `epoch`, `token` | Regeneration schedule, pending actions, boundary-replay prevention |
 | Accounting | `metrics` including `wipes` and per-actor totals | Wipe count, resource totals |
@@ -99,7 +133,7 @@ Re-anchoring to `nowWall` — not to `eligibleCutoffWall` — is precisely what 
 
 - `capCutoffWall = W0 + 43,200,000`; `eligibleCutoffWall = min(W1, that) = W0 + 43,200,000`.
 - `simTarget = 5,400,000 + 43,200,000 = 48,600,000`.
-- The engine wipes out at `nowMs = 46,000,000`, phase `stopped`, reason `wipe-limit`.
+- The engine wipes out at `nowMs = 46,000,000`, phase `stopped`, reason ~~`wipe-limit`~~ `wipe` (R154).
 - `creditedSimMs = 46,000,000 - 5,400,000 = 40,600,000` (11 h 16 m 40 s). Stop wall instant `= W0 + 40,600,000`.
 - Uncovered: `2,600,000 ms` between the stop and the cap cutoff, plus `25,200,000 ms` (7 h) between the cap cutoff and `W1`. Neither is ever simulated.
 - After commit: `lastSeenAt = wallAnchorMs = W1`, `simAnchorMs = 46,000,000`.
@@ -165,7 +199,7 @@ Rules, each directly testable:
 5. `pendingStrategy` is part of the checkpoint, so it survives reconnect, crash recovery and replay by construction.
 6. The projection exposes `activeVersion` and `pendingVersion` separately, so the UI can show both without inferring one from the other (UI spec §5).
 
-**OPEN DECISION — pending activation boundary for party-scope rules.** Per-character rule lists clearly activate at the next encounter spawn. Party-scope settings (rest thresholds, wipe limit, bag-full policy, potion floor) are read at other moments — `finishEncounter` reads `input.rest` immediately after a win, before any spawn. Options: **(a)** one activation point for the whole payload, at the next spawn: simplest, matches the UI wording exactly, but a new rest threshold only takes effect one rest later. **(b)** Split activation: per-character rules at spawn, party-scope rules at the first phase boundary: more responsive, but two activation instants means two versions can be partially live at once, which the UI's single "pending version" cannot express. **Recommendation: (a)**, one atomic activation. Its consequence must be specified with it: if the activated payload lowers `wipeLimit` to at or below `metrics.wipes`, the hunt stops immediately at activation with the ordinary `wipe-limit` reason, granting no free continuation and no recovery.
+**OPEN DECISION — pending activation boundary for party-scope rules.** Per-character rule lists clearly activate at the next encounter spawn. Party-scope settings (rest thresholds, wipe limit, bag-full policy, potion floor) are read at other moments — `finishEncounter` reads `input.rest` immediately after a win, before any spawn. Options: **(a)** one activation point for the whole payload, at the next spawn: simplest, matches the UI wording exactly, but a new rest threshold only takes effect one rest later. **(b)** Split activation: per-character rules at spawn, party-scope rules at the first phase boundary: more responsive, but two activation instants means two versions can be partially live at once, which the UI's single "pending version" cannot express. **Recommendation: (a)**, one atomic activation. Its consequence must be specified with it: if the activated payload lowers `wipeLimit` to at or below `metrics.wipes`, the hunt stops immediately at activation with the ordinary `wipe-limit` reason, granting no free continuation and no recovery. *(superseded — see the block at the top: no wipe limit and no respawn since 2026-09-30, R154)*
 
 **OPEN DECISION — stop reason vocabulary.** A's union is `'wipe-limit' | 'stalemate' | 'operator'`. B adds at least retreat and the party stop conditions of layer-1 §6.6 (return when HP potions fall below N; bag-full return-to-town) and needs a distinct faulted state (layer-1 §11). Options: **(a)** a closed union enumerated in the B contract, validated by `decodeSnapshot`; **(b)** an open string with a registry. **Recommendation: (a)** — `decodeSnapshot` already rejects unknown enum members and that rejection is what keeps a foreign snapshot out of a production account. Whichever is chosen, reaching the offline cap is **not** a stop: accrual ceased, the hunt is still running, and the report must say so (UI spec §8).
 
@@ -179,7 +213,7 @@ What each transition preserves, and what must never be free (layer-1 §4.5):
 | Resume | Everything stop preserved, plus the scheduled queue | A fresh decision for an actor whose action was already scheduled | yes |
 | Retreat (abandon encounter for town) | Party HP/MP, `rng`, cooldowns, pity, wipe count | Recovery of any kind on arrival; a re-entry that resamples a group | yes |
 | Travel (map change) | Account-scoped state: pity, inventory, gold, characters | Same as retreat | ends the hunt |
-| Wipe → respawn | Only this transition grants the full HP/MP restore (A spec §10, `completeRespawn`) | — | no (engine transition) |
+| ~~Wipe → respawn~~ | ~~Only this transition grants the full HP/MP restore (A spec §10, `completeRespawn`)~~ — superseded: no respawn; a full wipe ends the hunt and the town return heals (R154, R155) | — | no (engine transition) |
 
 A's `Simulation.stop` sets phase `stopped` and reason `operator`, clears the queue, and preserves everything else — proven by `packages/sim/test/advance.test.ts` "stop() sets operator phase/reason, clears the queue, and preserves everything else". **That is terminal, and B needs Resume**, so B cannot reuse it literally: a cleared queue loses the pending cast, the scheduled regen tick and every scheduled decision.
 
@@ -257,7 +291,7 @@ Downtime is an explicit pause, never retroactively simulated with changed rules 
 1. **OPEN DECISION — hunt seed provenance.** The engine requires `seed` in `1 … 4294967295` (`state.ts`) but nothing specifies where a production seed comes from, and §8.3 forbids exposing live hunt seeds. Options: **(a)** a CSPRNG-drawn nonzero u32 stored in the checkpoint at start; **(b)** derive it from a hash of `huntId` plus a server secret. **Recommendation: (a)** — determinism only requires that the seed be persisted, and a derived seed becomes guessable the moment `huntId` is client-visible.
 2. **OPEN DECISION — reward identifier namespace.** `"<huntId>:<rewardSeq>"` versus including `generation` versus a hash. **Recommendation:** `"<huntId>:<rewardSeq>"` with a unique constraint on `(accountId, rewardId)`; including `generation` would give a replayed segment new ids and defeat the duplicate detection that makes retried commits safe.
 3. **OPEN DECISION — pity state ownership.** Checkpoint-owned versus `account_drop_protection`-owned with a checkpoint mirror (layer-1 §4.3 and §8.2 each imply one). **Recommendation:** the counters the transition reads live in the checkpoint, and the account table is a derived index written in the same transaction; on recovery the replayed checkpoint rewrites the table.
-4. **OPEN DECISION — pending activation boundary for party-scope rules.** One atomic activation at the next spawn versus split activation. **Recommendation:** one atomic activation, with an explicit rule that activating a `wipeLimit` at or below `metrics.wipes` stops the hunt immediately with the ordinary `wipe-limit` reason.
+4. **OPEN DECISION — pending activation boundary for party-scope rules.** One atomic activation at the next spawn versus split activation. **Recommendation:** one atomic activation, with an explicit rule that activating a `wipeLimit` at or below `metrics.wipes` stops the hunt immediately with the ordinary `wipe-limit` reason. *(superseded — see the block at the top: no wipe limit and no respawn since 2026-09-30, R154)*
 5. **OPEN DECISION — stop reason vocabulary.** A closed validated union versus an open registry. **Recommendation:** a closed union; reaching the offline cap is not a stop.
 6. **OPEN DECISION — resume-capable pause.** A `paused` phase retaining the queue, versus A's queue-clearing stop plus a rebuilt queue, versus snapshotting the queue into the envelope. **Recommendation:** a `paused` phase; the rebuild option grants a free action or a free cast cancel, which layer-1 §4.5 forbids.
 7. **OPEN DECISION — retreat, town return and travel costs.** Preserved-encounter re-entry, simulated travel time, resource cost, or re-entry cooldown (layer-1 §4.5, §15 — must be settled before B). **Recommendation:** preserved-encounter re-entry for the same map plus a simulated travel duration for town return and map change, with the durations chosen as content constants.

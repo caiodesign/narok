@@ -37,7 +37,6 @@ function sampleState() {
     placement: defaultPlacement([...classes]),
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   });
 }
 

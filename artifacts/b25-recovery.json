@@ -1,0 +1,149 @@
+{
+  "drill": "recovery (B-25, B-29 server half, B-30 server half)",
+  "ranAt": "2026-10-02T13:48:06.993Z",
+  "database": "narok_drill_recovery",
+  "absenceMs": 3600000,
+  "absenceSettleWallMs": [
+    49,
+    31,
+    22,
+    27,
+    30,
+    22,
+    24,
+    23,
+    22,
+    28,
+    24,
+    35,
+    24,
+    25,
+    25,
+    33,
+    38,
+    22,
+    26,
+    59,
+    29,
+    23,
+    28,
+    32,
+    26,
+    35
+  ],
+  "dropRowsBeforeLiveHunt": 3,
+  "releasedAtKillSimMs": 30178,
+  "committedAtKill": {
+    "checkpointSeq": 2,
+    "simAnchorMs": 20132,
+    "dropRows": 3
+  },
+  "afterReplay": {
+    "checkpointSeq": 3,
+    "simAnchorMs": 31130,
+    "dropRows": 3
+  },
+  "framesObservedAhead": 24,
+  "dropsInFlightAtCrash": 0,
+  "recoverRoute": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "field": "route",
+      "retryable": false
+    }
+  },
+  "checks": [
+    {
+      "name": "the server had released time ahead of the committed checkpoint (precomputation existed)",
+      "ok": true,
+      "detail": "released 30178 > committed 20132"
+    },
+    {
+      "name": "the durable checkpoint is exactly what was committed before the crash",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "replay ran under the pinned versions (unchanged across the crash)",
+      "ok": true,
+      "detail": "b1/2afa20bacd8473db84d2ef8043832507ecdd7467b1996499a7cbec1575013bdd/c2c839371c6faddb0756adef80f3fcb3d17c841fef809acc419dea7ddb43e4b9"
+    },
+    {
+      "name": "replay resumed from the durable checkpoint and moved forward",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every reward id is unique (no reward committed twice)",
+      "ok": true,
+      "detail": "3 rows, 3 distinct"
+    },
+    {
+      "name": "every hunt has a reward sequence is contiguous from 0 (none skipped, none repeated)",
+      "ok": true,
+      "detail": "3 hunts, 3 rewards"
+    },
+    {
+      "name": "every reward committed before the crash survives unchanged",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "kept-drop audit rows and reward-sourced items agree one to one",
+      "ok": true,
+      "detail": "1 items, 1 kept audits"
+    },
+    {
+      "name": "at the crash the database held exactly the rewards the committed checkpoint had rolled — nothing from the released precomputation",
+      "ok": true,
+      "detail": "6 frames released past sim 20132; live-hunt rewards in the database 0, committed checkpoint nextRewardSeq 0 with 0 pending"
+    },
+    {
+      "name": "character EXP columns equal the committed checkpoint progression (no double credit)",
+      "ok": true,
+      "detail": "columns 4172, checkpoint 4172"
+    },
+    {
+      "name": "B-29 the read refuses with CONTENT_VERSION_MISMATCH",
+      "ok": true,
+      "detail": "CONTENT_VERSION_MISMATCH"
+    },
+    {
+      "name": "B-29 the checkpoint is untouched: no replay under the deployed content",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "B-30 the hunt is marked faulted with a reason",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "B-30 a fault archive row keeps the reproduction inputs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "B-30 no wipe was charged by the fault",
+      "ok": true,
+      "detail": "wipes 0 -> 0"
+    },
+    {
+      "name": "B-30 automatic retries are stopped: three reconnects with heartbeats wrote nothing",
+      "ok": true,
+      "detail": "fault archive rows 1"
+    },
+    {
+      "name": "B-30 a normal stop is refused with HUNT_FAULTED",
+      "ok": true,
+      "detail": "409 HUNT_FAULTED"
+    },
+    {
+      "name": "B-30 a normal start is refused with HUNT_FAULTED",
+      "ok": true,
+      "detail": "409 HUNT_FAULTED hunt.status"
+    }
+  ],
+  "passed": true
+}

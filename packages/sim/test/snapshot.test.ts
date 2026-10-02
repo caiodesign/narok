@@ -4,7 +4,7 @@ import { decodeSnapshot, encodeSnapshot } from '../src/snapshot';
 import { createGrid } from '../src/battlefield/grid';
 import { startState } from '../src/state';
 import { SimError } from '../src/errors';
-import { fightFixture, labInput } from './fixtures';
+import { fightFixture, lab, labInput, runTo } from './fixtures';
 import type { SimState } from '../src/types';
 
 function expectSimError(action: () => void): SimError {
@@ -240,4 +240,82 @@ test('decodeSnapshot rejects "__proto__" as an actors record key', () => {
   const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
   expect(error.code).toBe('INVALID_STATE');
   expect(error.field).toBe('actors.__proto__');
+});
+
+// ---------------------------------------------------------------------------
+// Milestone B stop vocabulary and the b1 engine (ruling R114).
+// ---------------------------------------------------------------------------
+
+/** A snapshot of a state the engine stopped, with `stopReason` replaced in the raw JSON. */
+function stoppedWith(reason: unknown): string {
+  const sim = lab();
+  const stopped = sim.stop(runTo(sim, sim.start(labInput()), 5_000).state);
+  return mutate(stopped, (raw) => { raw.stopReason = reason; });
+}
+
+test.each(['wipe', 'stalemate', 'operator', 'retreat', 'potion-floor'] as const)(
+  'decodeSnapshot accepts the closed B stop reason %s (R114)',
+  (reason) => {
+    const decoded = decodeSnapshot(stoppedWith(reason), content, createGrid(content.grid));
+    expect(decoded.stopReason).toBe(reason);
+  },
+);
+
+// Reaching the offline cap is not a stop (part 2 §9 #5), and a full bag loses
+// the drop without sending the party to town (spec §4.0), so neither is a reason.
+test.each(['offline-cap', 'bag-full', 'paused', 'OPERATOR', ''])(
+  'decodeSnapshot refuses the unknown stop reason %j (R114)',
+  (reason) => {
+    const error = expectSimError(() => decodeSnapshot(stoppedWith(reason), content, createGrid(content.grid)));
+    expect(error.code).toBe('INVALID_STATE');
+    expect(error.field).toBe('stopReason');
+  },
+);
+
+test('decodeSnapshot refuses a milestone A (a1) snapshot (R114)', () => {
+  const text = mutate(fightFixture(), (raw) => { raw.simulationVersion = 'a1'; });
+  const error = expectSimError(() => decodeSnapshot(text, content, createGrid(content.grid)));
+  expect(error.code).toBe('WRONG_VERSION');
+  expect(error.field).toBe('simulationVersion');
+});
+
+test('a fresh state and its round-tripped snapshot are both b1 (R114)', () => {
+  const grid = createGrid(content.grid);
+  const state = startState(content, grid, labInput());
+  expect(state.simulationVersion).toBe('b1');
+  expect(decodeSnapshot(encodeSnapshot(state), content, grid).simulationVersion).toBe('b1');
+});
+
+test('stop changes only phase, stopReason, queue and the party’s HP/MP in the canonical encoding (B-L18, R155)', () => {
+  const sim = lab();
+  // Mid-fight at 5 s: a live queue, spent MP, cooldowns and damage all exist to be preserved.
+  const running = runTo(sim, sim.start(labInput()), 5_000).state;
+  expect(running.phase).toBe('fighting');
+  expect(running.queue.length).toBeGreaterThan(0);
+
+  const before = JSON.parse(sim.encode(running)) as Record<string, unknown>;
+  const after = JSON.parse(sim.encode(sim.stop(running))) as Record<string, unknown>;
+
+  expect(Object.keys(after)).toEqual(Object.keys(before));
+  const changed = Object.keys(before)
+    .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+    .sort();
+  // The return-to-town travel is the fourth permitted difference, and it is not
+  // in the engine: the server records it as a wall-clock arrival in the
+  // checkpoint envelope (spec §4.0.1), so `nowMs` and the walk metrics hold still.
+  // The return to town heals the whole party to full (ruling R155), so `actors`
+  // changes too — in each member's HP and MP and nothing else.
+  expect(changed).toEqual(['actors', 'phase', 'queue', 'stopReason']);
+  type Encoded = { side: string; hp: number; mp: number; stats: { maxHp: number; maxMp: number } };
+  const beforeActors = before.actors as Record<string, Encoded>;
+  const afterActors = after.actors as Record<string, Encoded>;
+  for (const [id, actor] of Object.entries(beforeActors)) {
+    const healed = actor.side === 'party' ? { ...actor, hp: actor.stats.maxHp, mp: actor.stats.maxMp } : actor;
+    expect(JSON.stringify(afterActors[id])).toBe(JSON.stringify(healed));
+  }
+  for (const key of ['rng', 'metrics', 'encounterCount', 'nowMs', 'epoch', 'input']) {
+    expect(JSON.stringify(after[key])).toBe(JSON.stringify(before[key]));
+  }
+  expect(after.stopReason).toBe('operator');
+  expect(after.queue).toEqual([]);
 });

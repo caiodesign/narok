@@ -9,7 +9,10 @@ import {
   livingActors,
   recoveryMs,
 } from './effects';
-import { damage, effectiveHeal } from './math';
+import { reviveMember } from './lifecycle';
+import { actorLoadout, offenseBonusFor, resistFor } from './loadout';
+import { damage, effectiveHeal, scale } from './math';
+import { awardKillExp, rollKill } from './rewards';
 import { drawBelow } from './rng';
 import { schedule } from './scheduler';
 import { selectDecision } from './strategy';
@@ -24,6 +27,8 @@ const SMITE_FAMILY_BP = 15_000;
 const NEUTRAL_FAMILY_BP = 10_000;
 /** Basic attacks carry full power and no elemental identity. */
 const BASIC_POWER_BP = 10_000;
+/** A loadout factor's neutral value: `scale(x, 10_000) === x` (Part 3 §1.4). */
+const NEUTRAL_FACTOR_BP = 10_000;
 /** Variance is an integer in `[9000, 11000]`, drawn as `9000 + drawBelow(2001)`. */
 const VARIANCE_FLOOR_BP = 9_000;
 const VARIANCE_SPAN = 2_001;
@@ -147,7 +152,13 @@ export function decide(state: SimState, actorId: ActorId, ctx: Context): void {
   }
 }
 
-/** Marks a dead actor (R30): announce it, invalidate its queued work, bank the reward. */
+/**
+ * Marks a dead actor (R30): announce it, invalidate its queued work, bank the
+ * reward. An enemy death also rolls its drops here, at the exact point the
+ * kill is banked (part 3 §2.1): the fixed draw sequence of `rollKill`, whose
+ * gold draw is what `rawGold` banks. The drops wait for encounter end to be
+ * dispositioned.
+ */
 function processDeath(state: SimState, ctx: Context, dead: Actor, killer: Actor): void {
   emitEvent(state, ctx, { kind: 'death', actorId: dead.id, targetId: killer.id });
   dead.actionToken += 1;
@@ -158,7 +169,8 @@ function processDeath(state: SimState, ctx: Context, dead: Actor, killer: Actor)
     const monster = ctx.content.monsters[dead.definitionId];
     state.metrics.kills += 1;
     state.metrics.rawExp += monster.rawExp;
-    state.metrics.rawGold += monster.rawGold;
+    rollKill(state, monster, ctx);
+    awardKillExp(state, ctx, monster.rawExp);
   }
 }
 
@@ -192,6 +204,22 @@ function performHit(
   state.rng = variance.state;
 
   const element = skill === null ? 'neutral' : skill.element;
+  // Ruling R158 (Task 7d, requirement 1): a party attacker's equipment reaches
+  // this hit as `offenseBonusFor(loadout, defender family, attack element)`,
+  // the defender's family being the actor's own `family` (a monster's from
+  // its definition) and the attack element the one already used for the
+  // element chart. A basic attack has no element of its own; it is the
+  // content's `neutral` element, as it already is for the chart, so only a
+  // `neutral` element-damage bonus could ever reach a basic — and the content
+  // defines none. Enemies carry no loadout and stay at the neutral factor.
+  // Ruling R159 (requirement 2): a party defender's resistance to that same
+  // incoming element is `resistFor(loadout, element)`; an enemy defender stays
+  // neutral. Both are read from the checkpointed items (ruling R162).
+  const attackerLoadout = actorLoadout(state, attacker, ctx.content);
+  const defenderLoadout = actorLoadout(state, defender, ctx.content);
+  const offenseBonusBp = attackerLoadout === null
+    ? NEUTRAL_FACTOR_BP : offenseBonusFor(attackerLoadout, defender.family, element);
+  const resistBp = defenderLoadout === null ? NEUTRAL_FACTOR_BP : resistFor(defenderLoadout, element);
   const familyBp =
     skill?.id === 'smite' && (defender.family === 'undead' || defender.family === 'demon')
       ? SMITE_FAMILY_BP
@@ -205,6 +233,8 @@ function performHit(
     critical,
     defense: kind === 'physical' ? defender.stats.def : defender.stats.mdef,
     hit: landed,
+    offenseBonusBp,
+    resistBp,
   });
 
   if (!landed) {
@@ -288,7 +318,14 @@ function resolveHeal(
     fizzle(state, ctx, caster, cast);
     return;
   }
-  const restored = effectiveHeal(target.hp, target.stats.maxHp, 50 + 2 * caster.attributes.int);
+  // Ruling R160 (Task 7d, requirement 3): Part 3 §1.4 names no step for heal
+  // power, so it is one final floored `scale` of Heal's requested amount by
+  // the caster's `healPowerBp`, before `effectiveHeal` clamps it to the
+  // target's missing HP. Revive never comes here: its restoration is fixed at
+  // half Max HP (owner decision 2026-09-30, rulings R151–R156) and unscaled.
+  const casterLoadout = actorLoadout(state, caster, ctx.content);
+  const requested = scale(50 + 2 * caster.attributes.int, casterLoadout?.healPowerBp ?? NEUTRAL_FACTOR_BP);
+  const restored = effectiveHeal(target.hp, target.stats.maxHp, requested);
   target.hp += restored;
   emitEvent(state, ctx, {
     kind: 'heal', actorId: caster.id, targetId: target.id, amount: restored, reason: skill.id,
@@ -350,8 +387,36 @@ function resolveArea(
   }
 }
 
+/**
+ * Revive (ruling R153): its target must still be a fallen ally inside the
+ * cast's range — one an apple already brought back makes it fizzle. It
+ * restores exactly what Idun's Apple does and spends no apple. Draws nothing,
+ * and adds no healing metric or heal threat: it is a revival, not a heal.
+ */
+function resolveRevive(
+  state: SimState,
+  ctx: Context,
+  caster: Actor,
+  cast: PendingCast,
+  skill: SkillDefinition,
+): void {
+  const target = cast.targets[0] === undefined ? undefined : state.actors[cast.targets[0]];
+  if (
+    target === undefined || target.side !== caster.side || target.hp > 0 ||
+    !ctx.battlefield.inRange(caster.position, target.position, skill.range)
+  ) {
+    fizzle(state, ctx, caster, cast);
+    return;
+  }
+  reviveMember(state, ctx, target, 'revive', caster.id);
+}
+
 function applyCast(state: SimState, ctx: Context, caster: Actor, cast: PendingCast): void {
   const skill = skillOf(ctx, cast.skillId);
+  if (skill !== null && skill.effect === 'revive') {
+    resolveRevive(state, ctx, caster, cast, skill);
+    return;
+  }
   if (skill !== null && skill.effect === 'heal') {
     resolveHeal(state, ctx, caster, cast, skill);
     return;

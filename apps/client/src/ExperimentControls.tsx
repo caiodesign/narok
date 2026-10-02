@@ -4,6 +4,15 @@
  * running experiment; pressing "Start experiment" hands the draft to `onStart`,
  * which the hook turns into a new generation.
  *
+ * Milestone B adds a second variant (part 4 §3.2): `variant="preset"` edits a
+ * saved strategy preset — placement, rules and rest — for the account's own
+ * party. The draft is then *controlled*: the Strategy screen
+ * (`hud/strategy/StrategyScreen.tsx`) owns it beside the saved version, so
+ * Revert, Save and Apply act on the same object this form edits. Edits still
+ * mutate the draft only and issue no command. There is no Pause or Resume in
+ * either variant (ruling R166): the laboratory's pausable clock is driven from
+ * its own orders panel in `apps/lab`.
+ *
  * Every visible string comes from `t()` (ruling R60); the run buttons carry the
  * accessible names ruling R81 fixes for the Task 11 smoke test.
  *
@@ -17,14 +26,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, ClassId } from '@narok/data';
+import { defaultPlacement, defaultStrategy, gridPosition } from '@narok/data';
 import type { ActorId, LabInput, PositionId, Strategy, TargetMode } from '@narok/sim';
-import { defaultPlacement, defaultStrategy, gridPosition } from '@narok/sim';
 import { formatNumber, type Translate } from './i18n';
 import { CharacterPane } from './hud/strategy/CharacterPane';
 import { FormationPane } from './hud/strategy/FormationPane';
 import { PartyRulesPane } from './hud/strategy/PartyRulesPane';
-import type { ExperimentStatus } from './useExperiment';
-import { validateLabInput, type ValidationIssue } from './validation';
+import type { ExperimentStatus } from './status';
+import { validateLabInput, validatePresetDraft, type PresetDraft, type ValidationIssue } from './validation';
+
+/** The draft this form edits: a preset's fields, plus the laboratory's seed and recipe. */
+export type EditorDraft = PresetDraft & Partial<Pick<LabInput, 'seed' | 'recipe'>>;
 
 const SPEEDS = [1, 4, 16] as const;
 
@@ -97,7 +109,6 @@ function defaultDraft(grid: Content['grid']): LabInput {
     placement: seatRoster(classes, grid),
     strategies,
     rest: { hpStart: 50, mpStart: 30 },
-    wipeLimit: 1,
   };
 }
 
@@ -107,12 +118,17 @@ function issuesFor(field: string, issues: ValidationIssue[]): ValidationIssue[] 
 
 export interface ExperimentControlsProps {
   content: Content;
-  status: ExperimentStatus;
-  onStart: (input: LabInput) => void;
-  onPause: () => void;
-  onResume: () => void;
-  onStop: () => void;
-  onSpeedChange: (speed: number) => void;
+  status?: ExperimentStatus;
+  onStart?: (input: LabInput) => void;
+  onStop?: () => void;
+  onSpeedChange?: (speed: number) => void;
+  /** `experiment` (the laboratory, the default) or `preset` (a saved strategy preset, milestone B). */
+  variant?: 'experiment' | 'preset';
+  /** A controlled draft; when given, edits are reported through `onDraftEdit` and never held here. */
+  draft?: EditorDraft;
+  onDraftEdit?: (draft: EditorDraft) => void;
+  /** Characters whose rules differ from the saved preset (the reference's unsaved pips). */
+  unsavedActors?: ReadonlySet<ActorId>;
   /**
    * The Realm HUD promotes start/pause/stop into the `.orders` window, where the
    * reference puts a hunt's primary action. Two copies of a button would give the
@@ -130,20 +146,43 @@ export interface ExperimentControlsProps {
 
 export function ExperimentControls({
   content,
-  status,
+  status = 'idle',
   onStart,
-  onPause,
-  onResume,
   onStop,
   onSpeedChange,
+  variant = 'experiment',
+  draft: controlledDraft,
+  onDraftEdit,
+  unsavedActors,
   showRunControls = true,
   onDraftChange,
 }: ExperimentControlsProps): React.JSX.Element {
   const { t: rawT, i18n } = useTranslation();
   const t = rawT as unknown as Translate;
   const language = i18n.language;
+  const preset = variant === 'preset';
 
-  const [draft, setDraft] = useState<LabInput>(() => defaultDraft(content.grid));
+  const [localDraft, setLocalDraft] = useState<EditorDraft>(() => controlledDraft ?? defaultDraft(content.grid));
+  const draft = controlledDraft ?? localDraft;
+  // Every edit below is written as `previous => next`. Controlled, `previous`
+  // is the draft the parent last rendered, and the result goes back up.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const editRef = useRef(onDraftEdit);
+  editRef.current = onDraftEdit;
+  const controlled = controlledDraft !== undefined;
+  const controlledRef = useRef(controlled);
+  controlledRef.current = controlled;
+  const setDraft = useCallback((update: (previous: EditorDraft) => EditorDraft) => {
+    if (!controlledRef.current) {
+      setLocalDraft(update);
+      return;
+    }
+    const next = update(draftRef.current);
+    if (next === draftRef.current) return;
+    draftRef.current = next;
+    editRef.current?.(next);
+  }, []);
   const [selectedActorId, setSelectedActorId] = useState<ActorId | null>(null);
   // Ruling R77: default focus must land on a real, reachable party cell -- (0,0)
   // is an enemy-row cell whenever row 0 isn't a party row, and a disabled cell
@@ -167,7 +206,10 @@ export function ExperimentControls({
   // Shrinking the roster can retire the character whose rules are on screen.
   const activeIsGone = !rosterIds.includes(activeActorId);
   const shownActorId = activeIsGone ? (rosterIds[rosterIds.length - 1] ?? 'p0') : activeActorId;
-  const issues = useMemo(() => validateLabInput(draft, content), [draft, content]);
+  const issues = useMemo(
+    () => (preset ? validatePresetDraft(draft, content) : validateLabInput(draft as LabInput, content)),
+    [draft, content, preset],
+  );
 
   useEffect(() => {
     const key = cellId(focusedCell.column, focusedCell.row);
@@ -355,12 +397,12 @@ export function ExperimentControls({
   // Publish the draft so a transport rendered outside this form (the HUD's
   // `.orders` window) starts exactly the run the form currently describes.
   useEffect(() => {
-    onDraftChange?.(draft, canStart);
-  }, [draft, canStart, onDraftChange]);
+    if (!preset) onDraftChange?.(draft as LabInput, canStart);
+  }, [draft, canStart, onDraftChange, preset]);
 
   return (
     <>
-      {showRunControls ? (
+      {showRunControls && !preset ? (
         <section className="pane" aria-label={t('controls.run')}>
           <h2 className="win-title">{t('controls.run')}</h2>
           <div className="pane-body">
@@ -371,7 +413,7 @@ export function ExperimentControls({
                 className="btn btn--save"
                 disabled={!canStart}
                 onClick={() => {
-                  onStart(draft);
+                  onStart?.(draft as LabInput);
                   // Ruling R80: useExperiment.start() always begins a fresh generation's
                   // clock at speed 1x, so the radio group must resync here -- otherwise
                   // it can misreport (e.g. still showing 16x from a previous run) the
@@ -381,17 +423,11 @@ export function ExperimentControls({
               >
                 {t('controls.start')}
               </button>
-              <button type="button" className="btn" disabled={status !== 'running'} onClick={onPause}>
-                {t('controls.pause')}
-              </button>
-              <button type="button" className="btn" disabled={status !== 'paused'} onClick={onResume}>
-                {t('controls.resume')}
-              </button>
               <button
                 type="button"
                 className="btn"
                 disabled={status === 'idle' || status === 'stopped'}
-                onClick={onStop}
+                onClick={() => onStop?.()}
               >
                 {t('controls.stop')}
               </button>
@@ -407,7 +443,7 @@ export function ExperimentControls({
                     checked={speed === value}
                     onChange={() => {
                       setLocalSpeed(value);
-                      onSpeedChange(value);
+                      onSpeedChange?.(value);
                     }}
                   />
                   <span>{t('playback.speedOption', { value: formatNumber(value, language) })}</span>
@@ -454,6 +490,8 @@ export function ExperimentControls({
             onTargetKind={setTargetKind}
             onTargetPartyId={setTargetPartyId}
             issuesFor={(field) => issuesFor(field, issues)}
+            unsavedActors={unsavedActors}
+            classLocked={preset}
           />
         </div>
 
@@ -461,13 +499,12 @@ export function ExperimentControls({
           <PartyRulesPane
             content={content}
             draft={draft}
-            onRosterSize={setRosterSize}
-            onRecipe={(recipe) => setDraft((previous) => ({ ...previous, recipe }))}
-            onSeed={(seed) => setDraft((previous) => ({ ...previous, seed }))}
+            onRosterSize={preset ? undefined : setRosterSize}
+            onRecipe={preset ? undefined : (recipe) => setDraft((previous) => ({ ...previous, recipe }))}
+            onSeed={preset ? undefined : (seed) => setDraft((previous) => ({ ...previous, seed }))}
             onRest={(part, value) =>
               setDraft((previous) => ({ ...previous, rest: { ...previous.rest, [part]: value } }))
             }
-            onWipeLimit={(wipeLimit) => setDraft((previous) => ({ ...previous, wipeLimit }))}
             issuesFor={(field) => issuesFor(field, issues)}
           />
         </div>

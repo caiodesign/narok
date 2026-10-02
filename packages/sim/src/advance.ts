@@ -2,10 +2,12 @@ import type { Content } from '@narok/data';
 import { decide, resolveCast } from './actions';
 import { expire } from './effects';
 import { SimError } from './errors';
-import { deadline, finishEncounter, regenerate, transition } from './lifecycle';
+import { deadline, finishEncounter, regenerate, reviveWithApples, transition } from './lifecycle';
 import { compareScheduled, isStale, takeNext } from './scheduler';
 import { compareIds } from './effects';
 import type { Battlefield } from './battlefield/types';
+import type { LootPreset } from '@narok/loot';
+import { cloneProgress } from '@narok/progression';
 import type {
   Actor,
   ActorId,
@@ -15,8 +17,11 @@ import type {
   DomainEvent,
   LabInput,
   Metrics,
+  PendingReward,
+  PendingRules,
   ScheduledEvent,
   SimState,
+  HuntCharacter,
 } from './types';
 
 /** Contract §5 default work budget: popped entries per `advance` call, stale included. */
@@ -52,12 +57,13 @@ function cloneActor(actor: Actor): Actor {
   };
 }
 
-function cloneInput(input: LabInput): LabInput {
+/** Deep-copies the three preset-held fields; shared by `cloneInput` and the pending queue. */
+function cloneRules(rules: PendingRules): PendingRules {
   const placement: LabInput['placement'] = {};
-  for (const id of Object.keys(input.placement)) placement[id] = input.placement[id];
+  for (const id of Object.keys(rules.placement)) placement[id] = rules.placement[id];
   const strategies: LabInput['strategies'] = {};
-  for (const id of Object.keys(input.strategies)) {
-    const strategy = input.strategies[id];
+  for (const id of Object.keys(rules.strategies)) {
+    const strategy = rules.strategies[id];
     strategies[id] = {
       rules: strategy.rules.map((rule) => ({
         skillId: rule.skillId,
@@ -67,14 +73,15 @@ function cloneInput(input: LabInput): LabInput {
       target: { ...strategy.target },
     };
   }
+  return { placement, strategies, rest: { ...rules.rest } };
+}
+
+function cloneInput(input: LabInput): LabInput {
   return {
     seed: input.seed,
     classes: [...input.classes],
     recipe: input.recipe,
-    placement,
-    strategies,
-    rest: { ...input.rest },
-    wipeLimit: input.wipeLimit,
+    ...cloneRules(input),
   };
 }
 
@@ -92,8 +99,36 @@ function cloneMetrics(metrics: Metrics): Metrics {
     walkMs: metrics.walkMs,
     fightMs: metrics.fightMs,
     restMs: metrics.restMs,
-    respawnMs: metrics.respawnMs,
     actors,
+    drops: {
+      ...metrics.drops,
+      rolled: { ...metrics.drops.rolled },
+      epicPlusWaits: [...metrics.drops.epicPlusWaits],
+      legendaryWaits: [...metrics.drops.legendaryWaits],
+    },
+    consumed: { ...metrics.consumed },
+  };
+}
+
+function cloneReward(reward: PendingReward): PendingReward {
+  const item: PendingReward['item'] = reward.item.kind === 'equipment'
+    ? { ...reward.item, bonuses: reward.item.bonuses.map((bonus) => ({ ...bonus })) }
+    : { ...reward.item };
+  const disposition = reward.disposition === null
+    ? null
+    : {
+      ...reward.disposition,
+      matched: typeof reward.disposition.matched === 'object' ? { ...reward.disposition.matched } : reward.disposition.matched,
+    };
+  return { ...reward, item, disposition };
+}
+
+/** Deep-copies a loot filter; shared by the active snapshot and a pending one. */
+export function cloneLoot(preset: LootPreset): LootPreset {
+  return {
+    exceptions: preset.exceptions.map((exception) => ({ when: { ...exception.when }, action: exception.action })),
+    rarity: { ...preset.rarity },
+    fallback: { ...preset.fallback },
   };
 }
 
@@ -122,10 +157,34 @@ export function cloneState(state: SimState): SimState {
     phase: state.phase,
     stopReason: state.stopReason,
     input: cloneInput(state.input),
+    pendingRules: state.pendingRules === null ? null : cloneRules(state.pendingRules),
     actors,
     queue: state.queue.map((event): ScheduledEvent => ({ ...event })),
     metrics: cloneMetrics(state.metrics),
+    nextRewardSeq: state.nextRewardSeq,
+    pendingRewards: state.pendingRewards.map(cloneReward),
+    dropProtection: { ...state.dropProtection },
+    lootPresetSnapshot: cloneLoot(state.lootPresetSnapshot),
+    pendingLoot: state.pendingLoot.map((pending) => ({ preset: cloneLoot(pending.preset), fromRewardSeq: pending.fromRewardSeq })),
+    bagState: { ...state.bagState, held: { ...state.bagState.held } },
+    progression: state.progression === null ? null : cloneProgression(state.progression),
   };
+}
+
+/** Deep-copies the checkpointed characters (ruling R140), worn items included. */
+function cloneProgression(progression: Record<ActorId, HuntCharacter>): Record<ActorId, HuntCharacter> {
+  const copy: Record<ActorId, HuntCharacter> = {};
+  for (const id of Object.keys(progression)) {
+    const character = cloneProgress(progression[id]);
+    character.equipped = character.equipped.map((item) => ({
+      ...item,
+      bonuses: item.bonuses.map((bonus) => ({ ...bonus })),
+      equipped: item.equipped === null ? null : { ...item.equipped },
+      source: { ...item.source },
+    }));
+    copy[id] = character;
+  }
+  return copy;
 }
 
 /**
@@ -137,8 +196,8 @@ function assertCompatible(state: SimState, content: Content): void {
   if (state.schemaVersion !== 1) {
     throw new SimError('WRONG_VERSION', 'state.schemaVersion', 'expected schema version 1');
   }
-  if (state.simulationVersion !== 'a1') {
-    throw new SimError('WRONG_VERSION', 'state.simulationVersion', 'expected simulation version a1');
+  if (state.simulationVersion !== 'b1') {
+    throw new SimError('WRONG_VERSION', 'state.simulationVersion', 'expected simulation version b1');
   }
   if (state.contentVersion !== content.version) {
     throw new SimError('WRONG_VERSION', 'state.contentVersion', 'state was produced by different content');
@@ -180,9 +239,6 @@ function accrue(state: SimState, delta: number): void {
       return;
     case 'resting':
       state.metrics.restMs += delta;
-      return;
-    case 'respawning':
-      state.metrics.respawnMs += delta;
       return;
     case 'stopped':
       return;
@@ -226,31 +282,72 @@ function assertInvariants(state: SimState, previousNowMs: number): void {
   }
 }
 
-/** Routes one due, non-stale entry to its handler (ruling R41's dispatch table). */
-function dispatch(state: SimState, ctx: Context, entry: ScheduledEvent): void {
+/** The living party members, by id. */
+function partyStanding(state: SimState): ActorId[] {
+  return Object.keys(state.actors).filter((id) => state.actors[id].side === 'party' && state.actors[id].hp > 0);
+}
+
+/** Resolves one actor's cast and returns the party members it killed. */
+function resolveTracking(state: SimState, ctx: Context, actorId: ActorId): ActorId[] {
+  const standing = partyStanding(state);
+  resolveCast(state, actorId, ctx);
+  return standing.filter((id) => state.actors[id].hp <= 0);
+}
+
+/**
+ * Routes one due, non-stale entry to its handler (ruling R41's dispatch table).
+ * Returns how many further queued entries it consumed beyond `entry` itself (a
+ * same-instant group of resolves, ruling R157), so the caller's work budget
+ * counts every entry popped.
+ */
+function dispatch(state: SimState, ctx: Context, entry: ScheduledEvent): number {
   switch (entry.kind) {
     case 'expire':
       expire(state, entry.actorId);
-      return;
+      return 0;
     case 'regen':
       regenerate(state, ctx);
-      return;
-    case 'resolve':
-      resolveCast(state, entry.actorId, ctx);
+      return 0;
+    case 'resolve': {
+      // Ruling R157 (controller ruling, Task 7c fix round 1, 2026-10-01; refines
+      // R152): an instant of death is one simulated millisecond, across every
+      // resolution at it. Once a resolution kills a party member, every other
+      // resolve due at this same millisecond runs before anything is judged —
+      // they sit next to each other in the queue, since `resolve` has its own
+      // priority and only a resolution deals damage — and the members who fell
+      // in any of them eat Idun's Apples together, in ascending character id,
+      // before the encounter is judged, so an apple can still avert a wipe.
+      // Until a party member falls nothing changes, so a run without deaths
+      // dispatches exactly as before. Draws nothing beyond what the resolutions
+      // themselves draw.
+      const fallen = resolveTracking(state, ctx, entry.actorId);
+      let consumed = 0;
+      if (fallen.length > 0) {
+        for (;;) {
+          const next = state.queue[0];
+          if (next === undefined || next.at !== state.nowMs || next.kind !== 'resolve') break;
+          takeNext(state);
+          consumed += 1;
+          if (isStale(state, next)) continue;
+          fallen.push(...resolveTracking(state, ctx, next.actorId));
+        }
+        reviveWithApples(state, ctx, fallen);
+      }
       // Encounter completion is the dispatcher's job: the resolver stays free of
       // lifecycle, and a kill resolving at the deadline instant therefore wins
       // before the same-time `deadline` entry (priority 20 before 40) can run.
       finishEncounter(state, ctx);
-      return;
+      return consumed;
+    }
     case 'act':
       decide(state, entry.actorId, ctx);
-      return;
+      return 0;
     case 'deadline':
       deadline(state, ctx);
-      return;
+      return 0;
     case 'transition':
       transition(state, ctx);
-      return;
+      return 0;
   }
 }
 
@@ -329,7 +426,7 @@ export function advance(
     working.nowMs = entry.at;
 
     if (isStale(working, entry)) continue;
-    dispatch(working, ctx, entry);
+    processed += dispatch(working, ctx, entry);
     assertInvariants(working, previousNowMs);
 
     if (working.phase === 'stopped') return finish(true);

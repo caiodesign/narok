@@ -1,13 +1,25 @@
-import type { Attributes, Content, DamageKind, Element, Family, SkillId } from '@narok/data';
+import { RARITIES, bonusCount, valueTier } from '@narok/data';
+import type { Attributes, Content, DamageKind, Element, Family, Rarity, RolledBonus, SkillId } from '@narok/data';
+import { LOOT_ACTIONS, type LootMatch } from '@narok/loot';
 import { SimError, type SimErrorCode } from './errors';
 import { compareScheduled, isStale } from './scheduler';
-import { validateLabInput } from './state';
+import { maxPendingLoot } from './rewards';
+import {
+  checkPartyKeys, validateBag, validateHuntCharacter, validateLabInput, validateLoot, validatePendingRules, validateProtection,
+} from './state';
 import type { Battlefield } from './battlefield/types';
 import type {
   Actor,
   ActorId,
   DerivedStats,
+  DropMetrics,
+  HuntCharacter,
+  LabInput,
   Metrics,
+  PendingLoot,
+  PendingReward,
+  RewardItem,
+  RewardOutcome,
   Phase,
   PositionId,
   QueueKind,
@@ -20,14 +32,15 @@ import type {
 /** Generous but finite bound for timestamp/counter fields, well under the safe-integer ceiling. */
 const MAX_TIME = 1_000_000_000_000;
 
-const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'respawning', 'stopped'];
-const STOP_REASONS: readonly StopReason[] = ['wipe-limit', 'stalemate', 'operator'];
+const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'stopped'];
+/** Ruling R114: the closed `b1` union; any other value is refused, never passed through. */
+const STOP_REASONS: readonly StopReason[] = ['wipe', 'stalemate', 'operator', 'retreat', 'potion-floor'];
 const SIDES = ['party', 'enemy'] as const;
 const FAMILIES: readonly Family[] = ['beast', 'undead', 'demon', 'plant', 'insect', 'humanoid'];
 const ELEMENTS: readonly Element[] = ['neutral', 'fire', 'water', 'earth', 'wind'];
 const DAMAGE_KINDS: readonly DamageKind[] = ['physical', 'magic'];
 const SKILL_IDS: readonly SkillId[] = [
-  'taunt', 'cleave', 'heal', 'smite', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
+  'taunt', 'cleave', 'heal', 'smite', 'revive', 'double-shot', 'arrow-rain', 'fire-bolt', 'frost-nova',
 ];
 const QUEUE_KINDS: readonly QueueKind[] = ['expire', 'regen', 'resolve', 'act', 'deadline', 'transition'];
 const STATUS_KINDS = ['slow', 'stun'] as const;
@@ -37,6 +50,14 @@ const TOKEN_KINDS: readonly QueueKind[] = ['act', 'resolve'];
 const GLOBAL_EPOCH_KINDS: readonly QueueKind[] = ['regen', 'transition'];
 
 const POSITION_PATTERN = /^(\d+),(\d+)$/;
+const CONSUMABLE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const OUTCOMES: readonly RewardOutcome[] = ['kept', 'auto-sold', 'ignored', 'lost'];
+/** The outcomes each filter action can lead to (part 3 §3.4): only a Keep can be lost. */
+const OUTCOMES_BY_ACTION: Record<(typeof LOOT_ACTIONS)[number], readonly RewardOutcome[]> = {
+  keep: ['kept', 'lost'],
+  'auto-sell': ['auto-sold'],
+  ignore: ['ignored'],
+};
 
 function fail(code: SimErrorCode, field: string, message: string): never {
   throw new SimError(code, field, message);
@@ -315,6 +336,7 @@ function validateMetrics(
     };
   }
   return {
+    drops: validateDropMetrics(record.drops, `${field}.drops`),
     kills: nonNegativeInt('kills'),
     wins: nonNegativeInt('wins'),
     wipes: nonNegativeInt('wipes'),
@@ -325,9 +347,157 @@ function validateMetrics(
     walkMs: nonNegativeInt('walkMs'),
     fightMs: nonNegativeInt('fightMs'),
     restMs: nonNegativeInt('restMs'),
-    respawnMs: nonNegativeInt('respawnMs'),
     actors: metricsActors,
+    consumed: validateConsumed(record.consumed, `${field}.consumed`),
   };
+}
+
+/** Units spent per consumable id (ruling R152): content ids, positive counts. */
+function validateConsumed(value: unknown, field: string): Record<string, number> {
+  const record = requireRecord(value, field);
+  const consumed: Record<string, number> = {};
+  for (const id of Object.keys(record).sort()) {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) fail('INVALID_STATE', field, 'expected consumable ids');
+    consumed[id] = requireIntRange(record[id], `${field}.${id}`, 1, MAX_TIME);
+  }
+  return consumed;
+}
+
+function validateWaits(value: unknown, field: string): number[] {
+  return requireArray(value, field).map((entry, index) => requireIntRange(entry, `${field}.${index}`, 1, MAX_TIME));
+}
+
+function validateDropMetrics(value: unknown, field: string): DropMetrics {
+  const record = requireRecord(value, field);
+  const count = (key: string) => requireIntRange(record[key], `${field}.${key}`, 0, MAX_TIME);
+  const rolledRecord = requireRecord(record.rolled, `${field}.rolled`);
+  const rolled = {} as Record<Rarity, number>;
+  for (const rarity of RARITIES) rolled[rarity] = requireIntRange(rolledRecord[rarity], `${field}.rolled.${rarity}`, 0, MAX_TIME);
+  const firstDropMs = record.firstDropMs === null ? null : requireIntRange(record.firstDropMs, `${field}.firstDropMs`, 0, MAX_TIME);
+  const firstDropRarity = record.firstDropRarity === null
+    ? null
+    : requireOneOf(record.firstDropRarity, `${field}.firstDropRarity`, RARITIES);
+  if ((firstDropMs === null) !== (firstDropRarity === null)) {
+    fail('INVALID_STATE', `${field}.firstDropRarity`, 'the first drop has both a time and a rarity, or neither');
+  }
+  return {
+    rolled,
+    consumables: count('consumables'),
+    kept: count('kept'),
+    autoSold: count('autoSold'),
+    ignored: count('ignored'),
+    lost: count('lost'),
+    firstDropMs,
+    firstDropRarity,
+    epicPlusWaits: validateWaits(record.epicPlusWaits, `${field}.epicPlusWaits`),
+    legendaryWaits: validateWaits(record.legendaryWaits, `${field}.legendaryWaits`),
+  };
+}
+
+function validateRewardItem(value: unknown, field: string, itemLevel: number, content: Content): RewardItem {
+  const record = requireRecord(value, field);
+  const kind = requireOneOf(record.kind, `${field}.kind`, ['equipment', 'consumable'] as const);
+  if (kind === 'consumable') {
+    const consumableId = requireString(record.consumableId, `${field}.consumableId`);
+    if (!CONSUMABLE_ID.test(consumableId)) fail('INVALID_STATE', `${field}.consumableId`, 'expected a consumable id');
+    return { kind, consumableId, quantity: requireIntRange(record.quantity, `${field}.quantity`, 1, 999) };
+  }
+  const definitionId = requireString(record.definitionId, `${field}.definitionId`);
+  if (!Object.hasOwn(content.items, definitionId)) fail('INVALID_STATE', `${field}.definitionId`, 'unknown item id');
+  const definition = content.items[definitionId];
+  const rarity = requireOneOf(record.rarity, `${field}.rarity`, RARITIES);
+  const bonusesRaw = requireArray(record.bonuses, `${field}.bonuses`);
+  if (bonusesRaw.length !== bonusCount(rarity)) {
+    fail('INVALID_STATE', `${field}.bonuses`, `expected ${bonusCount(rarity)} bonuses`);
+  }
+  const seen = new Set<string>();
+  const bonuses: RolledBonus[] = bonusesRaw.map((entry, index) => {
+    const bonusField = `${field}.bonuses.${index}`;
+    const bonusRecord = requireRecord(entry, bonusField);
+    const bonusId = requireString(bonusRecord.bonusId, `${bonusField}.bonusId`);
+    if (!Object.hasOwn(content.bonuses, bonusId) || !content.bonuses[bonusId].slots.includes(definition.slot)) {
+      fail('INVALID_STATE', `${bonusField}.bonusId`, 'bonus is not in the item slot pool');
+    }
+    if (seen.has(bonusId)) fail('INVALID_STATE', `${bonusField}.bonusId`, 'duplicate bonus identity');
+    seen.add(bonusId);
+    const span = content.bonuses[bonusId].spans[valueTier(itemLevel) - 1];
+    if (span === undefined) fail('INVALID_STATE', `${bonusField}.value`, 'no value span for the item level');
+    return { bonusId, value: requireIntRange(bonusRecord.value, `${bonusField}.value`, span.min, span.max) };
+  });
+  return { kind, definitionId, rarity, bonuses };
+}
+
+function validateMatch(value: unknown, field: string): LootMatch {
+  if (value === 'protected' || value === 'default') return value;
+  const record = requireRecord(value, field);
+  return { exception: requireIntRange(record.exception, `${field}.exception`, 0, 1_000) };
+}
+
+function validateReward(value: unknown, field: string, content: Content, nowMs: number): PendingReward {
+  const record = requireRecord(value, field);
+  const monsterId = requireString(record.monsterId, `${field}.monsterId`);
+  if (!Object.hasOwn(content.monsters, monsterId)) fail('INVALID_STATE', `${field}.monsterId`, 'unknown monster id');
+  const itemLevel = requireIntRange(record.itemLevel, `${field}.itemLevel`, 1, 99);
+  const item = validateRewardItem(record.item, `${field}.item`, itemLevel, content);
+  let disposition: PendingReward['disposition'] = null;
+  if (record.disposition !== null) {
+    const dispositionRecord = requireRecord(record.disposition, `${field}.disposition`);
+    const action = requireOneOf(dispositionRecord.action, `${field}.disposition.action`, LOOT_ACTIONS);
+    const matched = validateMatch(dispositionRecord.matched, `${field}.disposition.matched`);
+    const outcome = requireOneOf(dispositionRecord.outcome, `${field}.disposition.outcome`, OUTCOMES);
+    if (!OUTCOMES_BY_ACTION[action].includes(outcome)) {
+      fail('INVALID_STATE', `${field}.disposition.outcome`, `${action} cannot end ${outcome}`);
+    }
+    disposition = { action, matched, outcome };
+  }
+  return {
+    rewardSeq: requireIntRange(record.rewardSeq, `${field}.rewardSeq`, 0, MAX_TIME),
+    atSimMs: requireIntRange(record.atSimMs, `${field}.atSimMs`, 0, nowMs),
+    monsterId,
+    itemLevel,
+    item,
+    disposition,
+  };
+}
+
+/**
+ * The reward ledger (ruling R127): ascending, distinct ordinals below
+ * `nextRewardSeq`, and every dispositioned reward ahead of every one still
+ * waiting — disposition runs in `rewardSeq` order, so a gap would mean one
+ * was skipped.
+ */
+function validateRewards(value: unknown, content: Content, nowMs: number, nextRewardSeq: number): PendingReward[] {
+  const rewards = requireArray(value, 'pendingRewards').map((entry, index) =>
+    validateReward(entry, `pendingRewards.${index}`, content, nowMs));
+  rewards.forEach((reward, index) => {
+    const field = `pendingRewards.${index}`;
+    if (reward.rewardSeq >= nextRewardSeq) fail('INVALID_STATE', `${field}.rewardSeq`, 'must be below nextRewardSeq');
+    const previous = rewards[index - 1];
+    if (previous !== undefined && previous.rewardSeq >= reward.rewardSeq) {
+      fail('INVALID_STATE', `${field}.rewardSeq`, 'rewards are in ascending rewardSeq order');
+    }
+    if (previous !== undefined && previous.disposition === null && reward.disposition !== null) {
+      fail('INVALID_STATE', `${field}.disposition`, 'a reward was dispositioned ahead of an earlier one');
+    }
+  });
+  return rewards;
+}
+
+/** Applied filter windows (R131): bounded, strictly ascending cutoffs, none past `nextRewardSeq`. */
+function validatePendingLoot(value: unknown, nextRewardSeq: number, content: Content): PendingLoot[] {
+  const list = requireArray(value, 'pendingLoot');
+  if (list.length > maxPendingLoot(content.grid.maxEnemies)) {
+    fail('INVALID_STATE', 'pendingLoot', `expected at most ${maxPendingLoot(content.grid.maxEnemies)} applied filters`);
+  }
+  return list.map((entry, index) => {
+    const field = `pendingLoot.${index}`;
+    const record = requireRecord(entry, field);
+    const floor = index === 0 ? 0 : (requireRecord(list[index - 1], field).fromRewardSeq as number) + 1;
+    return {
+      preset: validateLoot(record.preset, `${field}.preset`, 'INVALID_STATE'),
+      fromRewardSeq: requireIntRange(record.fromRewardSeq, `${field}.fromRewardSeq`, floor, nextRewardSeq),
+    };
+  });
 }
 
 /**
@@ -342,7 +512,8 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   const root = requireRecord(value, '$');
 
   requireVersion(root.schemaVersion, 'schemaVersion', 1);
-  requireVersion(root.simulationVersion, 'simulationVersion', 'a1');
+  // R114: `b1` came with the closed B stop vocabulary, so an A-era `a1` snapshot is refused.
+  requireVersion(root.simulationVersion, 'simulationVersion', 'b1');
   requireVersion(root.contentVersion, 'contentVersion', content.version);
   requireVersion(root.gridHash, 'gridHash', content.gridHash);
 
@@ -359,6 +530,10 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
   const stopReason = root.stopReason === null ? null : requireOneOf(root.stopReason, 'stopReason', STOP_REASONS);
 
   const input = validateLabInput(root.input, content, battlefield);
+  // R115: the queued rule set is re-validated against this roster on every decode.
+  const pendingRules = root.pendingRules === null
+    ? null
+    : validatePendingRules(root.pendingRules, input, content, battlefield);
   const rosterIds = input.classes.map((_, index) => `p${index}`);
   const allowedActorIds = buildAllowedActorIds(content, rosterIds);
 
@@ -436,9 +611,19 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
 
   const metrics = validateMetrics(root.metrics, 'metrics', actors, allowedActorIds);
 
+  // Rulings R127–R131: the reward ledger, the counters, the filter and the bag
+  // a replay needs to roll and disposition the same drops (part 3 §2.5).
+  const nextRewardSeq = requireIntRange(root.nextRewardSeq, 'nextRewardSeq', 0, MAX_TIME);
+  const pendingRewards = validateRewards(root.pendingRewards, content, nowMs, nextRewardSeq);
+  const dropProtection = validateProtection(root.dropProtection, 'dropProtection', 'INVALID_STATE');
+  const lootPresetSnapshot = validateLoot(root.lootPresetSnapshot, 'lootPresetSnapshot', 'INVALID_STATE');
+  const pendingLoot = validatePendingLoot(root.pendingLoot, nextRewardSeq, content);
+  const bagState = validateBag(root.bagState, 'bagState', 'INVALID_STATE');
+  const progression = validateProgression(root.progression, input, actors, content);
+
   return {
     schemaVersion: 1,
-    simulationVersion: 'a1',
+    simulationVersion: 'b1',
     contentVersion: content.version,
     gridHash: content.gridHash,
     nowMs,
@@ -451,8 +636,43 @@ export function validateSimState(value: unknown, content: Content, battlefield: 
     phase,
     stopReason,
     input,
+    pendingRules,
     actors,
     queue,
     metrics,
+    nextRewardSeq,
+    pendingRewards,
+    dropProtection,
+    lootPresetSnapshot,
+    pendingLoot,
+    bagState,
+    progression,
   };
+}
+
+/**
+ * The checkpointed characters (ruling R140): `null` for a laboratory run, or
+ * exactly one valid character per roster id whose actor carries its level.
+ * A missing key is refused like every other B field.
+ */
+function validateProgression(
+  value: unknown,
+  input: LabInput,
+  actors: Record<ActorId, Actor>,
+  content: Content,
+): Record<ActorId, HuntCharacter> | null {
+  if (value === null) return null;
+  const record = requireRecord(value, 'progression');
+  const rosterIds = input.classes.map((_, index) => `p${index}`);
+  checkPartyKeys(record, 'progression', 'INVALID_STATE', rosterIds,
+    (entry) => (typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>).characterId : entry));
+  const result: Record<ActorId, HuntCharacter> = {};
+  rosterIds.forEach((id, index) => {
+    const character = validateHuntCharacter(record[id], `progression.${id}`, 'INVALID_STATE', input.classes[index], content);
+    if (actors[id].level !== character.level) {
+      fail('INVALID_STATE', `progression.${id}.level`, 'the actor and its progression disagree on the level');
+    }
+    result[id] = character;
+  });
+  return result;
 }

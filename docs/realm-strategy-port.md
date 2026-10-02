@@ -70,7 +70,8 @@ Nothing on this screen was filled with a placeholder (R108). Dropped whole:
 | Drag grips | Replaced by the labelled move buttons R79 requires. The grip column and its width are kept. |
 
 Repurposed rather than dropped: the retreat section's **death pips** became the wipe limit — a real
-count against a real configured bound — and the reference's party-wide **Focus target** chips became
+count against a real configured bound *(superseded: the owner decision of 2026-09-30, R154, removed
+the wipe limit; a full wipe ends the hunt, so there is no bound to show — Task 11 sweep)* — and the reference's party-wide **Focus target** chips became
 a per-character select, because the simulation's target mode is per strategy and one of its modes
 takes an ally as an argument, which a chip cannot carry.
 

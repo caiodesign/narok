@@ -16,7 +16,7 @@ test('same seeds yield identical gameplay metrics', () => {
 test('a solo cleric wipes against the melee recipe well before its 1 hour horizon', () => {
   // Ruling R73: a genuine early stop, not a synthetic one. A lone cleric (no tank
   // to hold threat, no offense of its own) reliably loses its single life to the
-  // melee recipe. Confirmed deterministic and reproducible for seed 1: wipe-limit
+  // melee recipe. Confirmed deterministic and reproducible for seed 1: wipe
   // at nowMs 14,307 ms, well inside the requested 3,600,000 ms (1 hour) horizon —
   // proving `elapsed_ms` really is "the simulated nowMs reached, never the
   // requested horizon after an early stop" (rulings R48), and that `classifyShort`
@@ -24,7 +24,7 @@ test('a solo cleric wipes against the melee recipe well before its 1 hour horizo
   const input = buildLabInput(1, ['cleric'], 'melee', 'default');
   const row = runBatch(input, [1], 3_600_000)[0];
 
-  expect(row.stop_reason).toBe('wipe-limit');
+  expect(row.stop_reason).toBe('wipe');
   expect(row.wipes).toBe(1);
   expect(row.elapsed_ms).toBe(14_307);
   expect(row.elapsed_ms).toBeLessThan(row.requested_ms);

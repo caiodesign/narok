@@ -36,10 +36,9 @@
  */
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { content } from '@narok/data';
+import { content, gridCoordinates } from '@narok/data';
 import type { GridConfig, SkillDefinition } from '@narok/data';
 import type { DomainEvent, PublicActor, PublicState } from '@narok/sim';
-import { gridCoordinates } from '@narok/sim';
 import { formatNumber, type Translate } from '../i18n';
 import {
   classNames,
@@ -56,7 +55,7 @@ import {
 // --- projection -------------------------------------------------------------
 //
 // `projectCell`, `compareDepth`, `sceneBounds`, `centreOffset` and
-// `nameplateAlign` are copied verbatim from `BattlefieldView.tsx` (ruling R58's
+// `nameplateAlign` are copied verbatim from `BattlefieldView.tsx` (now in `apps/lab`; ruling R58's
 // binding projection, already unit-tested there). They are duplicated rather
 // than imported so this component does not drag PixiJS into the HUD's module
 // graph and does not break when the canvas board retires.

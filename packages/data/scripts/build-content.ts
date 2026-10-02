@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { prototypeDefinition } from '../src/prototype';
 import type { Content } from '../src/types';
 import { validateContent } from '../src/validate';
+import { compileProgression } from './progression';
 
 /**
  * Recursively sorts object keys by UTF-16 code-unit order, preserves array order,
@@ -44,8 +45,10 @@ function buildContent(): Content {
   const gridHash = sha256Hex(
     canonicalJson({ grid: prototypeDefinition.grid, shapes: prototypeDefinition.shapes }),
   );
-  const version = sha256Hex(canonicalJson(prototypeDefinition));
-  const candidate: Content = { ...prototypeDefinition, version, gridHash };
+  // The compiled tables are content: they are hashed into the version (ruling R134).
+  const definition = { ...prototypeDefinition, progression: compileProgression() };
+  const version = sha256Hex(canonicalJson(definition));
+  const candidate: Content = { ...definition, version, gridHash };
   return validateContent(candidate);
 }
 

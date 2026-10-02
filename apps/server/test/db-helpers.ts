@@ -17,11 +17,33 @@ export const DATABASE_URL =
 
 export type Db = PostgresJsDatabase<typeof schema>;
 
+/**
+ * These suites truncate every table they touch, so they refuse to run against
+ * a database that is not plainly a test one (final review, controller ruling):
+ * the default URL names the dev database `narok`, which holds the owner's own
+ * data. A database whose name ends in `_test` or `_e2e` is always allowed; any
+ * other only under GitHub Actions (`GITHUB_ACTIONS=true`; its service container is
+ * disposable; a bare `CI` is not enough, local tooling sets it) or with the
+ * explicit opt-in `NAROK_DB_TESTS_TRUNCATE=<database name>`.
+ */
+export function assertDisposableDatabase(url: string = DATABASE_URL, env: NodeJS.ProcessEnv = process.env): void {
+  const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
+  if (/_(test|e2e)$/.test(name)) return;
+  if (env.GITHUB_ACTIONS === 'true') return;
+  if (env.NAROK_DB_TESTS_TRUNCATE === name) return;
+  throw new Error(
+    `refusing to run the db suites against database "${name}": they truncate every table. ` +
+      'Point DATABASE_URL at a database named *_test or *_e2e (for example narok_e2e), ' +
+      `or opt in with NAROK_DB_TESTS_TRUNCATE=${name}.`,
+  );
+}
+
 let client: postgres.Sql | undefined;
 let db: Db | undefined;
 
 export async function connect(): Promise<Db> {
   if (db !== undefined) return db;
+  assertDisposableDatabase();
   client = postgres(DATABASE_URL, { max: 8, onnotice: () => {} });
   db = drizzle(client, { schema });
   return db;
@@ -35,6 +57,8 @@ export async function disconnect(): Promise<void> {
 
 /** True when a database answered. Used to fail a suite honestly, not to skip it. */
 export async function databaseReachable(): Promise<boolean> {
+  // Outside the try: a refused database is a loud error, never "unreachable".
+  assertDisposableDatabase();
   try {
     const database = await connect();
     await database.execute(sql`select 1`);
@@ -65,6 +89,7 @@ const TABLES = [
 ] as const;
 
 export async function truncateAll(database: Db): Promise<void> {
+  assertDisposableDatabase();
   await database.execute(sql.raw(`truncate table ${TABLES.join(', ')} restart identity cascade`));
 }
 
@@ -100,8 +125,12 @@ export async function insertCharacter(
       name: `Name${Math.floor(Math.random() * 1e9)}`,
       nameKey: `namekey${Math.floor(Math.random() * 1e9)}`,
       classId: 'guardian',
-      attributes: {},
+      // A level-1 character as creation leaves it (layer-1 §5.3, §5.4), so a
+      // hunt can start from it without a fixture of its own.
+      attributes: { str: 1, agi: 1, vit: 1, int: 1, dex: 1, luk: 1 },
       skills: {},
+      unspentStatPoints: 30,
+      unspentSkillPoints: 1,
       hp: 100,
       mp: 50,
       ...overrides,

@@ -1,0 +1,12 @@
+{
+  "name": "@narok/progression",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@narok/data": "workspace:*"
+  }
+}

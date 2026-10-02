@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { DomainEvent, PositionId, PublicActor } from '@narok/sim';
 import { gridPosition } from '@narok/sim';
 import { EventLog, EVENT_ROW_LIMIT, EVENT_TAB_BY_KIND, EVENT_TABS, eventsForTab, type EventTab } from '../src/EventLog';
-import '../src/i18n';
+import { resources } from '../src/i18n';
 
 afterEach(() => {
   cleanup();
@@ -66,9 +66,9 @@ const ACTORS: PublicActor[] = [
 const ALL_KINDS = Object.keys(EVENT_TAB_BY_KIND) as DomainEvent['kind'][];
 
 describe('event tabs', () => {
-  test('R82: every DomainEvent kind resolves to exactly one of the two tabs', () => {
+  test('R82: every DomainEvent kind resolves to exactly one of the three tabs', () => {
     const exhaustive: Record<DomainEvent['kind'], EventTab> = EVENT_TAB_BY_KIND;
-    expect(EVENT_TABS).toEqual(['combat', 'system']);
+    expect(EVENT_TABS).toEqual(['combat', 'loot', 'system']);
     expect(new Set(ALL_KINDS).size).toBe(ALL_KINDS.length);
 
     for (const kind of ALL_KINDS) {
@@ -86,10 +86,20 @@ describe('event tabs', () => {
     expect(EVENT_TAB_BY_KIND.move).toBe('combat');
   });
 
-  test('milestone A has no loot tab', () => {
-    render(<EventLog events={[]} actors={ACTORS} />);
-    expect(screen.queryByRole('tab', { name: /loot/i })).toBeNull();
-    expect(screen.getAllByRole('tab')).toHaveLength(2);
+  test('the Loot tab is bound to the published loot event, and lists nothing else (part 4 §3.1, R108)', () => {
+    expect(EVENT_TAB_BY_KIND['drop-lost']).toBe('loot');
+    const lootKinds = ALL_KINDS.filter((kind) => EVENT_TAB_BY_KIND[kind] === 'loot');
+    expect(lootKinds).toEqual(['drop-lost']);
+
+    render(<EventLog events={[event('drop-lost', { amount: 4, reason: 'iron-sword' }), event('win')]} actors={ACTORS} />);
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    const loot = screen.getByRole('tab', { name: /loot/i });
+    expect(loot.textContent).toContain('1');
+    fireEvent.click(loot);
+    const rows = screen.getAllByRole('listitem');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.textContent).toContain(resources.en.translation.event.dropLost);
+    expect(rows[0]!.className).toContain('line-drop');
   });
 });
 

@@ -2,17 +2,17 @@
  * The bounded, translated event log (rulings R61 and R82), in the Realm HUD's
  * vocabulary.
  *
- * Milestone A has no loot, so there are exactly two tabs — Combat and System —
- * and both filter the same bounded history: the cap is 500 rows in total, not 500
- * per tab. Every row is a whole translated sentence built from the event's own
+ * The reference's three tabs — Combat, Loot and System — filter one bounded
+ * history: the cap is 500 rows in total, not 500 per tab. Loot returned in
+ * milestone B by binding to the loot event the server publishes (part 4 §3.1). Every row is a whole translated sentence built from the event's own
  * fields; nothing is assembled by concatenating English fragments.
  *
  * `codex-examples/realm-refined/hunt.html:1387-1408` is the approved chrome, so
  * the tab strip emits `.tabs`/`.tab` and the rows emit `.log`, with the reference's
  * per-line colour spans (`.ally`, `.foe`, `<b>`, `.line-crit`, `.line-defeat`,
- * `.line-cast`) applied to the slots the sentence already interpolates. The two
- * line types the reference also shows — `.line-drop` and `.line-level` — have no
- * matching `DomainEvent` kind in milestone A, so they are never emitted. The
+ * `.line-cast`) applied to the slots the sentence already interpolates. `.line-drop`
+ * marks a loot row; `.line-level` has no matching `DomainEvent` kind, so it is
+ * never emitted. The
  * `.chat win` shell around this component is `hud/ChatPanel.tsx`.
  *
  * `PositionId` is never parsed here (only the board renderers may call
@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import type { DomainEvent, Phase, PublicActor } from '@narok/sim';
 import { actorLabel, formatDuration, formatNumber } from './i18n';
 
-export const EVENT_TABS = ['combat', 'system'] as const;
+export const EVENT_TABS = ['combat', 'loot', 'system'] as const;
 export type EventTab = (typeof EVENT_TABS)[number];
 
 /** The visible history bound from milestone spec §11. */
@@ -43,6 +43,7 @@ export const EVENT_TAB_BY_KIND: Record<DomainEvent['kind'], EventTab> = {
   miss: 'combat',
   heal: 'combat',
   death: 'combat',
+  revive: 'combat',
   status: 'combat',
   taunt: 'combat',
   phase: 'system',
@@ -51,6 +52,11 @@ export const EVENT_TAB_BY_KIND: Record<DomainEvent['kind'], EventTab> = {
   win: 'system',
   wipe: 'system',
   stop: 'system',
+  // The Loot tab returns by binding (part 4 §3.1, milestone B Task 9): the server
+  // publishes loot, and `drop-lost` is the loot event the wire carries today.
+  // Kept, auto-sold and ignored drops are counted in `metrics.drops`, not
+  // emitted as events, so the tab lists exactly what was published (R108).
+  'drop-lost': 'loot',
 };
 
 export function eventsForTab(tab: EventTab, events: readonly DomainEvent[]): DomainEvent[] {
@@ -59,8 +65,8 @@ export function eventsForTab(tab: EventTab, events: readonly DomainEvent[]): Dom
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'respawning', 'stopped'];
-const STOP_REASONS = ['wipe-limit', 'stalemate', 'operator'] as const;
+const PHASES: readonly Phase[] = ['walking', 'fighting', 'resting', 'stopped'];
+const STOP_REASONS = ['wipe', 'stalemate', 'operator'] as const;
 
 /** `reason` on a damage/miss/cast event is `<skillId|basic>[:critical|:fizzle]`. */
 function skillLabel(t: Translate, reason: string | null): string {
@@ -93,6 +99,8 @@ function eventKey(event: DomainEvent): string {
       return 'event.heal';
     case 'death':
       return 'event.death';
+    case 'revive':
+      return event.targetId === null ? 'event.revive.apple' : 'event.revive.spell';
     case 'status':
       return event.reason === 'slow' ? 'event.status.slow' : 'event.status.other';
     case 'taunt':
@@ -109,6 +117,8 @@ function eventKey(event: DomainEvent): string {
       return 'event.win';
     case 'wipe':
       return 'event.wipe';
+    case 'drop-lost':
+      return 'event.dropLost';
     case 'stop': {
       const reason = STOP_REASONS.find((candidate) => candidate === event.reason);
       return reason === undefined ? 'event.stop.other' : `event.stop.${reason}`;
@@ -230,11 +240,12 @@ function eventNodes(
 }
 
 /**
- * The reference's line types, restricted to the ones milestone A can actually
- * produce. `.line-drop` needs a loot event and `.line-level` a level-up event;
- * neither kind exists, so neither class is ever emitted.
+ * The reference's line types, restricted to the ones the wire can actually
+ * carry. `.line-drop` marks the published loot event; `.line-level` needs a
+ * level-up event, which no domain event is, so that class is never emitted.
  */
 function lineModifier(event: DomainEvent): string {
+  if (event.kind === 'drop-lost') return 'line-drop';
   if (event.kind === 'death') return 'line-defeat';
   if (event.kind === 'cast') return 'line-cast';
   if (event.kind === 'damage' && event.reason?.endsWith(':critical') === true) return 'line-crit';
@@ -329,7 +340,7 @@ export function EventLog({ events, actors = [] }: EventLogProps): React.JSX.Elem
   // One pass for both tallies; `eventsForTab` per tab would walk the history once
   // per tab and build the filtered arrays only to measure them.
   const counts = useMemo(() => {
-    const tally = { combat: 0, system: 0 } as Record<EventTab, number>;
+    const tally = { combat: 0, loot: 0, system: 0 } as Record<EventTab, number>;
     for (const event of bounded) tally[EVENT_TAB_BY_KIND[event.kind]] += 1;
     return tally;
   }, [bounded]);
@@ -381,7 +392,7 @@ export function EventLog({ events, actors = [] }: EventLogProps): React.JSX.Elem
 
   return (
     <>
-      {/* Two tabs, never the reference's third: milestone A has no loot to list. */}
+      {/* The reference's three tabs: the Loot tab is bound to published loot events. */}
       <div className="tabs" role="tablist" aria-label={t('log.tabs')}>
         {EVENT_TABS.map((tab) => (
           <button

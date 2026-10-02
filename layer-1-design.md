@@ -131,7 +131,7 @@ A checkpoint contains everything needed to resume without hidden process state:
 - Character progression, allocated stats/skills, derived combat state, equipment references, HP/MP, and build templates.
 - Party, map, encounter, enemy state, placements, movement/path state, current targets, and threat.
 - Pending actions/casts, cooldowns, statuses, buff sources/expiry, regeneration schedule, and event sequence counters.
-- Strategy and loot preset snapshots, rest/walk/retreat state, wipe limit and count.
+- Strategy and loot preset snapshots, rest/walk/retreat state, wipe limit and count. *(superseded by the owner decision of 2026-09-30 — no wipe limit and no respawn; a full wipe ends the hunt and town fully heals, R154/R155; see §5.6's struck lines)*
 - Inventory/resource inputs needed by simulation, PRNG state, reward-tier pity state, and deterministic reward sequence identifiers.
 - Simulation time, wall/simulation anchors, pause state, simulation version, content version, checkpoint schema version, and account state version.
 
@@ -160,7 +160,7 @@ A transport reconnect can discard the local animation queue and resynchronize fr
 - A paused encounter resumes from its stored state. Abandoning it for town/map change is an explicit retreat transition, not a silent reset.
 - Return-to-town/map-change recovery and travel costs must be specified before milestone B. ✅ **Decided 2026-09-21 (owner):** stopping a hunt *is* the return to town — there is no resume of an interrupted encounter. The abandoned encounter is lost, the return consumes a simulated travel segment, and stopping still preserves damage, spent resources, PRNG progression and pity counters (§4.5). Starting again begins a new encounter, which is why repeated sampling costs travel time and buys no healing.
 - Simultaneous commands use server sequencing; clients cannot backdate changes.
-- Scheduled consumable use, rest, walking, respawn, and retreat are simulation transitions, not special offline approximations.
+- Scheduled consumable use, rest, walking, respawn, and retreat are simulation transitions, not special offline approximations. *(superseded by the owner decision of 2026-09-30 — no wipe limit and no respawn; a full wipe ends the hunt and town fully heals, R154/R155; see §5.6's struck lines)*
 
 ### 4.6 Offline and wall-clock semantics ✅
 
@@ -289,10 +289,13 @@ Compare specialist and mixed-stat builds. Investigate DEX efficiency and LUK's p
 
 - A wipe means all party members are dead.
 - **No EXP loss and no de-leveling during beta.**
-- Configure a **maximum wipe count**, default **one**, permitted range **one to five**. This is total allowed wipes, not extra retries.
-- On reaching the limit, return to town and end the hunt. Before reaching it, use the explicit respawn transition.
-- Proposed respawn: full HP after 30 seconds. 🟡 MP, statuses, and cooldown behavior must be specified; only the wipe/respawn transition can grant this recovery, never stop/start.
-- A single dead member after an otherwise won encounter revives at 10% HP. 🟡 EXP eligibility is still open.
+- ~~Configure a **maximum wipe count**, default **one**, permitted range **one to five**. This is total allowed wipes, not extra retries.~~ **Superseded (owner decision 2026-09-30):** there is no wipe limit; a full wipe ends the hunt with stop reason `wipe` and the party returns to town (ruling R154).
+- ~~On reaching the limit, return to town and end the hunt. Before reaching it, use the explicit respawn transition.~~ **Superseded (owner decision 2026-09-30):** there is no respawn transition (ruling R154).
+- ~~Proposed respawn: full HP after 30 seconds. 🟡 MP, statuses, and cooldown behavior must be specified; only the wipe/respawn transition can grant this recovery, never stop/start.~~ **Superseded (owner decision 2026-09-30):** every return to town — stop, wipe or stalemate — heals the whole party, living or dead, to full HP and MP (ruling R155, amending R149). This is the one exception to §4.5's "stop/start grants no free recovery".
+- ~~A single dead member after an otherwise won encounter revives at 10% HP. 🟡 EXP eligibility is still open.~~ **Superseded (owner decision 2026-09-30):** a dead member stays dead for the rest of the hunt (ruling R151); it is ineligible for EXP and still counts in the divisor (ruling R135). It comes back only by:
+  - **Idun's Apple** (`idun-apple`), a 999-stack consumable in the shared bag, eaten automatically at the instant of death: one apple, HP `max(1, floor(maxHp × 50 / 100))`, MP as at death; simultaneous deaths resolve in ascending character id (ruling R152). Its sources (drops, quests, player/NPC sale) and price are open.
+  - **Revive**, a Cleric skill cast by a living Cleric with Revive rank ≥ 1 on a dead ally through an `ally-dead` strategy rule, restoring what the apple restores (ruling R153). Its MP cost, cast time, cooldown and range are owner placeholders (`OPEN_CONTENT_INPUTS.revive`).
+  - A revived member rejoins the encounter with statuses, casts and threat cleared and cooldowns kept, at its death cell if free, else its input placement, else the first free party cell (ruling R156); reviving draws no RNG.
 - Death costs elapsed time and resources already spent. Evaluate whether this supplies sufficient risk before proposing any EXP penalty.
 - Away reports expose evidence about failure, such as potion exhaustion, mana depletion, sustained incoming damage, or an exposed damage dealer. Avoid asserting an unsupported causal diagnosis.
 
@@ -629,7 +632,7 @@ Preserve stable IDs, explicit ownership/trade eligibility, versioned effects, au
 | Event priority table, rounding/stacking rules, basic-attack definitions, skill costs/cooldowns | Milestone A combat implementation |
 | Stalemate, path blocking, shape orientation, duplicate Taunt, stun/cast behavior | Milestone A encounter validation |
 | Whether placement produces understandable value and the grid should remain | Broad content expansion |
-| HP/MP adjustments on stat/max changes, dead-member EXP, respawn MP/status handling | Progression/respawn implementation |
+| HP/MP adjustments on stat/max changes, dead-member EXP, respawn MP/status handling *(superseded by the owner decision of 2026-09-30 — no wipe limit and no respawn; a full wipe ends the hunt and town fully heals, R154/R155; see §5.6's struck lines)* | Progression/respawn implementation |
 | ~~Retreat/travel/town recovery costs and stop/restart invariants~~ | **Decided 2026-09-21:** stop returns to town, §4.5 |
 | One-time starter grants (bag overflow **decided 2026-09-21:** the drop is lost, §7.5; two-handed compatibility **decided 2026-09-21:** a two-handed weapon locks the off-hand, §7.1) | Milestone B inventory/town. **Prices deferred by the owner 2026-09-21**: the NPC shop cannot ship until they are set |
 | ~~Predictable first equipment reward and trigger~~ | **Decided 2026-09-21:** a fixed Uncommon item on the first won encounter, identical for every account, no RNG, §7.4 |

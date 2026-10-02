@@ -147,6 +147,15 @@ function evaluateRule(
       );
       return { primary: candidates[0].enemy, targets: [candidates[0].enemy.id] };
     }
+    case 'ally-dead': {
+      // Ruling R153: Revive aims at a fallen ally it can reach — a corpse
+      // occupies no cell, so it is approached like any target — lowest id first.
+      const fallen = Object.keys(state.actors)
+        .sort(compareIds)
+        .map((id) => state.actors[id])
+        .filter((ally) => ally.side === actor.side && ally.hp <= 0 && battlefield.canReach(actor, ally, skill.range, living));
+      return fallen.length === 0 ? null : { primary: fallen[0], targets: [fallen[0].id] };
+    }
     case 'ally-targeted': {
       const reachable = reachableEnemies(actor, enemies, skill.range, battlefield, living);
       const engaged = reachable.some((enemy) => {
@@ -173,6 +182,16 @@ function evaluateRule(
 }
 
 /**
+ * Ruling R153 (owner decision 2026-09-30): a Cleric has Revive when its skill
+ * rank in it is at least 1 — the one skill whose rank gates combat for now;
+ * rank gating in general stays open. A laboratory run carries no ranks, so
+ * its Cleric never casts it.
+ */
+function knowsRevive(state: SimState, actorId: ActorId): boolean {
+  return (state.progression?.[actorId]?.skillRanks.revive ?? 0) >= 1;
+}
+
+/**
  * Party decision (spec §6, R28): scan the configured rules in order, skipping
  * disabled, unaffordable, cooling-down, unsatisfied, and unreachable choices. The
  * first eligible rule supplies the primary target; with none, fall back to a basic
@@ -191,6 +210,7 @@ function partyDecision(
 
   for (const rule of strategy.rules) {
     if (!rule.enabled) continue;
+    if (rule.skillId === 'revive' && !knowsRevive(state, actor.id)) continue;
     const skill = content.skills[rule.skillId];
     if (actor.mp < skill.mp) continue;
     const readyAt = actor.cooldowns[rule.skillId];
