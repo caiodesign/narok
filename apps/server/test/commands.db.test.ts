@@ -390,18 +390,18 @@ describe('the socket’s settlements share the command order (R120)', () => {
 
     let release!: () => void;
     const blocker = r.commands.sequencer.submit(account.id, () => new Promise<void>((resolve) => (release = resolve)));
-    r.clock.now = T0 + 2_000;
+    r.clock.now = T0 + 22_000;
     const heartbeat = r.feed.heartbeat(account.id);
 
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect((await checkpointOf(db, account.id)).checkpointSeq, 'nothing settles while the command holds the order').toBe(before);
 
-    r.clock.now = T0 + 4_000;
+    r.clock.now = T0 + 24_000;
     release();
     await blocker;
     await heartbeat;
     const after = await checkpointOf(db, account.id);
     expect(after.checkpointSeq).toBe(before + 1);
-    expect(sim.decode(after.state).nowMs).toBe(4_000);
+    expect(sim.decode(after.state).nowMs).toBe(24_000);
   });
 });

@@ -22,13 +22,14 @@ export type Db = PostgresJsDatabase<typeof schema>;
  * a database that is not plainly a test one (final review, controller ruling):
  * the default URL names the dev database `narok`, which holds the owner's own
  * data. A database whose name ends in `_test` or `_e2e` is always allowed; any
- * other only under CI (the GitHub service container is disposable) or with the
+ * other only under GitHub Actions (`GITHUB_ACTIONS=true`; its service container is
+ * disposable; a bare `CI` is not enough, local tooling sets it) or with the
  * explicit opt-in `NAROK_DB_TESTS_TRUNCATE=<database name>`.
  */
 export function assertDisposableDatabase(url: string = DATABASE_URL, env: NodeJS.ProcessEnv = process.env): void {
   const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
   if (/_(test|e2e)$/.test(name)) return;
-  if (env.CI !== undefined && env.CI !== '' && env.CI !== 'false') return;
+  if (env.GITHUB_ACTIONS === 'true') return;
   if (env.NAROK_DB_TESTS_TRUNCATE === name) return;
   throw new Error(
     `refusing to run the db suites against database "${name}": they truncate every table. ` +

@@ -124,19 +124,18 @@ export class LifecycleFeed implements HuntFeed {
   }
 
   /**
-   * A heartbeat settles, coalesced (P-13; final review I2; controller ruling):
+   * A heartbeat settles, coalesced and paced (P-13; final review I2; R203):
    * while a settlement for the account is already in flight — a storm of
    * heartbeats from up to four sockets, a tick, a connect — it waits for that
-   * one instead of queueing another behind it; and when the committed
-   * checkpoint already reaches the instant a settlement would credit to,
-   * nothing new is releasable and nothing is committed. Either way the answer
-   * is the same view. No interval is introduced: what limits the write rate is
-   * the play itself, not a number.
+   * one instead of queueing another behind it; and it settles nothing while the
+   * age of the account's settlement window is under `persistCadenceMs`, the
+   * same gate the release tick uses. So heartbeats commit no faster than the
+   * persist cadence however many arrive; the answer is always the current view.
    */
   async heartbeat(accountId: string): Promise<HuntView | undefined> {
     const inFlight = this.settling.get(accountId);
     if (inFlight !== undefined) await inFlight;
-    else if (this.releasable(accountId)) await this.settle(accountId, 'events');
+    else if (this.due(accountId)) await this.settle(accountId, 'events');
     return this.view(accountId);
   }
 
@@ -268,16 +267,11 @@ export class LifecycleFeed implements HuntFeed {
     }
   }
 
-  /**
-   * Whether a settlement now would credit anything: false only when the
-   * committed checkpoint this feed holds already reaches the instant the
-   * settlement window would end at. With no window held, it cannot tell, so
-   * it settles.
-   */
-  private releasable(accountId: string): boolean {
+  /** True when the window is absent (load it) or its age has reached the persist cadence. */
+  private due(accountId: string): boolean {
     const window = this.windows.get(accountId);
     if (window === undefined) return true;
-    return settlementWindow(anchorsOf(window.envelope), this.deps.now()).creditableMs > 0;
+    return this.deps.now() - window.envelope.wallAnchorMs >= this.deps.config.persistCadenceMs;
   }
 
   private async settleOnce(accountId: string, collect: 'events' | 'summary', digest: boolean): Promise<PersistResult | undefined> {

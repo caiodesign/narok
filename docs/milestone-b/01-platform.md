@@ -17,6 +17,9 @@ Milestone B adds `packages/protocol` and `apps/server` to the existing workspace
 |---|---|---|
 | `api` (Fastify, Node) | HTTP routes, WebSocket upgrade and sessions, all validation, all database transactions, the authoritative clock, event release to clients | PostgreSQL; `catchup` workers in-process; clients over HTTPS/WSS behind Caddy (layer-1 §13) |
 | `catchup` worker pool | Executing `advance()` from `@narok/sim` over a checkpoint, producing a candidate result; no database access, no wall-clock authority | `api` only, by message passing |
+| `admin` CLI | Grants/revocations, password resets, maintenance freeze, settle/migrate/resume, restore drills (layer-1 §8.4, §4.7) | PostgreSQL and the `api` maintenance flag |
+| PostgreSQL | All durable state | `api` and `admin` only |
+| Caddy | TLS termination, HTTP→HTTPS redirect, `api` reverse proxy (layer-1 §13) | `api` |
 
 > **Ruling R202 (final review I3, controller ruling 2026-10-02) — deviation from this table and from §8.**
 > In milestone B the `catchup` pool does not exist as a separate execution context: catch-up runs
@@ -25,14 +28,11 @@ Milestone B adds `packages/protocol` and `apps/server` to the existing workspace
 > row is unmet). The `SegmentExecutor` seam is where a `worker_threads` executor and the bounded queue
 > go; `runSegment` is already pure (P-04 holds: it writes nothing). Measured on the workstation
 > (`artifacts/catchup-12h.json`, `artifacts/catchup-12h.ts`): a 12 h digest-mode reconnect settlement
-> takes 712 ms p50 of wall time and blocks the event loop for 605 ms p50 (625 ms max) alone; sixteen
+> takes 712 ms p50 of wall time and blocks the event loop for 605 ms p50 (624.4 ms max) alone; sixteen
 > returning at once take 9.5 s in total, serialised on the one thread, with a longest single stall of
 > 1.16 s. Every socket release tick, heartbeat, authorisation and REST request on the process waits
 > behind that. It is an **open gate before any invitation**, beside B-27, closed by the owner or by the
 > worker executor and bounded queue (results §8).
-| `admin` CLI | Grants/revocations, password resets, maintenance freeze, settle/migrate/resume, restore drills (layer-1 §8.4, §4.7) | PostgreSQL and the `api` maintenance flag |
-| PostgreSQL | All durable state | `api` and `admin` only |
-| Caddy | TLS termination, HTTP→HTTPS redirect, `api` reverse proxy (layer-1 §13) | `api` |
 
 - **P-01** `apps/server` executes progression exclusively through `createSimulation()` exported by `@narok/sim` (contracts §3). No transition, formula, RNG draw or scheduler exists in `apps/server`. Verified by a dependency check that fails the build if `apps/server` declares a simulation-shaped dependency other than `@narok/sim`/`@narok/data`, and by a source scan asserting no `xorshift`/`advance`-loop implementation outside `packages/sim`.
 - **P-02** The server never accepts a client-supplied simulation snapshot as account state. `decode()` is used only for operator/admin artifacts and migration inputs (contracts §3: "Snapshots are experiment artifacts and cannot be imported as trusted production accounts").

@@ -298,15 +298,15 @@ describe('heartbeat is a settlement (step 6)', () => {
     });
     expect(await racing.connect(account.id), 'a lost race still answers').toBeDefined();
 
-    clock.now = T0 + 10_000;
+    clock.now = T0 + 20_000;
     const view = await racing.heartbeat(account.id);
     expect(view, 'a view is still returned').toBeDefined();
     expect(view!.state.nowMs).toBe(view!.releaseSimMs);
 
     // Undisturbed, the next heartbeat settles the whole window.
-    clock.now = T0 + 12_000;
+    clock.now = T0 + 22_000;
     await feed.heartbeat(account.id);
-    expect(envelopeOf(await huntRow(account.id)).simAnchorMs).toBe(12_000);
+    expect(envelopeOf(await huntRow(account.id)).simAnchorMs).toBe(22_000);
   });
 
   test('I2 / P-13: heartbeats arriving while a settlement is in flight share it, and commit once', async () => {
@@ -340,9 +340,35 @@ describe('heartbeat is a settlement (step 6)', () => {
     expect(again!.releaseSimMs).toBe(30_000);
 
     // Time moves on: the next heartbeat settles again, as before.
-    clock.now = T0 + 31_000;
+    clock.now = T0 + 50_000;
     await feed.heartbeat(account.id);
-    expect(envelopeOf(await huntRow(account.id)).simAnchorMs).toBe(31_000);
+    expect(envelopeOf(await huntRow(account.id)).simAnchorMs).toBe(50_000);
+  });
+
+  test('R203: sequential heartbeats on one socket commit at most once per persist cadence', async () => {
+    const account = await insertAccount(db);
+    const { clock, lifecycle, feed } = rig();
+    const cadence = lifecycle.config.persistCadenceMs;
+    await startHunt(lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    await feed.connect(account.id);
+
+    // One heartbeat per second of a moving clock, each awaited before the next
+    // (a socket handles its messages one at a time), for three windows and a bit.
+    const commits: number[] = [];
+    let seq = envelopeOf(await huntRow(account.id)).checkpointSeq;
+    const seconds = Math.floor((3 * cadence + 5_000) / 1_000);
+    for (let second = 1; second <= seconds; second++) {
+      clock.now = T0 + second * 1_000;
+      const view = await feed.heartbeat(account.id);
+      expect(view!.releaseSimMs, 'the answer is always current').toBe(second * 1_000);
+      const now = envelopeOf(await huntRow(account.id)).checkpointSeq;
+      if (now !== seq) commits.push(clock.now);
+      seq = now;
+    }
+
+    expect(commits.length, 'at most one commit per cadence window').toBeLessThanOrEqual(3);
+    expect(commits.length).toBeGreaterThanOrEqual(1);
+    commits.forEach((at, index) => expect(at - (commits[index - 1] ?? T0)).toBeGreaterThanOrEqual(cadence));
   });
 
   test('a stopped hunt keeps answering with its final state and commits nothing', async () => {

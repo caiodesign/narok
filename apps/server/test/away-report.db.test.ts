@@ -313,9 +313,9 @@ describe('a report that cannot be stored (review fix)', () => {
     expect(await reports(account.id)).toEqual([]);
 
     // And the socket keeps serving: a heartbeat still settles and answers.
-    r.clock.now = T0 + 95_000;
+    r.clock.now = T0 + 110_000;
     await session.receive(JSON.stringify({ type: 'heartbeat' }));
     expect(closedWith).toBeUndefined();
-    expect((await huntRow(db, account.id)).lastSeenAt.getTime()).toBe(T0 + 95_000);
+    expect((await huntRow(db, account.id)).lastSeenAt.getTime()).toBe(T0 + 110_000);
   });
 });

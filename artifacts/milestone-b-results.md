@@ -389,11 +389,13 @@ commands), `artifacts/b27-load.log`, `artifacts/b28-backup.dump`, `artifacts/pla
   Every mutating hunt, preset and town route resolves the session and then charges
   `limiters.command` (`config.rateLimits.command`, unchanged) before any read or rule; reads are not
   charged. A socket heartbeat no longer queues a settlement per message: it waits for one already in
-  flight for the account, and settles nothing when the committed checkpoint already reaches the
-  instant a settlement would credit to. No new interval or threshold was introduced. *Cost if wrong:*
-  a heartbeat storm still costs a view (an engine run on a copy, no write).
+  flight for the account, and settles nothing while the age of the account's settlement window is
+  under the existing `persistCadenceMs` (the release tick's own gate), so heartbeats commit at most
+  once per cadence window. No new interval or threshold was introduced. *Cost if wrong:* a heartbeat
+  storm still costs a view (an engine run on a copy, no write) per heartbeat.
 - **R204 — the db suites refuse the dev database.** `apps/server/test/db-helpers.ts` refuses any
-  database whose name does not end in `_test` or `_e2e` unless `CI` is set or
+  database whose name does not end in `_test` or `_e2e` unless `GITHUB_ACTIONS=true` (a bare `CI` is not
+  accepted) or
   `NAROK_DB_TESTS_TRUNCATE=<name>` opts in, because the suites truncate every table and the default
   URL names `narok`. Local `pnpm check` needs `DATABASE_URL` pointed at a harness database (for
   example `narok_e2e`). *Cost if wrong:* a developer sets one variable.
