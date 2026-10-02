@@ -13,13 +13,19 @@
  * answers, and the account read that follows brings rank, points, derived
  * stats and unlocks together. A refused allocation keeps the player's draft
  * (B-16): see `AttributePane`.
+ *
+ * Ruling R195: every refusal is rendered from the server's stable code
+ * (`serverError.<CODE>`, part 4 §3.1) in the pane whose command it refused —
+ * an allocation's in the attribute pane, a skill rank's in the skill pane, an
+ * unequip's in the gear pane's item tip — caught from that command's own
+ * rejection, so no pane shows another's refusal and none is swallowed.
  */
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, SkillId, Slot } from '@narok/data';
 import type { AttributeKey } from '@narok/progression';
 import sheet from '../character.css?raw';
-import { CommandError, type CharacterSummary, type InventoryResponse } from '../commands';
+import { CommandError, faultOf, type CharacterSummary, type InventoryResponse } from '../commands';
 import { classGlyphId, classNames, medalModifier, meterVar } from '../hud/model';
 import { SpriteSheet } from '../hud/SpriteSheet';
 import { WorldBackdrop } from '../hud/WorldBackdrop';
@@ -31,6 +37,11 @@ import { useRouteSheet } from './sheets';
 import { SkillPane } from './SkillPane';
 import { TownSprites } from './TownSprites';
 
+/**
+ * Each rejects with the server's refusal. A stale account version
+ * (`CONFLICT_STATE_VERSION`) has already re-read the account when the
+ * rejection arrives (R189), so the screen does not read it again.
+ */
 export interface CharacterCommands {
   allocate(characterId: string, spend: AttributeSpend, quotedCost: number): Promise<void>;
   upgradeSkill(characterId: string, skillId: SkillId, targetRank: number): Promise<void>;
@@ -69,10 +80,13 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
   const [refusal, setRefusal] = useState<string | null>(null);
   const [stagedSkill, setStagedSkill] = useState<SkillId | null>(null);
   const [learning, setLearning] = useState(false);
+  /** The code of the last refused skill rank (R195). */
+  const [skillRefusal, setSkillRefusal] = useState<string | null>(null);
 
   useEffect(() => {
     setStagedSkill(null);
     setFocus(null);
+    setSkillRefusal(null);
   }, [character?.id]);
 
   const items = inventory?.items ?? [];
@@ -190,9 +204,12 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
       } catch (error) {
         const code = error instanceof CommandError ? error.code : 'INTERNAL';
         const field = error instanceof CommandError ? error.field : '';
-        // A stale account, or a cost that no longer matches it: re-read and
-        // keep the draft for the player to review — never resend it unseen.
-        if (code === 'CONFLICT_STATE_VERSION' || field === 'COST_MISMATCH' || field === 'INSUFFICIENT_POINTS') {
+        // A stale account, or a cost that no longer matches it: keep the draft
+        // for the player to review — never resend it unseen. A stale version
+        // has already re-read the account (R189); a cost refusal has not.
+        if (code === 'CONFLICT_STATE_VERSION') {
+          setNotice('stale');
+        } else if (field === 'COST_MISMATCH' || field === 'INSUFFICIENT_POINTS') {
           setNotice('stale');
           await commands.refresh();
         } else {
@@ -209,10 +226,12 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
     if (stagedSkill === null || learning) return;
     const rank = character.skillRanks?.[stagedSkill] ?? 0;
     setLearning(true);
+    setSkillRefusal(null);
     void commands
       .upgradeSkill(character.id, stagedSkill, rank + 1)
       .then(() => setStagedSkill(null))
-      .catch(() => commands.refresh())
+      // Shown, never swallowed; the staged rank stays for the player (R195).
+      .catch((error: unknown) => setSkillRefusal(faultOf(error).code))
       .finally(() => setLearning(false));
   };
 
@@ -282,11 +301,11 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
               <div>
                 <div className="bar bar--hp" role="meter" aria-label={t('character.health')} aria-valuenow={character.hp} aria-valuemin={0} aria-valuemax={character.maxHp}>
                   <i style={{ '--v': meterVar(character.hp, character.maxHp) } as React.CSSProperties} />
-                  <span>{t('bag.occupancy', { used: number(character.hp), capacity: number(character.maxHp) })}</span>
+                  <span>{t('character.bar', { value: number(character.hp), max: number(character.maxHp) })}</span>
                 </div>
                 <div className="bar bar--mp" role="meter" aria-label={t('character.mana')} aria-valuenow={character.mp} aria-valuemin={0} aria-valuemax={character.maxMp}>
                   <i style={{ '--v': meterVar(character.mp, character.maxMp) } as React.CSSProperties} />
-                  <span>{t('bag.occupancy', { used: number(character.mp), capacity: number(character.maxMp) })}</span>
+                  <span>{t('character.bar', { value: number(character.mp), max: number(character.maxMp) })}</span>
                 </div>
               </div>
             )}
@@ -298,7 +317,7 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
                 {expToNext !== null && (
                   <div className="bar bar--xp" role="meter" aria-label={t('character.experience')} aria-valuenow={character.exp} aria-valuemin={0} aria-valuemax={expToNext}>
                     <i style={{ '--v': meterVar(character.exp, expToNext) } as React.CSSProperties} />
-                    <span>{t('bag.occupancy', { used: number(character.exp), capacity: number(expToNext) })}</span>
+                    <span>{t('character.bar', { value: number(character.exp), max: number(expToNext) })}</span>
                   </div>
                 )}
               </div>
@@ -312,7 +331,7 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
             items={items}
             content={content}
             hunting={hunting}
-            onUnequip={(slot) => commands.unequip(character.id, slot).catch(() => commands.refresh())}
+            onUnequip={(slot) => commands.unequip(character.id, slot)}
           />
           {attributes !== undefined && (
             <AttributePane
@@ -337,6 +356,7 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
             hunting={hunting}
             staged={stagedSkill}
             learning={learning}
+            refusal={skillRefusal}
             onStage={setStagedSkill}
             onLearn={learn}
           />

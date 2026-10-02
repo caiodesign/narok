@@ -341,6 +341,13 @@ describe('B-17: the away view', () => {
     },
     wipesThisHunt: 2,
     rewardsCredited: 5,
+    mapId: null,
+    party: null,
+    memberDeaths: null,
+    notable: null,
+    notableTotal: null,
+    timeline: null,
+    timelineOmitted: null,
   };
 
   test('time away and simulated time are separate; the cap is the server’s window', () => {

@@ -27,6 +27,7 @@ import {
   type SimState,
   type StopReason,
 } from '@narok/sim';
+import { DigestFolder, type HuntDigest } from '../hunt/digest';
 import { REWARD_CARRIER_CAP } from '../hunt/envelope';
 
 /** The engine's own default work budget (contracts §5); halved only to fit the reward carrier. */
@@ -54,6 +55,13 @@ export interface SegmentRequest {
    * and continues — never by dropping a reward. Defaults to the full carrier.
    */
   readonly rewardRoom?: number;
+  /**
+   * Fold the segment's events into a digest (ruling R192) — for a settlement
+   * an away report will describe. The engine then runs in `'events'` mode,
+   * which changes no state, RNG use or reward; only the events `collect`
+   * asked for are returned.
+   */
+  readonly digest?: boolean;
 }
 
 export interface SegmentResult {
@@ -88,6 +96,8 @@ export interface SegmentResult {
   readonly pendingRulesQueued: boolean;
   /** Whether an applied loot filter is still waiting for earlier drops to settle (R131). */
   readonly pendingLootQueued: boolean;
+  /** The folded events when the request asked for a digest; `null` otherwise. */
+  readonly digest: HuntDigest | null;
 }
 
 export class RewardCarrierStalled extends Error {
@@ -131,6 +141,10 @@ export function runSegment(sim: Simulation, request: SegmentRequest): SegmentRes
   const events: DomainEvent[] = [];
   const rewards: PendingReward[] = [];
   let continuations = 0;
+  const party = new Set(Object.values(started.actors).filter((actor) => actor.side === 'party').map((actor) => actor.id));
+  const folder = request.digest === true ? new DigestFolder(party) : null;
+  // A digest needs the events; whether they are returned is still `collect`'s call.
+  const advanceCollect = folder === null ? request.collect : 'events';
 
   const finish = (completion: SegmentResult['completion']): SegmentResult => ({
     encodedState: sim.encode(current),
@@ -144,6 +158,7 @@ export function runSegment(sim: Simulation, request: SegmentRequest): SegmentRes
     rewards,
     pendingRulesQueued: current.pendingRules !== null,
     pendingLootQueued: current.pendingLoot.length > 0,
+    digest: folder === null ? null : folder.result(),
   });
 
   let budget = fullBudget;
@@ -151,7 +166,7 @@ export function runSegment(sim: Simulation, request: SegmentRequest): SegmentRes
     const beforeNowMs = current.nowMs;
     const beforePopped = current.nextQueueSeq - current.queue.length;
 
-    const options: AdvanceOptions = { collect: request.collect, maxScheduledEvents: budget };
+    const options: AdvanceOptions = { collect: advanceCollect, maxScheduledEvents: budget };
     const result = sim.advance(current, request.simTarget, options);
 
     // Rewards are read from the state the step produced, never from its events
@@ -174,7 +189,8 @@ export function runSegment(sim: Simulation, request: SegmentRequest): SegmentRes
     current = drained.state;
     // A loop, not a spread: a large budget can yield more events than a call
     // accepts as arguments.
-    for (const event of result.events) events.push(event);
+    folder?.fold(result.events);
+    if (request.collect === 'events') for (const event of result.events) events.push(event);
     for (const reward of drained.rewards) rewards.push(reward);
 
     if (result.reachedTarget) return finish(current.phase === 'stopped' ? 'stopped' : 'target');

@@ -13,12 +13,17 @@
  * Equip and lock are commands; the screen shows them pending and lets the
  * account read that follows bring the new state. Sale controls exist only
  * when the shop flag hands this screen a sale kit (ruling R185).
+ *
+ * Ruling R195: the screen shows only its own commands' refusals — the code of
+ * the equip or lock it sent, caught from that command's rejection — never the
+ * account's last error, which may be a Hunt start refused before the bag was
+ * opened (Task 10 fix round 1, Minor 3).
  */
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, Slot } from '@narok/data';
 import sheet from '../bag.css?raw';
-import type { CharacterSummary, InventoryResponse, LootPresetRecord, PresetRef } from '../commands';
+import { faultOf, type CharacterSummary, type InventoryResponse, type LootPresetRecord, type PresetRef } from '../commands';
 import { classNames } from '../hud/model';
 import { formatNumber } from '../i18n';
 import { FilterPane } from './FilterPane';
@@ -47,6 +52,7 @@ import { TownSprites } from './TownSprites';
 import { SpriteSheet } from '../hud/SpriteSheet';
 import { WorldBackdrop } from '../hud/WorldBackdrop';
 
+/** Each rejects with the server's refusal; the screen renders the code (R195). */
 export interface BagCommands {
   equip(itemId: string, characterId: string, slot: Slot): Promise<void>;
   lock(itemId: string, locked: boolean): Promise<void>;
@@ -59,18 +65,21 @@ export interface BagScreenProps {
   readonly inventory: InventoryResponse | null;
   readonly characters: readonly CharacterSummary[];
   readonly lootPresets: readonly LootPresetRecord[];
+  /** The loot preset the running hunt filters with, or a start would use (R190). */
+  readonly activeLootId: string | null;
+  /** A loot preset applied and waiting for earlier drops. */
+  readonly pendingLootId: string | null;
   /** A hunt is running: equip waits for town; inspection, lock and the filter do not. */
   readonly hunting: boolean;
   readonly zone: string | null;
   readonly commands: BagCommands;
   /** The sale controls, present only with `VITE_FEATURE_SHOP` on (ruling R185). */
   readonly sale: SaleKit | null;
-  /** The last refused command, as the server's stable code. */
-  readonly fault?: string | null;
   readonly onBack: () => void;
 }
 
-export function BagScreen({ content, inventory, characters, lootPresets, hunting, zone, commands, sale, fault = null, onBack }: BagScreenProps): React.JSX.Element {
+export function BagScreen(props: BagScreenProps): React.JSX.Element {
+  const { content, inventory, characters, lootPresets, activeLootId, pendingLootId, hunting, zone, commands, sale, onBack } = props;
   useRouteSheet('bag', sheet);
   const { t, i18n } = useTranslation();
   const figure = useFigure();
@@ -81,6 +90,8 @@ export function BagScreen({ content, inventory, characters, lootPresets, hunting
   const [pinnedKey, setPinnedKey] = useState<string | null>(null);
   const [compareId, setCompareId] = useState<string | null>(null);
   const [pending, setPending] = useState<'equip' | 'lock' | null>(null);
+  /** The code of this screen's last refused equip or lock (R195). */
+  const [fault, setFault] = useState<string | null>(null);
 
   const entries = useMemo(() => bagEntries(inventory), [inventory]);
   const items = inventory?.items ?? [];
@@ -104,7 +115,10 @@ export function BagScreen({ content, inventory, characters, lootPresets, hunting
   const run = (kind: 'equip' | 'lock', action: () => Promise<void>) => {
     if (pending !== null) return;
     setPending(kind);
-    void action().finally(() => setPending(null));
+    setFault(null);
+    void action()
+      .catch((error: unknown) => setFault(faultOf(error).code))
+      .finally(() => setPending(null));
   };
 
   const cycleSort = () => setSort((current) => BAG_SORTS[(BAG_SORTS.indexOf(current) + 1) % BAG_SORTS.length]!);
@@ -278,6 +292,8 @@ export function BagScreen({ content, inventory, characters, lootPresets, hunting
           presets={lootPresets}
           items={items.filter((entry) => entry.equipped === null)}
           hunting={hunting}
+          activeId={activeLootId}
+          pendingId={pendingLootId}
           onApply={commands.applyLoot}
         />
       </main>

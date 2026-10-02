@@ -123,7 +123,7 @@ export function AttributePane(props: AttributePaneProps): React.JSX.Element {
           {summary.staged && !summary.affordable && <> {t('character.insufficient', { pending: summary.pending, unspent: summary.unspent })}</>}
           {notice === 'stale' && <> {t('character.stale')}</>}
           {notice === 'refused' && refusal !== null && <> {t('town.refused', { reason: t(`serverError.${refusal}`) })}</>}
-          {hunting && <> {t('character.skill.missing.town')}</>}
+          {hunting && <> {t('character.allocateTown')}</>}
         </p>
         <div className="allocation-actions">
           <button type="button" disabled={!summary.staged || !summary.affordable || hunting || applying} aria-busy={applying} onClick={props.onApply}>

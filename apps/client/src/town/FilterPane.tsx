@@ -10,12 +10,24 @@
  * *saved* preset version to the running hunt and governs future drops only;
  * B has no loot-preset save route, so a dirty draft cannot be applied and the
  * pane says so rather than applying something the server never stored.
+ *
+ * Ruling R190: the pane opens on the active preset — the one the running hunt
+ * filters with, or in town the one a start would use — and marks it, and marks
+ * a preset applied but still waiting for earlier drops as pending; because
+ * part 4 §3.3 reads "the active and draft loot presets", and the first preset
+ * in the list is only an alphabetical accident.
+ *
+ * Ruling R196: drafts are kept per preset, so switching tabs never discards
+ * one, and a newly read version of a preset leaves an edited draft in place —
+ * still marked edited against the version now saved — because part 4 §3.3
+ * requires the draft "preserved across recoverable failures" and a refresh is
+ * not the player's decision to drop it. Revert is the only way a draft goes.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, ItemInstance, Rarity } from '@narok/data';
 import { LOOT_ACTIONS, LOOT_RARITIES, type LootAction, type LootCondition, type LootPreset } from '@narok/loot';
-import type { LootPresetRecord, PresetRef } from '../commands';
+import { faultOf, type LootPresetRecord, type PresetRef } from '../commands';
 import { classNames } from '../hud/model';
 import { dropOf, previewFilter, tally } from './model';
 
@@ -26,6 +38,10 @@ export interface FilterPaneProps {
   readonly items: readonly ItemInstance[];
   /** A hunt is running, so a filter can be applied to its future drops. */
   readonly hunting: boolean;
+  /** The running hunt's active preset, or in town the one a start would use (R190). */
+  readonly activeId: string | null;
+  /** A preset applied to the running hunt and still waiting for earlier drops. */
+  readonly pendingId: string | null;
   readonly onApply: (ref: PresetRef) => Promise<void>;
 }
 
@@ -49,18 +65,29 @@ function conditionText(t: (key: string, options?: Record<string, unknown>) => st
 const verdictClass = (action: LootAction): string =>
   action === 'keep' ? 'verdict--keep' : action === 'auto-sell' ? 'verdict--sell' : 'verdict--ignore';
 
-export function FilterPane({ content, presets, items, hunting, onApply }: FilterPaneProps): React.JSX.Element {
+export function FilterPane({ content, presets, items, hunting, activeId, pendingId, onApply }: FilterPaneProps): React.JSX.Element {
   const { t } = useTranslation();
-  const [selectedId, setSelectedId] = useState<string | null>(presets[0]?.id ?? null);
-  const selected = presets.find((preset) => preset.id === selectedId) ?? presets[0] ?? null;
+  // The player's own tab choice; until there is one, the active preset (R190).
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const selected = presets.find((preset) => preset.id === (pickedId ?? activeId)) ?? presets[0] ?? null;
   const saved = selected?.payload ?? null;
-  const [draftRarity, setDraftRarity] = useState<LootPreset['rarity'] | null>(null);
+  // One draft per preset id, never cleared by a refresh (R196).
+  const [drafts, setDrafts] = useState<Readonly<Record<string, LootPreset['rarity']>>>({});
+  const draftRarity = selected === null ? null : (drafts[selected.id] ?? null);
   const [applying, setApplying] = useState(false);
+  /** The code of this pane's last refused Apply (R195). */
+  const [refusal, setRefusal] = useState<string | null>(null);
 
-  // A newly read version replaces a clean draft; an edited one is kept.
-  useEffect(() => {
-    setDraftRarity(null);
-  }, [selected?.id, selected?.presetVersion]);
+  const setDraft = (rarity: LootPreset['rarity'] | null) => {
+    if (selected === null) return;
+    const id = selected.id;
+    setDrafts((current) => {
+      const next = { ...current };
+      if (rarity === null) delete next[id];
+      else next[id] = rarity;
+      return next;
+    });
+  };
 
   const draft: LootPreset | null = saved === null ? null : { ...saved, rarity: draftRarity ?? saved.rarity };
   const dirty = saved !== null && draftRarity !== null && !sameRules(draftRarity, saved.rarity);
@@ -74,13 +101,16 @@ export function FilterPane({ content, presets, items, hunting, onApply }: Filter
 
   const choose = (rarity: Rarity, action: LootAction) => {
     if (saved === null) return;
-    setDraftRarity((current) => ({ ...(current ?? saved.rarity), [rarity]: action }));
+    setDraft({ ...(draftRarity ?? saved.rarity), [rarity]: action });
   };
 
   const apply = () => {
     if (selected === null || dirty || !hunting || applying) return;
     setApplying(true);
-    void onApply({ presetId: selected.id, presetVersion: selected.presetVersion }).finally(() => setApplying(false));
+    setRefusal(null);
+    void onApply({ presetId: selected.id, presetVersion: selected.presetVersion })
+      .catch((error: unknown) => setRefusal(faultOf(error).code))
+      .finally(() => setApplying(false));
   };
 
   const recordFor = (key: string) => records.find((record) => record.key === key)!;
@@ -101,10 +131,14 @@ export function FilterPane({ content, presets, items, hunting, onApply }: Filter
               type="button"
               role="radio"
               aria-checked={preset.id === selected?.id}
-              onClick={() => setSelectedId(preset.id)}
+              onClick={() => setPickedId(preset.id)}
             >
               {preset.name}
-              {preset.id === selected?.id && dirty && <span className="dirty" title={t('bag.filter.unsaved')} />}
+              {preset.id === activeId && <small> {t(hunting ? 'bag.filter.tag.active' : 'bag.filter.tag.start')}</small>}
+              {preset.id === pendingId && <small> {t('bag.filter.tag.pending')}</small>}
+              {drafts[preset.id] !== undefined && preset.payload !== undefined && !sameRules(drafts[preset.id]!, preset.payload.rarity) && (
+                <span className="dirty" title={t('bag.filter.unsaved')} />
+              )}
             </button>
           ))}
         </div>
@@ -214,9 +248,15 @@ export function FilterPane({ content, presets, items, hunting, onApply }: Filter
       <footer className="filter-foot">
         <p className="tally">
           <span className="tally-now">{t('bag.filter.tally', { keep: counts.keep, sold: counts['auto-sell'], ignored: counts.ignore })}</span>
-          <span className="was">{dirty ? t('bag.filter.cannotApplyDraft') : t('bag.filter.previewOnly')}</span>
+          {refusal !== null ? (
+            <span className="was" role="alert">
+              {t('town.refused', { reason: t(`serverError.${refusal}`) })}
+            </span>
+          ) : (
+            <span className="was">{dirty ? t('bag.filter.cannotApplyDraft') : t('bag.filter.previewOnly')}</span>
+          )}
         </p>
-        <button className="btn-revert" type="button" disabled={!dirty} onClick={() => setDraftRarity(null)}>
+        <button className="btn-revert" type="button" disabled={!dirty} onClick={() => setDraft(null)}>
           {t('bag.filter.revert')}
         </button>
         <button

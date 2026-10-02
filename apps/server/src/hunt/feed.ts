@@ -26,6 +26,7 @@ import type { DomainEventWire } from '@narok/protocol';
 import { ConflictError } from '../db/tx';
 import { AppError } from '../errors';
 import type { HuntFeed, HuntPush, HuntView } from '../ws/socket';
+import { anchorsOf } from './settle';
 import { settlementWindow } from './clock';
 import type { CheckpointEnvelope } from './envelope';
 import { persistHunt, readHunt, type LifecycleDeps, type PersistResult } from './lifecycle';
@@ -111,7 +112,8 @@ export class LifecycleFeed implements HuntFeed {
     // so its events are kept and that socket's stream stays gapless. With
     // none, the time away may be hours: it is folded into the snapshot.
     const streaming = this.windows.has(accountId);
-    const committed = await this.settle(accountId, streaming ? 'events' : 'summary');
+    // An absence's settlement folds its events into a digest for the report (R192).
+    const committed = await this.settle(accountId, streaming ? 'events' : 'summary', !streaming);
     // A return from an absence gets its report; a second tab joining a
     // stream that never stopped has been away from nothing.
     const reportId = streaming || committed === undefined ? undefined : await this.report(accountId, committed);
@@ -238,12 +240,12 @@ export class LifecycleFeed implements HuntFeed {
    * window is re-read from what did commit, and the next settlement covers
    * the time this one did not.
    */
-  private async settle(accountId: string, collect: 'events' | 'summary'): Promise<PersistResult | undefined> {
+  private async settle(accountId: string, collect: 'events' | 'summary', digest = false): Promise<PersistResult | undefined> {
     let committed;
     try {
       // In the account's command order, settled to the instant it was stamped at.
       committed = await this.sequencer.submit(accountId, (stamp) =>
-        persistHunt(this.deps, accountId, { live: true, collect, atWall: stamp.commandAtWall }),
+        persistHunt(this.deps, accountId, { live: true, collect, atWall: stamp.commandAtWall, digest }),
       );
     } catch (error) {
       if (error instanceof ConflictError && error.code === 'CONFLICT_STATE_VERSION') {
@@ -264,7 +266,8 @@ export class LifecycleFeed implements HuntFeed {
    * it would have described already stands.
    */
   private async report(accountId: string, committed: PersistResult): Promise<string | undefined> {
-    if (committed.completion === 'inert' || committed.window === null) return undefined;
+    // A settlement that folded no digest cannot describe the absence; none is invented.
+    if (committed.completion === 'inert' || committed.window === null || committed.digest === null) return undefined;
     const { sim } = this.deps;
     const report = buildAwayReport({
       huntId: committed.envelope.huntId,
@@ -278,6 +281,10 @@ export class LifecycleFeed implements HuntFeed {
       before: sim.decode(committed.previous.state),
       after: sim.decode(committed.envelope.state),
       rewardsCredited: committed.rewards.length,
+      mapId: committed.mapId,
+      anchors: anchorsOf(committed.previous),
+      digest: committed.digest,
+      rewards: committed.rewards,
     });
     const record = this.options.recordReport ?? recordAwayReport;
     try {

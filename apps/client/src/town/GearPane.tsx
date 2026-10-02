@@ -5,12 +5,13 @@
  * and the selected slot's item tip with Unequip — a town-only command.
  *
  * Ruling R182: no sell price, roll range or comparison against a fixture is
- * shown; the tip carries the item's own figures only.
+ * shown; the tip carries the item's own figures only. Ruling R195: a refused
+ * unequip keeps the tip open and says why, from the server's code.
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Content, ItemInstance, Slot } from '@narok/data';
-import type { CharacterSummary } from '../commands';
+import { faultOf, type CharacterSummary } from '../commands';
 import { classNames } from '../hud/model';
 import { formatNumber } from '../i18n';
 import { EMPTY_SLOT_ICON, itemIcon, rarityRow } from './icons';
@@ -25,6 +26,7 @@ export interface GearPaneProps {
   readonly items: readonly ItemInstance[];
   readonly content: Content;
   readonly hunting: boolean;
+  /** Rejects with the server's refusal, which the tip renders (R195). */
   readonly onUnequip: (slot: Slot) => Promise<void>;
 }
 
@@ -33,11 +35,15 @@ export function GearPane({ character, items, content, hunting, onUnequip }: Gear
   const figure = useFigure();
   const [pinned, setPinned] = useState<Slot | null>(null);
   const [pending, setPending] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const pinnedItem = pinned === null ? null : equippedIn(items, character.id, pinned);
 
   const slotRow = (slot: Slot) => {
     const worn = equippedIn(items, character.id, slot);
-    const select = () => setPinned((current) => (current === slot || worn === null ? null : slot));
+    const select = () => {
+      setRefusal(null);
+      setPinned((current) => (current === slot || worn === null ? null : slot));
+    };
     if (worn === null) {
       const fits = fitsInBag(items, character, slot, content);
       return (
@@ -147,21 +153,34 @@ export function GearPane({ character, items, content, hunting, onUnequip }: Gear
               aria-busy={pending}
               onClick={() => {
                 setPending(true);
-                void onUnequip(pinned).finally(() => {
-                  setPending(false);
-                  setPinned(null);
-                });
+                setRefusal(null);
+                void onUnequip(pinned)
+                  .then(() => setPinned(null))
+                  .catch((error: unknown) => setRefusal(faultOf(error).code))
+                  .finally(() => setPending(false));
               }}
             >
               {hunting ? t('bag.block.hunting') : t('character.unequip')}
             </button>
-            <button className="minibtn" type="button" onClick={() => setPinned(null)}>
+            <button
+              className="minibtn"
+              type="button"
+              onClick={() => {
+                setRefusal(null);
+                setPinned(null);
+              }}
+            >
               <svg aria-hidden="true">
                 <use href="#i-close" />
               </svg>
               {t('bag.unpin')}
             </button>
           </div>
+          {refusal !== null && (
+            <p className="itip-sec" role="alert">
+              {t('town.refused', { reason: t(`serverError.${refusal}`) })}
+            </p>
+          )}
         </article>
       )}
     </section>

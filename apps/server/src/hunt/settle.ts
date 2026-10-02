@@ -25,6 +25,7 @@
  * (B-L02).
  */
 import type { DomainEvent, StopReason } from '@narok/sim';
+import type { HuntDigest } from './digest';
 import type { SegmentRequest, SegmentResult } from '../workers/segment';
 import { reanchor, settlementWindow, stopWallInstant, type HuntAnchors, type SettlementWindow } from './clock';
 import { REWARD_CARRIER_CAP, type CheckpointEnvelope } from './envelope';
@@ -47,6 +48,8 @@ export interface SettleOptions {
   readonly accountStateVersion?: number;
   /** The carrier bound for this settlement; never above the envelope's own cap. */
   readonly rewardCap?: number;
+  /** Fold the window's events into a digest for an away report (ruling R192). Never changes state. */
+  readonly digest?: boolean;
 }
 
 export interface Settlement {
@@ -71,6 +74,8 @@ export interface Settlement {
   readonly events: readonly DomainEvent[];
   /** Whether a queued strategy became active inside this window. */
   readonly activated: boolean;
+  /** The window's events folded, when the settlement asked for it (R192). */
+  readonly digest: HuntDigest | null;
 }
 
 export function anchorsOf(envelope: CheckpointEnvelope): HuntAnchors {
@@ -108,6 +113,7 @@ export function settlementRequest(
       simTarget: window.simTarget,
       collect: options.collect ?? 'summary',
       rewardRoom: Math.min(options.rewardCap ?? REWARD_CARRIER_CAP, REWARD_CARRIER_CAP),
+      ...(options.digest === true ? { digest: true } : {}),
     },
   };
 }
@@ -218,6 +224,7 @@ export function applySegment(
     rewards,
     events: segment.events,
     activated,
+    digest: segment.digest ?? null,
   };
 }
 

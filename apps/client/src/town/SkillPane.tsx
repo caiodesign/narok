@@ -33,11 +33,13 @@ export interface SkillPaneProps {
   readonly hunting: boolean;
   readonly staged: SkillId | null;
   readonly learning: boolean;
+  /** The server's code for the last refused rank, shown here only (R195). */
+  readonly refusal: string | null;
   readonly onStage: (skillId: SkillId | null) => void;
   readonly onLearn: () => void;
 }
 
-export function SkillPane({ character, content, hunting, staged, learning, onStage, onLearn }: SkillPaneProps): React.JSX.Element {
+export function SkillPane({ character, content, hunting, staged, learning, refusal, onStage, onLearn }: SkillPaneProps): React.JSX.Element {
   const { t, i18n } = useTranslation();
   const rows = skillRows(character, content, hunting);
   const next = nextSkillPointLevel(character.level, content.progression);
@@ -113,6 +115,7 @@ export function SkillPane({ character, content, hunting, staged, learning, onSta
             ? t('character.skillChoose')
             : t('character.skillPreview', { skill: name(stagedRow.skillId), from: stagedRow.rank, to: stagedRow.rank + 1 })}
         </p>
+        {refusal !== null && <p role="alert">{t('town.refused', { reason: t(`serverError.${refusal}`) })}</p>}
         <div className="allocation-actions">
           <button type="button" disabled={stagedRow === null || stagedRow.missing.length > 0 || learning} aria-busy={learning} onClick={onLearn}>
             {learning ? t('character.learning') : t('character.learn')}

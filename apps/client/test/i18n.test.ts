@@ -35,19 +35,46 @@ function treeOf(language: SupportedLanguage): Tree {
 }
 
 function has(language: SupportedLanguage, key: string): boolean {
-  return flatten(treeOf(language)).includes(key);
+  const keys = flatten(treeOf(language));
+  // A plural family answers for its base key (i18next picks the form by count).
+  return keys.includes(key) || keys.some((each) => PLURAL.test(each) && each.replace(PLURAL, '') === key);
+}
+
+/** i18next's plural suffixes (CLDR categories). */
+const PLURAL = /_(zero|one|two|few|many|other)$/;
+
+/** Keys with plural suffixes folded into their family's base key. */
+function families(language: SupportedLanguage): Set<string> {
+  return new Set(flatten(treeOf(language)).map((key) => key.replace(PLURAL, '')));
 }
 
 describe('locale resources', () => {
   test('EN and PT-BR expose exactly the same key set in both directions', () => {
-    const en = new Set(flatten(treeOf('en')));
-    const ptBR = new Set(flatten(treeOf('pt-BR')));
+    // Plural families compare by base key: each language carries its own plural forms (below).
+    const en = families('en');
+    const ptBR = families('pt-BR');
 
     const missingFromPtBr = [...en].filter((key) => !ptBR.has(key)).sort();
     const missingFromEn = [...ptBR].filter((key) => !en.has(key)).sort();
 
     expect(missingFromPtBr).toEqual([]);
     expect(missingFromEn).toEqual([]);
+  });
+
+  test('every plural family carries exactly its language’s plural forms (PT-BR: _one, _many and _other)', () => {
+    for (const language of SUPPORTED_LANGUAGES) {
+      const required = new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+      const keys = flatten(treeOf(language)).filter((key) => PLURAL.test(key));
+      const byFamily = new Map<string, Set<string>>();
+      for (const key of keys) {
+        const base = key.replace(PLURAL, '');
+        byFamily.set(base, (byFamily.get(base) ?? new Set()).add(key.slice(base.length + 1)));
+      }
+      expect(byFamily.size, language).toBeGreaterThan(0);
+      const wrong = [...byFamily].filter(([, forms]) => [...forms].sort().join() !== [...required].sort().join()).map(([base, forms]) => `${base}: ${[...forms].sort().join()}`);
+      expect(wrong, language).toEqual([]);
+    }
+    expect(new Intl.PluralRules('pt-BR').resolvedOptions().pluralCategories).toContain('many');
   });
 
   test('no translated value is an empty string', () => {
@@ -168,9 +195,10 @@ describe('the five screens', () => {
   const SCREENS = ['hunt', 'strategy', 'town', 'bag', 'character', 'away'] as const;
 
   test('each screen namespace has the same keys in EN and PT-BR, both directions', () => {
+    const fold = (tree: Tree) => new Set(flatten(tree).map((key) => key.replace(PLURAL, '')));
     for (const screen of SCREENS) {
-      const en = new Set(flatten((treeOf('en')[screen] ?? {}) as Tree));
-      const ptBR = new Set(flatten((treeOf('pt-BR')[screen] ?? {}) as Tree));
+      const en = fold((treeOf('en')[screen] ?? {}) as Tree);
+      const ptBR = fold((treeOf('pt-BR')[screen] ?? {}) as Tree);
       expect(en.size, screen).toBeGreaterThan(0);
       expect([...en].filter((key) => !ptBR.has(key)).sort(), screen).toEqual([]);
       expect([...ptBR].filter((key) => !en.has(key)).sort(), screen).toEqual([]);

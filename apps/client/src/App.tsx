@@ -24,6 +24,17 @@
  * `SetupOverlay` panel R113 exists for. Each town screen mounts its own
  * stylesheet while it is shown and removes it when it closes (ruling R181).
  * A report notice from the socket opens Away once per report id.
+ *
+ * Ruling R190: wherever a loot filter is named — the Orders window, Away's
+ * "Current loot filter", the Bag's filter pane — it is the running hunt's
+ * active loot preset (`HuntResponse.activeLoot`), and in town the preset a
+ * start would use; because the first preset in the list is only an
+ * alphabetical accident, and naming a filter the hunt is not running misleads
+ * the player about what happens to their drops (part 4 §3.3, §4).
+ *
+ * Ruling R195: town commands reach their screens unswallowed, and each screen
+ * renders its own command's refusal; the hook's `commandError` stays the Hunt
+ * shell's.
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -53,7 +64,7 @@ const BagScreen = lazy(() => import('./town/BagScreen').then((module) => ({ defa
 const CharacterScreen = lazy(() => import('./town/CharacterScreen').then((module) => ({ default: module.CharacterScreen })));
 const AwayReport = lazy(() => import('./town/AwayReport').then((module) => ({ default: module.AwayReport })));
 
-/** Swallows a refusal the hook has already recorded as `commandError`. */
+/** Swallows a refusal the hook has already recorded as `commandError` (the flagged sale only, R185). */
 const settled = (promise: Promise<void>): Promise<void> => promise.catch(() => undefined);
 
 export interface AppProps {
@@ -121,11 +132,16 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
   const hunting = status === 'running';
   const lootPresets = hunt.presets?.loot ?? [];
   const zone = hunt.hunt?.mapId ?? null;
+  // R190: the loot filter the hunt runs; in town, the one a start would use.
+  const activeLootId = hunting ? (hunt.hunt?.activeLoot?.presetId ?? null) : hunt.startLootPresetId;
+  const pendingLootId = hunting ? (hunt.hunt?.pendingLoot?.presetId ?? null) : null;
+  const lootFilterName = lootPresets.find((preset) => preset.id === activeLootId)?.name ?? null;
 
+  // R195: refusals reach the screen that sent the command.
   const bagCommands: BagCommands = {
-    equip: (itemId, characterId, slot) => settled(hunt.town.equip(itemId, characterId, slot)),
-    lock: (itemId, locked) => settled(hunt.town.lock(itemId, locked)),
-    applyLoot: (ref) => settled(hunt.town.applyLoot(ref)),
+    equip: hunt.town.equip,
+    lock: hunt.town.lock,
+    applyLoot: hunt.town.applyLoot,
     sell: (itemIds) => settled(hunt.town.sell(itemIds)),
   };
 
@@ -137,11 +153,12 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
         inventory={hunt.inventory}
         characters={hunt.characters}
         lootPresets={lootPresets}
+        activeLootId={activeLootId}
+        pendingLootId={pendingLootId}
         hunting={hunting}
         zone={zone}
         commands={bagCommands}
         sale={SHOP_ENABLED ? SALE_KIT : null}
-        fault={hunt.commandError?.code ?? null}
         onBack={() => setRoute('hunt')}
         />
       </Suspense>
@@ -169,9 +186,10 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
       <Suspense fallback={<div className="realm" />}>
         <AwayReport
         report={hunt.report}
+        content={content}
+        characters={hunt.characters}
         inventory={hunt.inventory}
-        lootPresetName={lootPresets[0]?.name ?? null}
-        zone={zone}
+        lootPresetName={lootFilterName}
         onManageBag={() => setRoute('bag')}
         onReturnToHunt={() => setRoute('hunt')}
         onStartHunt={() => {
@@ -217,7 +235,7 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
           onStart={hunt.start}
           onStop={hunt.stop}
           onOpenStrategy={() => setStrategyOpen(true)}
-          lootFilterName={lootPresets[0]?.name ?? null}
+          lootFilterName={lootFilterName}
           onOpenBag={() => setRoute('bag')}
           onOpenCharacter={() => setRoute('character')}
           partyLabel={hunt.characters.length === 0 ? null : hunt.characters.map((character) => character.name).join(', ')}

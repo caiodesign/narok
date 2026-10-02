@@ -27,18 +27,45 @@
  *
  * Retention is part 4 §3.5's option (a): only the latest report is kept, with
  * no read state; its age bound is `HuntConfig.reportRetentionMs`.
+ *
+ * Version 3 (Task 10 fix round 1; part 4 §3.5's "Must show"; rulings
+ * R191–R194) adds what the screen must show and version 2 left out: the
+ * hunt's map; each member's level and EXP before and after and its deaths and
+ * revives during the absence, with the deaths summed as the third count
+ * beside the hunt's and the absence's wipes; the notable loot; and the
+ * bounded chronological timeline. All of it comes from what the settlement
+ * already settled — the committed states, the credited rewards, and the
+ * digest of the events the settlement produced (`hunt/digest.ts`).
  */
 import { and, eq, ne } from 'drizzle-orm';
+import { RARITIES, type Rarity } from '@narok/data';
 import type { SimState, StopReason } from '@narok/sim';
 import * as schema from '../db/schema';
 import type { Database } from '../db/tx';
 import { notOwned } from '../errors';
-import type { SettlementWindow } from '../hunt/clock';
-import { consumedDuring } from '../hunt/rewards';
+import { stopWallInstant, type HuntAnchors, type SettlementWindow } from '../hunt/clock';
+import { TIMELINE_LIMIT, type DigestKind, type HuntDigest } from '../hunt/digest';
+import { consumedDuring, type HuntReward } from '../hunt/rewards';
 import type { Settlement } from '../hunt/settle';
 
-/** 2: no wipe limit, and the consumables spent (owner decision 2026-09-30; R152, R154). */
-export const AWAY_REPORT_VERSION = 2;
+/**
+ * 2: no wipe limit, and the consumables spent (owner decision 2026-09-30; R152, R154).
+ * 3: the map, per-member results, member deaths, notable loot and the timeline (R191–R194).
+ */
+export const AWAY_REPORT_VERSION = 3;
+
+/**
+ * Ruling R193 — notable loot is the absence's kept equipment, rarest first
+ * (content's own rarity order), earliest first within a rarity, at most this
+ * many, with the total kept beside it. *Why:* content defines no "notable"
+ * rule, so the report invents no rarity threshold: every kept equipment drop
+ * is eligible and the order alone decides what leads. Six is the reference's
+ * own list length (`away.html`'s `.notable`), a display bound and not a rarity
+ * rule; auto-sold drops were never the player's to inspect and lost ones are
+ * not loot the player has (part 4 §3.5: never imply missed drops can be
+ * reclaimed).
+ */
+export const NOTABLE_LIMIT = 6;
 
 export type AwayStatus = 'running' | 'capped' | 'bag-full' | 'stopped';
 /** Navigation only: no action a report offers grants anything (part 4 §3.5). */
@@ -59,6 +86,48 @@ export interface AwayReportInput {
   readonly after: SimState;
   /** Rewards the settlement drained and committed. */
   readonly rewardsCredited: number;
+  /** The hunt's map: the report names its own, never whatever hunt runs when it is read. */
+  readonly mapId: string;
+  /** The pre-settlement anchors: where a simulated instant falls on the wall clock. */
+  readonly anchors: HuntAnchors;
+  /** What the settlement's events said, folded (ruling R191). */
+  readonly digest: HuntDigest;
+  /** Every reward the settlement drained and committed, in order. */
+  readonly rewards: readonly HuntReward[];
+}
+
+/** One party member across the absence (part 4 §3.5: party outcomes). */
+export interface AwayMember {
+  readonly characterId: string;
+  readonly classId: string;
+  readonly levelBefore: number;
+  readonly levelAfter: number;
+  /** EXP into the level held, before and after. */
+  readonly expBefore: number;
+  readonly expAfter: number;
+  /** Deaths during this absence, each counted; a wipe kills every member. */
+  readonly deaths: number;
+  readonly revives: number;
+}
+
+export interface AwayNotableDrop {
+  readonly rewardId: string;
+  readonly definitionId: string;
+  readonly rarity: Rarity;
+  readonly itemLevel: number;
+  readonly bonusCount: number;
+  readonly atWallMs: number;
+}
+
+export type AwayTimelineKind = DigestKind | 'cap';
+
+export interface AwayTimelineEntry {
+  readonly kind: AwayTimelineKind;
+  readonly atWallMs: number;
+  /** The member a death or revive names. */
+  readonly characterId: string | null;
+  readonly count: number;
+  readonly reason: string | null;
 }
 
 export interface AwayOutcomes {
@@ -105,6 +174,78 @@ export interface AwayReport {
   readonly outcomes: AwayOutcomes;
   readonly wipesThisHunt: number;
   readonly rewardsCredited: number;
+  readonly mapId: string;
+  /** Roster order; empty for a state that carries no progression (a laboratory run). */
+  readonly party: readonly AwayMember[];
+  /** Individual member deaths summed over the absence: the third count, beside the two wipe counts. */
+  readonly memberDeaths: number;
+  readonly notable: readonly AwayNotableDrop[];
+  /** Every kept equipment drop of the absence; `notable` shows the first {@link NOTABLE_LIMIT}. */
+  readonly notableTotal: number;
+  /** Chronological, at most {@link TIMELINE_LIMIT} entries (ruling R191). */
+  readonly timeline: readonly AwayTimelineEntry[];
+  /** Earlier entries let go to keep the bound. */
+  readonly timelineOmitted: number;
+}
+
+function partyOf(input: AwayReportInput): AwayMember[] {
+  const { before, after, digest } = input;
+  if (after.progression === null) return [];
+  return Object.entries(after.progression).map(([actorId, now]) => {
+    const was = before.progression?.[actorId] ?? now;
+    return {
+      characterId: now.characterId,
+      classId: after.actors[actorId]?.definitionId ?? '',
+      levelBefore: was.level,
+      levelAfter: now.level,
+      expBefore: was.exp,
+      expAfter: now.exp,
+      deaths: digest.deaths[actorId] ?? 0,
+      revives: digest.revives[actorId] ?? 0,
+    };
+  });
+}
+
+function notableOf(input: AwayReportInput): { notable: AwayNotableDrop[]; total: number } {
+  const rank = (rarity: Rarity) => RARITIES.indexOf(rarity);
+  const kept = input.rewards.flatMap((reward) =>
+    reward.item.kind === 'equipment' && reward.disposition.outcome === 'kept'
+      ? [
+          {
+            drop: {
+              rewardId: reward.rewardId,
+              definitionId: reward.item.definitionId,
+              rarity: reward.item.rarity,
+              itemLevel: reward.itemLevel,
+              bonusCount: reward.item.bonuses.length,
+              atWallMs: stopWallInstant(input.anchors, reward.atSimMs),
+            },
+            seq: reward.rewardSeq,
+          },
+        ]
+      : [],
+  );
+  kept.sort((a, b) => rank(b.drop.rarity) - rank(a.drop.rarity) || a.seq - b.seq);
+  return { notable: kept.slice(0, NOTABLE_LIMIT).map((entry) => entry.drop), total: kept.length };
+}
+
+function timelineOf(input: AwayReportInput, status: AwayStatus): { timeline: AwayTimelineEntry[]; omitted: number } {
+  const characterOf = (actorId: string | null) =>
+    actorId === null ? null : (input.after.progression?.[actorId]?.characterId ?? actorId);
+  const entries: AwayTimelineEntry[] = input.digest.entries.map((entry) => ({
+    kind: entry.kind,
+    atWallMs: stopWallInstant(input.anchors, entry.atSimMs),
+    characterId: characterOf(entry.actorId),
+    count: entry.count,
+    reason: entry.reason,
+  }));
+  // The cap is no event: it is the window's own bound, and it bit only when
+  // accrual ran to it — a stop ends accrual first.
+  if (status !== 'stopped' && input.window.cappedBy === 'cap') {
+    entries.push({ kind: 'cap', atWallMs: input.window.capCutoffWall, characterId: null, count: 1, reason: null });
+  }
+  const overflow = Math.max(0, entries.length - TIMELINE_LIMIT);
+  return { timeline: entries.slice(overflow), omitted: input.digest.omitted + overflow };
 }
 
 function lostDuring(input: AwayReportInput): number {
@@ -142,6 +283,10 @@ export function buildAwayReport(input: AwayReportInput): AwayReport {
   const rolled = (state: SimState) =>
     Object.values(state.metrics.drops.rolled).reduce((sum, count) => sum + count, 0) + state.metrics.drops.consumables;
 
+  const party = partyOf(input);
+  const { notable, total } = notableOf(input);
+  const { timeline, omitted } = timelineOf(input, status);
+
   return {
     reportVersion: AWAY_REPORT_VERSION,
     huntId: input.huntId,
@@ -174,6 +319,13 @@ export function buildAwayReport(input: AwayReportInput): AwayReport {
     },
     wipesThisHunt: input.after.metrics.wipes,
     rewardsCredited: input.rewardsCredited,
+    mapId: input.mapId,
+    party,
+    memberDeaths: party.reduce((sum, member) => sum + member.deaths, 0),
+    notable,
+    notableTotal: total,
+    timeline,
+    timelineOmitted: omitted,
   };
 }
 

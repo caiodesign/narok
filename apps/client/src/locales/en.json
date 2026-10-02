@@ -664,6 +664,11 @@
     "capacityMeter": "Bag capacity",
     "filter": {
       "title": "Loot filter",
+      "tag": {
+        "active": "Active",
+        "start": "Used to start",
+        "pending": "Applied next"
+      },
       "edited": "edited",
       "saved_one": "{{count}} filter saved",
       "saved_other": "{{count}} filters saved",
@@ -722,6 +727,8 @@
     "pending": "Pending {{pending}} · {{remaining}} would remain",
     "insufficient": "Pending {{pending}} is more than the {{unspent}} unspent points. Reset before applying.",
     "stale": "Your account changed before this was applied, so nothing was spent. Your draft is kept and checked against the new state.",
+    "allocateTown": "Return to town to allocate",
+    "bar": "{{value}} / {{max}}",
     "apply": "Apply allocation",
     "applying": "Applying…",
     "reset": "Reset",
@@ -785,7 +792,20 @@
       "thisHunt_one": "{{count}} party wipe this hunt",
       "thisHunt_other": "{{count}} party wipes this hunt",
       "thisAbsence_one": "{{count}} while you were away",
-      "thisAbsence_other": "{{count}} while you were away"
+      "thisAbsence_other": "{{count}} while you were away",
+      "memberDeaths_one": "{{count}} member death while you were away",
+      "memberDeaths_other": "{{count}} member deaths while you were away"
+    },
+    "party": {
+      "title": "Party",
+      "outcomes": "{{won}} encounters won, {{lost}} lost while you were away",
+      "level": "Level {{level}}",
+      "levelUp": "Level up",
+      "to": "to",
+      "expLabel": "EXP in level",
+      "exp": "{{from}} → {{to}}",
+      "deaths": "Deaths while away",
+      "revives": "Revived"
     },
     "totals": "Totals",
     "kills": "Kills",
@@ -807,13 +827,39 @@
       "lost_other": "{{count}} kept drops lost to the full bag",
       "lostNote": "Lost drops cannot be recovered."
     },
+    "notable": {
+      "label": "Notable drops",
+      "note_one": "{{rarity}}, {{count}} bonus, item lv {{level}}",
+      "note_other": "{{rarity}}, {{count}} bonuses, item lv {{level}}",
+      "more_one": "{{count}} more kept drop is in your bag",
+      "more_other": "{{count}} more kept drops are in your bag"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "label": "Events while away",
+      "omitted_one": "{{count}} earlier event not shown",
+      "omitted_other": "{{count}} earlier events not shown",
+      "won_one": "{{count}} encounter won",
+      "won_other": "{{count}} encounters won",
+      "wipe": "Party wipe",
+      "death": "{{name}} fell",
+      "revived": "{{name}} revived",
+      "apple": "{{name}} revived by {{item}}",
+      "dropLost_one": "Bag full: {{count}} kept drop lost",
+      "dropLost_other": "Bag full: {{count}} kept drops lost",
+      "stop": "Hunt ended: {{reason}}",
+      "cap": "Offline limit reached",
+      "returned": "You returned",
+      "member": "A party member"
+    },
     "action": {
       "view-hunt": "Return to hunt",
       "start-hunt": "Start a new hunt",
       "manage-bag": "Manage bag"
     },
     "note": {
-      "full": "Bag {{used}} / {{capacity}}. Make room for future drops; the {{lost}} lost drops cannot be recovered.",
+      "full_one": "Bag {{used}} / {{capacity}}. Make room for future drops; the {{count}} lost drop cannot be recovered.",
+      "full_other": "Bag {{used}} / {{capacity}}. Make room for future drops; the {{count}} lost drops cannot be recovered.",
       "room": "Bag {{used}} / {{capacity}}: there is room for new drops."
     },
     "filter": "Current loot filter",

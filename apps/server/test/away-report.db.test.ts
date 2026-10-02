@@ -12,11 +12,15 @@ import { createApp } from '../src/app';
 import { defaultConfig } from '../src/config';
 import * as schema from '../src/db/schema';
 import { startHunt } from '../src/hunt/lifecycle';
-import { readAwayReport } from '../src/reports/away';
+import { RARITIES } from '@narok/data';
+import { createProgress } from '@narok/progression';
+import { TIMELINE_LIMIT } from '../src/hunt/digest';
+import { NOTABLE_LIMIT, readAwayReport } from '../src/reports/away';
 import { memoryStores } from '../src/store/memory';
 import { SocketSession, socketBounds } from '../src/ws/socket';
-import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
+import { connect, databaseReachable, disconnect, insertAccount, insertCharacter, truncateAll, type Db } from './db-helpers';
 import { accountVersion, checkpointOf, huntRow, plan, rig, T0 } from './hunt-db-harness';
+import { party, rich, richSim } from './hunt-fixtures';
 
 let db: Db;
 
@@ -122,6 +126,83 @@ describe('a reconnect after an absence produces one report from the committed de
     expect(sent.map((message) => message.type)).toEqual(['snapshot', 'report']);
     const [row] = await reports(account.id);
     expect(sent[1]).toMatchObject({ type: 'report', generation: 1, reportId: row.id });
+  });
+});
+
+describe('report version 3 from a real settled hunt (Task 10 fix round 1; part 4 §3.5)', () => {
+  /** A level-1 roster of the account's own rows, so the hunt carries progression. */
+  async function rosterParty(accountId: string) {
+    const rows = [];
+    for (const [slot, classId] of party.entries()) rows.push(await insertCharacter(db, accountId, { slot, classId }));
+    const members = Object.fromEntries(
+      rows.map((row, index) => [`p${index}`, { characterId: row.id, progress: createProgress(), equipped: [], hp: 1_000_000, mp: 1_000_000 }]),
+    );
+    return { ids: rows.map((row) => row.id), members };
+  }
+
+  test('carries the map, per-member results, member deaths, notable loot and a bounded timeline', async () => {
+    const account = await insertAccount(db);
+    const r = rig(db, { engine: { sim: richSim, content: rich } });
+    const roster = await rosterParty(account.id);
+    // No resting: the level-1 party fights until it wipes, which ends the hunt (R154).
+    await startHunt(r.lifecycle, {
+      accountId: account.id,
+      expectedStateVersion: 0,
+      plan: plan({ rest: { hpStart: 0, mpStart: 0 } }, undefined, { party: roster.members }),
+    });
+
+    r.clock.now = T0 + 3_600_000;
+    const view = await r.feed.connect(account.id);
+    const report = await readAwayReport(db, account.id, view!.reportId!);
+
+    expect(report.reportVersion).toBe(3);
+    expect(report.mapId).toBe('prototype');
+    expect(report.status).toBe('stopped');
+    expect(report.stopReason).toBe('wipe');
+
+    // Party outcomes: every roster member, by its own character id.
+    expect(report.party.map((member) => member.characterId)).toEqual(roster.ids);
+    expect(report.party.map((member) => member.classId)).toEqual([...party]);
+    for (const member of report.party) {
+      expect(member.levelAfter).toBeGreaterThanOrEqual(member.levelBefore);
+      // A wipe kills every member, so each died at least once.
+      expect(member.deaths).toBeGreaterThanOrEqual(1);
+    }
+
+    // The three counts, separately.
+    expect(report.wipesThisHunt).toBe(1);
+    expect(report.outcomes.wipes).toBe(1);
+    expect(report.memberDeaths).toBe(report.party.reduce((sum, member) => sum + member.deaths, 0));
+    expect(report.memberDeaths).toBeGreaterThanOrEqual(report.party.length);
+
+    // Notable loot: kept equipment, rarest first, within the bound.
+    expect(report.notable.length).toBe(Math.min(NOTABLE_LIMIT, report.notableTotal));
+    const ranks = report.notable.map((drop) => RARITIES.indexOf(drop.rarity));
+    expect(ranks).toEqual([...ranks].sort((a, b) => b - a));
+    expect(report.notable.length).toBeGreaterThan(0);
+    expect(report.notableTotal).toBeLessThanOrEqual(report.outcomes.drops.kept);
+
+    // The timeline: chronological, bounded, inside the absence, and ending at the engine's own stop.
+    expect(report.timeline.length).toBeGreaterThan(0);
+    expect(report.timeline.length).toBeLessThanOrEqual(TIMELINE_LIMIT);
+    const instants = report.timeline.map((entry) => entry.atWallMs);
+    expect(instants).toEqual([...instants].sort((a, b) => a - b));
+    expect(instants[0]).toBeGreaterThanOrEqual(report.awayFromWall);
+    expect(report.timeline.at(-1)).toMatchObject({ kind: 'stop', reason: 'wipe', atWallMs: report.accrualEndedAtWall });
+    expect(report.timeline.some((entry) => entry.kind === 'wipe')).toBe(true);
+    const named = report.timeline.filter((each) => each.kind === 'death' || each.kind === 'revive');
+    expect(named.length).toBeGreaterThan(0);
+    for (const entry of named) {
+      expect(roster.ids).toContain(entry.characterId);
+    }
+
+    // Reopening credits nothing: the same report, the same checkpoint, the same account version.
+    const checkpoint = (await huntRow(db, account.id)).checkpoint;
+    const version = await accountVersion(db, account.id);
+    const again = await readAwayReport(db, account.id, view!.reportId!);
+    expect(again).toEqual(report);
+    expect(Buffer.from((await huntRow(db, account.id)).checkpoint).equals(Buffer.from(checkpoint))).toBe(true);
+    expect(await accountVersion(db, account.id)).toBe(version);
   });
 });
 

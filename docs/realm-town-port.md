@@ -1,6 +1,6 @@
 # Realm Refined — Bag, Character and Away port
 
-**Updated:** 2026-10-01 (milestone B Task 10). Companion to [the Hunt port record](realm-hunt-port.md)
+**Updated:** 2026-10-02 (milestone B Task 10, fix round 1). Companion to [the Hunt port record](realm-hunt-port.md)
 (R106–R110, `styles.css`) and [the Strategy port record](realm-strategy-port.md) (R111–R113,
 `strategy.css`). This one governs `bag.css`, `character.css` and `away.css` and the three screens
 built on them. The owner's decision (milestone B index §4.0) is that the three remaining sheets are
@@ -21,9 +21,12 @@ by locating `<style>` and `</style>` in each file:
 
 Each `diff` prints nothing. `apps/client/test/stylesheet-port.test.ts` evaluates all five
 invariants — these three and the two in the Hunt and Strategy records — in Node on every test run,
-and also checks that each range is exactly the file's first `<style>` block. It compares line by
-line after removing a trailing CR, because the mockups are checked out with platform line endings
-(`core.autocrlf`); `diff` on such a checkout reports no difference either.
+and also checks that each range is exactly the file's first `<style>` block. Since fix round 1 it
+compares **exact bytes**: no line ending is normalised in the test. Line endings are normalised in
+one place only, the repository's `.gitattributes`, which checks `codex-examples/realm-refined/*.html`
+and `apps/client/src/*.css` out with LF on every platform; the test fails on a CR in either file,
+checks that each sheet begins with its reference range byte for byte, and checks that after each
+town sheet's frozen range come only blank lines and then its one labelled Additions block.
 
 Everything after each frozen range is a labelled **Additions** block, product-side and small:
 
@@ -52,7 +55,7 @@ declared later in the cascade, re-wins over `styles.css`'s own additions block.*
 three sheets globally would restyle Hunt. The test asserts it: with `character.css` left mounted,
 Hunt's computed `:root` tokens or `.realm` box change.
 
-## Binding rulings (R180–R189)
+## Binding rulings (R180–R196)
 
 ### R180 — the three town sheets are not editable
 
@@ -83,7 +86,10 @@ in the three mockups is a fixture (UI spec §9), and part 4 §4 requires one coh
 account state. Left out, by region: Bag — the Materials tab, the bag expansion, the premium offline
 timer, sell prices and gold values, the drop source line and flavour text; Character — the town
 name, the Shop button, the premium badge and toggle, the element/affinity chip, roll ranges, sell
-price, the mockup's attribute hints, the fixture "Not yet learnable" skills; Away — see R184.
+price, the mockup's attribute hints, the fixture "Not yet learnable" skills; Away — the time split
+(the report carries no walk/fight/rest split for the absence), the per-tier loot ramp, the hour
+ticks, level-up marks (no event records the instant a level was reached) and a version-2 report's
+missing sections (R194).
 
 ### R183 — loot presets carry their payload on `GET /api/presets`
 
@@ -93,7 +99,11 @@ the Bag screen's filter pane shows the saved rules and previews them through the
 (part 4 §3.3, B-14), and the server had no other read of them. A read only: loot presets still have
 no save route (R188).
 
-### R184 — Away shows the counts the report carries, and no other
+### R184 — Away shows the counts the report carries, and no other (withdrawn)
+
+*Withdrawn by the controller in fix round 1 (`task-10-fix1.md`, I2): part 4 §3.5 binds, so the
+server's report was extended (version 3, R191–R194) rather than the spec waived. Kept for the
+record.*
 
 The away report (`AwayReport` version 2, `apps/server/src/reports/away.ts`; the protocol carries
 only the socket's `{type: 'report', reportId}` notice) carries two wipe counts — `wipesThisHunt`
@@ -157,6 +167,87 @@ stable and a different one means the player's picture — and an allocation draf
 stale; lock and apply-loot are allowed mid-hunt, where the version moves at every settled
 encounter and a read-time guard would refuse nearly every command.
 
+### R190 — the loot filter named is the one the hunt runs
+
+`HuntResponse` carries the server's `activeLoot` and `pendingLoot`. The Orders window's Loot filter
+button, Away's "Current loot filter" and the Bag filter pane's default tab name the running hunt's
+active loot preset; in town they name the preset a start would use (`useHunt`'s
+`startLootPresetId`, the one `start` sends). The pane marks that preset Active (or "Used to start"
+in town) and a preset applied but still waiting for earlier drops as Applied next; a pending loot
+filter re-reads the hunt on each phase change, as a pending strategy does. *Why:* the first preset
+in the list is only an alphabetical accident; naming a filter the hunt is not running misleads the
+player about what happens to their drops (part 4 §3.3 reads "the active and draft loot presets").
+
+### R191 — the away timeline is bounded and chronological
+
+The report's timeline is folded from the events the settlement produced (`hunt/digest.ts`): a
+member's death, a revive (with its source — Idun's Apple or the Revive skill), a party wipe and the
+engine's stop are one entry each; runs of encounters won and of kept drops lost to a full bag fold
+into one entry at the run's first event, counting the rest, and a course event closes a run. The
+offline cap, when it bit and no stop came first, is appended at `capCutoffWall`. At most **nine**
+entries are kept — the most recent — and `timelineOmitted` counts the earlier ones let go; the
+screen adds the return mark, making the reference's ten marks on one track. The report body scrolls
+internally; the actions sit in the footer outside it. *Why:* part 4 §3.5 asks for the chronological
+timeline, and an unbounded list of every win would be neither readable nor bounded in the report
+row; the stop is always the last event, and the latest stretch is what the player returns to. No
+entry is written that the engine did not emit: there are no level-up marks, because no event records
+the instant a level was reached.
+
+### R192 — the settlement digest
+
+A settlement that will be described by an away report (the feed's connect after an absence) asks
+the segment runner for a digest: the engine then advances in `'events'` mode — which changes no
+state, RNG draw or reward (layer-1 §4.8; `digest.test.ts` proves the committed state is identical)
+— and each accepted step's events are folded into per-member death and revive counts and the R191
+timeline, then let go; only the events `collect` asked for are returned. The digest has its own job
+slot in the segment pool, so a joiner never receives a result without one. *Why:* a summary
+settlement keeps no events, and per-member deaths and the order of events exist nowhere else; the
+digest is derived only from what the settlement itself settles.
+
+### R193 — notable loot
+
+The report's notable loot is the absence's **kept equipment** drops, rarest first in content's own
+rarity order (`RARITIES`), earliest first within a rarity, at most **six**, with the total kept
+beside it (`notableTotal`; the screen says how many more are in the bag). *Why:* content defines no
+"notable" rule, so no rarity threshold is invented — every kept equipment drop is eligible and the
+order alone decides what leads; six is the reference's own list length, a display bound and not a
+rarity rule. Auto-sold drops were never the player's to inspect, and lost ones are not loot the
+player has (part 4 §3.5: never imply missed drops can be reclaimed). The list sits in the loot pane
+inside the scrolling body; it cannot obscure the recovery action.
+
+### R194 — report version 3, and older reports
+
+`AWAY_REPORT_VERSION` is 3. Version 3 adds `mapId`, `party` (each member's character id, class,
+level and EXP before and after, deaths and revives during the absence), `memberDeaths` (the third
+count, summed over the absence, beside `wipesThisHunt` and `outcomes.wipes`), `notable`,
+`notableTotal`, `timeline` and `timelineOmitted`. Under the owner's 7c rules a wipe ends the hunt,
+so both wipe counts are 0 or 1; the three counts still render separately. A version-2 report already
+stored is **decoded, not reset**: `decodeAwayReport` maps its absent fields to `null` and the screen
+leaves those sections out rather than drawing an empty or zero one. *Why:* only the latest report
+per account is kept and it ages out under `reportRetentionMs`, so a decoder that tolerates the old
+shape costs one function and no operator step; a report that never carried a figure must not be
+shown as having counted none (R182).
+
+### R195 — a town screen shows its own commands' refusals
+
+Town commands reach their screens unswallowed. Each screen catches the rejection of the command it
+sent and renders the server's stable code (`serverError.<CODE>`) where that command lives: Bag —
+an equip or lock under the item tip, an Apply in the filter pane's footer; Character — an
+allocation in the attribute pane, a skill rank in the skill pane (the staged rank is kept), an
+unequip in the gear pane's item tip (the tip stays open). The hook's `commandError` stays the Hunt
+shell's. A stale account version has already re-read the account in the command layer (R189), so
+the Character screen re-reads only on a cost refusal. *Why:* part 4 §3.1 requires every refusal to
+be rendered from the server's code; showing the account's last error under an item tip would blame
+the bag for a Hunt start refused earlier, and swallowing a skill or unequip refusal made a refused
+command look like nothing happened.
+
+### R196 — loot-filter drafts are kept per preset and across refreshes
+
+The filter pane keeps one draft per preset, so switching tabs never discards one, and a newly read
+version of a preset leaves an edited draft in place, still marked edited against the version now
+saved. Revert is the only way a draft goes. *Why:* part 4 §3.3 requires the draft "preserved across
+recoverable failures"; a refresh or a tab switch is not the player's decision to drop it.
+
 ## Component map
 
 | Reference region | Component | Bound to |
@@ -173,11 +264,14 @@ encounter and a read-time guard would refuse nearly every command.
 | `.gear-pane` doll and `.itip` | `town/GearPane.tsx` | worn items per slot; Unequip is a town-only command |
 | `.attrs` list, allocation preview, auto-spend, combat | `town/AttributePane.tsx` | allocated attributes, gear attribute bonuses, stat points, `@narok/progression` costs, server-derived stats |
 | `.skills` list, preview, foot | `town/SkillPane.tsx` | class skills (content), ranks, skill points, `nextSkillPointLevel` over `content.progression.skillPoints` |
-| `away.html` `.herald` (title, time away, cap meter, map) | `town/AwayReport.tsx` | report `timeAwayMs`, `simulatedMs`, cap window `capCutoffWall − awayFromWall` |
-| `.verdict` and `.attempts` | `AwayReport` | report `copyKey`, `stopReason`, the two wipe counts (R184) |
+| `away.html` `.herald` (title, time away, cap meter, map) | `town/AwayReport.tsx` | report `timeAwayMs`, `simulatedMs`, cap window `capCutoffWall − awayFromWall`, the report's own `mapId` |
+| `.verdict` and `.attempts` | `AwayReport` | report `copyKey`, `stopReason`; three counts — `wipesThisHunt`, `outcomes.wipes`, `memberDeaths` (R194) |
+| `.party-results` | `AwayReport` | report `party` (level and EXP before/after, deaths, revives), names from the roster; encounters won and lost |
 | `.ledger-grid` totals and loot | `AwayReport` | report outcomes (kills, wins, raw EXP, raw gold, consumables, drop dispositions) |
-| `.actions` | `AwayReport` + `model.awayView` | report actions ordered against the *current* inventory |
-| `.party-results`, `.notable`, `.chronicle`, `.timesplit` | — | left out (R184) |
+| `.notable` | `AwayReport` | report `notable`, `notableTotal` (R193) |
+| `.chronicle` | `AwayReport` | report `timeline`, `timelineOmitted` (R191), positioned over `awayFromWall → returnedAtWall` |
+| `.actions` | `AwayReport` + `model.awayView` | report actions ordered against the *current* inventory; the filter named by R190 |
+| `.timesplit`, `.ramp`, `.hours`, level-up marks | — | left out (R182) |
 
 `App.tsx` routes `hunt | bag | character | away` over one `useHunt`; Strategy stays the
 `SetupOverlay` panel. The Hunt Orders window gains the reference's second preset button (Loot
@@ -188,5 +282,4 @@ report id.
 
 - B-15 is open behind prices (R185); B-22's visual composition of the three screens at 1440×900,
   1280×800 and 1100px, in EN and PT-BR, is a human observation not yet made.
-- The away timeline, per-member results and notable drops wait on a report-schema change (R184).
 - Loot presets cannot be saved (R188); the auto-spend template is shown read-only.

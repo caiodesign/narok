@@ -37,7 +37,15 @@ export const EMPTY_SLOT_ICON: Record<Slot, string> = {
 };
 
 export function itemIcon(item: ItemInstance, content: Content): string {
-  const definition = definitionOf(item, content);
+  return definitionIcon(definitionOf(item, content));
+}
+
+/** The symbol for a definition read by id — a report names drops by definition only. */
+export function definitionIconById(definitionId: string, content: Content): string {
+  return definitionIcon(Object.hasOwn(content.items, definitionId) ? content.items[definitionId] : undefined);
+}
+
+function definitionIcon(definition: Content['items'][string] | undefined): string {
   if (definition === undefined) return 'it-chest';
   if (definition.slot === 'weapon') {
     const wielder = definition.classes?.[0];

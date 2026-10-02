@@ -15,7 +15,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { content, type Content, type ItemInstance } from '@narok/data';
-import type { CharacterSummary, InventoryResponse } from '../src/commands';
+import { CommandError, type CharacterSummary, type InventoryResponse, type LootPresetRecord } from '../src/commands';
 import i18n from '../src/i18n';
 import en from '../src/locales/en.json';
 import { BagScreen, type BagCommands } from '../src/town/BagScreen';
@@ -51,22 +51,29 @@ function mount(options: {
   hunting?: boolean;
   shopEnabled?: boolean;
   content?: Content;
+  lootPresets?: readonly LootPresetRecord[];
+  activeLootId?: string | null;
+  pendingLootId?: string | null;
+  commands?: BagCommands & { calls: unknown[][] };
 }) {
-  const held = commands();
-  const view = render(
+  const held = options.commands ?? commands();
+  const element = (presets: readonly LootPresetRecord[]) => (
     <BagScreen
       content={options.content ?? content}
       inventory={options.inventory}
       characters={options.characters ?? PARTY}
-      lootPresets={LOOT}
+      lootPresets={presets}
+      activeLootId={options.activeLootId ?? null}
+      pendingLootId={options.pendingLootId ?? null}
       hunting={options.hunting ?? false}
       zone="prototype"
       commands={held}
       sale={options.shopEnabled === true ? SALE_KIT : null}
       onBack={() => undefined}
-    />,
+    />
   );
-  return { ...view, commands: held };
+  const view = render(element(options.lootPresets ?? LOOT));
+  return { ...view, commands: held, rerenderPresets: (presets: readonly LootPresetRecord[]) => view.rerender(element(presets)) };
 }
 
 const name = (definitionId: string) => i18n.t(`item.${definitionId}`);
@@ -263,6 +270,71 @@ describe('the filter pane', () => {
     const common = within(filter).getByRole('radiogroup', { name: i18n.t('rarity.common') });
     fireEvent.click(within(common).getByRole('radio', { name: en.loot.action.ignore }));
     expect(within(filter).getByRole('button', { name: en.bag.filter.apply })).toBeDisabled();
+  });
+});
+
+describe('the filter pane names the active filter and keeps drafts (I1, Minor 2)', () => {
+  const ALPHA: LootPresetRecord = { ...LOOT[0]!, name: 'Alpha' };
+  const BETA: LootPresetRecord = { ...LOOT[0]!, id: '30000000-0000-4000-8000-000000000002', name: 'Beta' };
+  const filter = () => document.querySelector('.filter') as HTMLElement;
+  const tab = (name: string) => within(filter().querySelector('.fpresets') as HTMLElement).getByRole('radio', { name: new RegExp(name) });
+  const common = () => within(filter()).getByRole('radiogroup', { name: i18n.t('rarity.common') });
+
+  test('it opens on the active preset, not the first one, and marks the active and the pending one', () => {
+    mount({ inventory: bag([]), hunting: true, lootPresets: [ALPHA, BETA], activeLootId: BETA.id, pendingLootId: ALPHA.id });
+    expect(tab('Beta')).toHaveAttribute('aria-checked', 'true');
+    expect(tab('Alpha')).toHaveAttribute('aria-checked', 'false');
+    expect(tab('Beta')).toHaveTextContent(en.bag.filter.tag.active);
+    expect(tab('Alpha')).toHaveTextContent(en.bag.filter.tag.pending);
+  });
+
+  test('in town, the preset a start would use is the one marked', () => {
+    mount({ inventory: bag([]), lootPresets: [ALPHA, BETA], activeLootId: ALPHA.id });
+    expect(tab('Alpha')).toHaveAttribute('aria-checked', 'true');
+    expect(tab('Alpha')).toHaveTextContent(en.bag.filter.tag.start);
+  });
+
+  test('an edited draft survives a newer version of its preset being read', () => {
+    const view = mount({ inventory: bag([]), lootPresets: [ALPHA, BETA], activeLootId: ALPHA.id });
+    fireEvent.click(within(common()).getByRole('radio', { name: en.loot.action.keep }));
+    expect(within(filter()).getByText(en.bag.filter.edited)).toBeInTheDocument();
+    view.rerenderPresets([{ ...ALPHA, presetVersion: ALPHA.presetVersion + 1 }, BETA]);
+    expect(within(filter()).getByText(en.bag.filter.edited)).toBeInTheDocument();
+    expect(within(common()).getByRole('radio', { name: en.loot.action.keep })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('switching tabs keeps each tab’s draft', () => {
+    mount({ inventory: bag([]), lootPresets: [ALPHA, BETA], activeLootId: ALPHA.id });
+    fireEvent.click(within(common()).getByRole('radio', { name: en.loot.action.keep }));
+    fireEvent.click(tab('Beta'));
+    expect(within(filter()).queryByText(en.bag.filter.edited)).toBeNull();
+    expect(within(common()).getByRole('radio', { name: en.loot.action['auto-sell'] })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(tab('Alpha'));
+    expect(within(filter()).getByText(en.bag.filter.edited)).toBeInTheDocument();
+    expect(within(common()).getByRole('radio', { name: en.loot.action.keep })).toHaveAttribute('aria-checked', 'true');
+  });
+});
+
+describe('the bag shows only its own refusals (Minor 3)', () => {
+  test('a refused lock is rendered from the server’s code under the item', async () => {
+    const held = commands();
+    held.lock = vi.fn(async () => {
+      throw new CommandError('CONFLICT_STATE_VERSION', 'expectedStateVersion');
+    });
+    mount({ inventory: bag([item({ definitionId: 'wool-cloak' })]), commands: held });
+    fireEvent.click(cells()[0]!);
+    await act(async () => {
+      fireEvent.click(within(tip()).getByRole('button', { name: en.bag.lock }));
+    });
+    expect(within(tip()).getByRole('alert')).toHaveTextContent(
+      i18n.t('town.refused', { reason: i18n.t('serverError.CONFLICT_STATE_VERSION') }),
+    );
+  });
+
+  test('a fault from elsewhere is not the bag’s to show', () => {
+    mount({ inventory: bag([item({ definitionId: 'wool-cloak' })]) });
+    fireEvent.click(cells()[0]!);
+    expect(within(tip()).queryByRole('alert')).toBeNull();
   });
 });
 

@@ -24,6 +24,7 @@ function deferredExecutor() {
     rewards: [],
     pendingRulesQueued: false,
     pendingLootQueued: false,
+    digest: null,
   });
   return { executor, calls, resolvers, result };
 }

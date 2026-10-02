@@ -13,7 +13,7 @@
  * Retriable mutations carry an `Idempotency-Key` (P-25). The session is the
  * cookie the browser already holds; nothing here reads or writes it (P-07).
  */
-import type { Attributes, ItemInstance, SkillId, Slot } from '@narok/data';
+import type { Attributes, ItemInstance, Rarity, SkillId, Slot } from '@narok/data';
 import type { LootPreset } from '@narok/loot';
 import { errorEnvelopeSchema, type ErrorCode, type PublicStateWire, type StrategyPresetPayload } from '@narok/protocol';
 
@@ -128,15 +128,57 @@ export interface InventoryResponse {
 }
 
 /**
- * The away report as `GET /api/reports/:id` returns it (`AwayReport`,
- * report version 2, in `apps/server/src/reports/away.ts`). The protocol
- * package carries only the socket's `{type: 'report', reportId}` notice, so
- * the client states the fields it reads here. It carries two wipe counts —
- * this hunt's and this absence's — and no per-member deaths, no per-member
- * results, no notable drops and no timeline (ruling R184).
+ * The away report as `GET /api/reports/:id` returns it (`AwayReport`, in
+ * `apps/server/src/reports/away.ts`), decoded by {@link decodeAwayReport}.
+ * The protocol package carries only the socket's `{type: 'report', reportId}`
+ * notice, so the client states the fields it reads here.
+ *
+ * Report version 3 (Task 10 fix round 1) carries the map, each member's
+ * outcome, the member deaths summed over the absence, the notable loot and the
+ * bounded timeline. Ruling R194: a version-2 report — one already stored when
+ * the server moved on — decodes those fields to `null`, and the screen leaves
+ * out what is `null` rather than drawing an empty or zero section, because a
+ * report that never carried a figure must not be shown as having counted none.
+ * *Why not reset the stored rows:* only the latest report per account is kept
+ * and it ages out under `reportRetentionMs`, so a decoder that tolerates the
+ * old shape costs one function and needs no operator step.
  */
 export type AwayStatus = 'running' | 'capped' | 'bag-full' | 'stopped';
 export type AwayAction = 'view-hunt' | 'start-hunt' | 'manage-bag';
+
+/** One party member across the absence. */
+export interface AwayMemberRecord {
+  readonly characterId: string;
+  readonly classId: string;
+  readonly levelBefore: number;
+  readonly levelAfter: number;
+  readonly expBefore: number;
+  readonly expAfter: number;
+  readonly deaths: number;
+  readonly revives: number;
+}
+
+/** A kept equipment drop (ruling R193: rarest first, at most a handful). */
+export interface AwayNotableRecord {
+  readonly rewardId: string;
+  readonly definitionId: string;
+  readonly rarity: Rarity;
+  readonly itemLevel: number;
+  readonly bonusCount: number;
+  readonly atWallMs: number;
+}
+
+export type AwayTimelineKind = 'won' | 'wipe' | 'death' | 'revive' | 'drop-lost' | 'stop' | 'cap';
+
+/** One timeline entry (ruling R191): a course event, or a run of wins or of lost drops. */
+export interface AwayTimelineRecord {
+  readonly kind: AwayTimelineKind;
+  readonly atWallMs: number;
+  readonly characterId: string | null;
+  readonly count: number;
+  readonly reason: string | null;
+}
+
 export interface AwayReportRecord {
   readonly reportVersion: number;
   readonly huntId: string;
@@ -172,6 +214,40 @@ export interface AwayReportRecord {
   /** Wipes over the whole hunt. */
   readonly wipesThisHunt: number;
   readonly rewardsCredited: number;
+  /** Version 3 on; `null` when the report's version did not carry it (R194). */
+  readonly mapId: string | null;
+  readonly party: readonly AwayMemberRecord[] | null;
+  /** Individual member deaths summed over the absence: the third count. */
+  readonly memberDeaths: number | null;
+  readonly notable: readonly AwayNotableRecord[] | null;
+  readonly notableTotal: number | null;
+  readonly timeline: readonly AwayTimelineRecord[] | null;
+  readonly timelineOmitted: number | null;
+}
+
+/** The fields every report version carries. */
+type AwayReportCore = Omit<AwayReportRecord, 'mapId' | 'party' | 'memberDeaths' | 'notable' | 'notableTotal' | 'timeline' | 'timelineOmitted'>;
+
+/** A report as read: version 3's fields present, or absent on an older version. */
+export type AwayReportWire = AwayReportCore & Partial<Omit<AwayReportRecord, keyof AwayReportCore>>;
+
+/** The first report version that carries the map, the party, the notable loot and the timeline. */
+export const AWAY_REPORT_V3 = 3;
+
+/** Ruling R194: an older report's absent fields decode to `null`, never to an empty or zero section. */
+export function decodeAwayReport(read: AwayReportWire): AwayReportRecord {
+  const carries = read.reportVersion >= AWAY_REPORT_V3;
+  const field = <T>(value: T | null | undefined): T | null => (carries && value !== undefined ? value : null);
+  return {
+    ...read,
+    mapId: field(read.mapId),
+    party: field(read.party),
+    memberDeaths: field(read.memberDeaths),
+    notable: field(read.notable),
+    notableTotal: field(read.notableTotal),
+    timeline: field(read.timeline),
+    timelineOmitted: field(read.timelineOmitted),
+  };
 }
 
 /** A character command's answer: the character as it now stands. */
@@ -230,6 +306,9 @@ export interface HuntResponse {
   readonly state: PublicStateWire;
   readonly activeStrategy: PresetRef;
   readonly pendingStrategy: PresetRef | null;
+  /** The loot filter in force, and the one applied after the cutoff, separately (UI spec §6). */
+  readonly activeLoot: PresetRef;
+  readonly pendingLoot: PresetRef | null;
   /** Present on the read; the commands answer without it. */
   readonly status?: 'running' | 'stopped';
   readonly mapId?: string;
@@ -284,7 +363,7 @@ export interface Api {
   applyStrategy(body: ApplyStrategyBody): Promise<HuntResponse>;
   savePreset(presetId: string, body: SavePresetBody): Promise<SavePresetResponse>;
   /** A read: it settles nothing and credits nothing (B-17). */
-  report(reportId: string): Promise<AwayReportRecord>;
+  report(reportId: string): Promise<AwayReportWire>;
   equip(body: EquipBody): Promise<unknown>;
   unequip(body: UnequipBody): Promise<unknown>;
   lock(body: LockBody): Promise<unknown>;

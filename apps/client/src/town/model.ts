@@ -460,6 +460,11 @@ export function awayView(report: AwayReportRecord, inventory: InventoryResponse 
 // -- presentation helpers the components share (kept out of components so they
 // carry no arithmetic literal; see character.test.tsx) ------------------------
 
+/** Timeline labels alternate above and below the track, as the reference draws them. */
+export function markSide(index: number): 'up' | 'down' {
+  return index % 2 === 0 ? 'up' : 'down';
+}
+
 /** A basis-point value as a percentage figure, e.g. 650 → 6.5. */
 export function percentOf(bp: number): number {
   return bp / 100;

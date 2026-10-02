@@ -27,6 +27,7 @@ import { STRATEGY_PAYLOAD_SCHEMA_VERSION, type PublicStateWire, type StrategyPre
 import {
   CommandError,
   createApi,
+  decodeAwayReport,
   faultOf,
   type Api,
   type AwayReportRecord,
@@ -109,7 +110,11 @@ export interface StrategyCommands {
  * while a hunt runs and the version moves at every settled encounter. Every
  * success re-reads the whole account, so every screen's counters come from
  * one returned state; every refusal is recorded as `commandError` and
- * rethrown, and a stale-version refusal re-reads the account too.
+ * rethrown, and a stale-version refusal re-reads the account too — so a
+ * screen that catches one never re-reads it again (Task 10 fix round 1).
+ * The screen that sent a command shows its refusal from the rejection it
+ * catches, scoped to that command (ruling R195); `commandError` is the
+ * Hunt shell's, not the town screens'.
  */
 export interface TownCommands {
   equip(itemId: string, characterId: string, slot: Slot): Promise<void>;
@@ -149,6 +154,8 @@ export interface UseHuntResult {
   presets: PresetsResponse | null;
   selectedPresetId: string | null;
   selectPreset: (presetId: string) => void;
+  /** The loot preset a start would use (ruling R190). */
+  startLootPresetId: string | null;
   strategy: StrategyCommands;
   town: TownCommands;
 }
@@ -290,7 +297,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     let live = true;
     api.report(reportId).then(
       (read) => {
-        if (live && mounted.current) setReport(read);
+        if (live && mounted.current) setReport(decodeAwayReport(read));
       },
       (error: unknown) => {
         if (live && mounted.current) setCommandError(faultOf(error));
@@ -328,7 +335,8 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
   // A pending strategy activates at the next spawn without a new generation,
   // so a phase change while one is queued is the moment to re-read (R170).
   const latestPhase = latest?.phase ?? null;
-  const hasPending = hunt?.pendingStrategy != null;
+  // A pending loot filter likewise becomes active once earlier drops settle (R131).
+  const hasPending = hunt?.pendingStrategy != null || hunt?.pendingLoot != null;
   useEffect(() => {
     if (hasPending && latestPhase !== null) void refreshHunt();
   }, [hasPending, latestPhase, refreshHunt]);
@@ -531,6 +539,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     presets,
     selectedPresetId: strategyPreset?.id ?? null,
     selectPreset: setSelectedPresetId,
+    startLootPresetId: lootPreset?.id ?? null,
     strategy,
     town,
   };

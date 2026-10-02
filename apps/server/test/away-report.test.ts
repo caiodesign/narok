@@ -10,8 +10,12 @@
  * Four states: running, capped, bag-full (task 6) and stopped.
  */
 import { describe, expect, test } from 'vitest';
-import type { SimState } from '@narok/sim';
-import { buildAwayReport, type AwayReportInput } from '../src/reports/away';
+import { createProgress } from '@narok/progression';
+import type { Rarity } from '@narok/data';
+import type { HuntCharacter, SimState } from '@narok/sim';
+import { emptyDigest, TIMELINE_LIMIT, type HuntDigest } from '../src/hunt/digest';
+import type { HuntReward } from '../src/hunt/rewards';
+import { AWAY_REPORT_VERSION, buildAwayReport, NOTABLE_LIMIT, type AwayReportInput } from '../src/reports/away';
 import { sim, startState, W0 } from './hunt-fixtures';
 
 const HOUR = 3_600_000;
@@ -35,6 +39,11 @@ function input(overrides: Partial<AwayReportInput> = {}): AwayReportInput {
     before,
     after: withMetrics(before, { kills: 70, wins: 22, wipes: 0, rawExp: 1_600, rawGold: 520 }, { nowMs: 5_400_000 + HOUR }),
     rewardsCredited: 0,
+    mapId: 'prototype',
+    // The settlement's pre-settlement anchors: simulated 5,400,000 ms is wall W0.
+    anchors: { wallAnchorMs: W0, simAnchorMs: 5_400_000, pausedWallMs: 0, lastSeenAt: W0, offlineCapMs: 43_200_000 },
+    digest: emptyDigest(),
+    rewards: [],
     ...overrides,
   };
 }
@@ -167,5 +176,176 @@ describe('the report is built from committed deltas and credits nothing (B-17)',
     const text = JSON.stringify(buildAwayReport(input()));
     for (const forbidden of ['"rng"', '"seed"', '"queue"', '"pendingRewards"']) expect(text).not.toContain(forbidden);
     expect(sim.decode(sim.encode(before)).nowMs).toBe(before.nowMs);
+  });
+});
+
+// -- report version 3 (Task 10 fix round 1; part 4 §3.5; rulings R191–R193) ---
+
+const C = ['c0000000-0000-4000-8000-000000000000', 'c1000000-0000-4000-8000-000000000000', 'c2000000-0000-4000-8000-000000000000'];
+
+function member(index: number, level: number, exp: number): HuntCharacter {
+  return { ...createProgress(), level, exp, characterId: C[index]!, equipped: [] };
+}
+
+function withParty(state: SimState, levels: readonly (readonly [number, number])[]): SimState {
+  const next = structuredClone(state);
+  next.progression = Object.fromEntries(levels.map(([level, exp], index) => [`p${index}`, member(index, level, exp)]));
+  return next;
+}
+
+function reward(
+  seq: number,
+  rarity: Rarity,
+  outcome: 'kept' | 'auto-sold' | 'lost' = 'kept',
+  kind: 'equipment' | 'consumable' = 'equipment',
+): HuntReward {
+  return {
+    rewardSeq: seq,
+    atSimMs: 5_400_000 + seq * 1_000,
+    monsterId: 'm',
+    itemLevel: 10 + seq,
+    item:
+      kind === 'equipment'
+        ? { kind, definitionId: `def-${seq}`, rarity, bonuses: Array.from({ length: seq % 3 }, (_, index) => ({ bonusId: `b${index}`, value: 1 })) }
+        : { kind, consumableId: 'idun-apple', quantity: 1 },
+    disposition: { action: outcome === 'auto-sold' ? 'auto-sell' : 'keep', matched: 'default', outcome },
+    rewardId: `h:${seq}`,
+    lootPreset: { presetId: 'l', presetVersion: 1 },
+  };
+}
+
+describe('report version 3: what part 4 §3.5 must show', () => {
+  test('carries its own map and the bumped version', () => {
+    const report = buildAwayReport(input());
+    expect(report.reportVersion).toBe(3);
+    expect(AWAY_REPORT_VERSION).toBe(3);
+    expect(report.mapId).toBe('prototype');
+  });
+
+  test('party outcomes: each member’s level and EXP before and after, and its deaths and revives this absence', () => {
+    const digest: HuntDigest = { ...emptyDigest(), deaths: { p0: 2, p2: 1 }, revives: { p0: 1 } };
+    const report = buildAwayReport(
+      input({
+        before: withParty(before, [[4, 10], [4, 90], [5, 0]]),
+        after: withParty(input().after, [[4, 70], [5, 3], [5, 40]]),
+        digest,
+      }),
+    );
+    expect(report.party).toEqual([
+      { characterId: C[0], classId: 'guardian', levelBefore: 4, levelAfter: 4, expBefore: 10, expAfter: 70, deaths: 2, revives: 1 },
+      { characterId: C[1], classId: 'cleric', levelBefore: 4, levelAfter: 5, expBefore: 90, expAfter: 3, deaths: 0, revives: 0 },
+      { characterId: C[2], classId: 'ranger', levelBefore: 5, levelAfter: 5, expBefore: 0, expAfter: 40, deaths: 1, revives: 0 },
+    ]);
+  });
+
+  test('the three counts are separate: wipes this hunt, wipes this absence, member deaths summed over the absence', () => {
+    const digest: HuntDigest = { ...emptyDigest(), deaths: { p0: 2, p1: 1, p2: 1 } };
+    const partyBefore = withParty(before, [[1, 0], [1, 0], [1, 0]]);
+    const after = withMetrics(partyBefore, { wipes: 1 }, { nowMs: 5_400_000 + HOUR, phase: 'stopped', stopReason: 'wipe' });
+    const report = buildAwayReport(input({ before: partyBefore, after, digest }));
+    expect(report.wipesThisHunt).toBe(1);
+    expect(report.outcomes.wipes).toBe(1);
+    expect(report.memberDeaths).toBe(4);
+  });
+
+  test('a laboratory state with no progression reports no party rather than an invented one', () => {
+    expect(buildAwayReport(input()).party).toEqual([]);
+  });
+
+  test('notable loot (R193): kept equipment only, rarest first, bounded, with the total kept', () => {
+    const rewards = [
+      reward(1, 'common'),
+      reward(2, 'epic'),
+      reward(3, 'rare', 'auto-sold'),
+      reward(4, 'legendary'),
+      reward(5, 'epic', 'lost'),
+      reward(6, 'uncommon', 'kept', 'consumable'),
+      reward(7, 'rare'),
+      reward(8, 'epic'),
+      ...Array.from({ length: NOTABLE_LIMIT }, (_, index) => reward(20 + index, 'common')),
+    ];
+    const report = buildAwayReport(input({ rewards }));
+    expect(report.notable).toHaveLength(NOTABLE_LIMIT);
+    expect(report.notable.map((drop) => drop.rarity)).toEqual(
+      ['legendary', 'epic', 'epic', 'rare', 'common', 'common', 'common', 'common'].slice(0, NOTABLE_LIMIT),
+    );
+    expect(report.notable[0]).toEqual({
+      rewardId: 'h:4',
+      definitionId: 'def-4',
+      rarity: 'legendary',
+      itemLevel: 14,
+      bonusCount: 1,
+      atWallMs: W0 + 4_000,
+    });
+    // Same rarity: the earlier drop first.
+    expect(report.notable.slice(1, 3).map((drop) => drop.rewardId)).toEqual(['h:2', 'h:8']);
+    expect(report.notableTotal).toBe(5 + NOTABLE_LIMIT);
+  });
+
+  test('the timeline (R191): the digest’s entries on the wall clock, named by character, then the cap when it bit', () => {
+    const digest: HuntDigest = {
+      deaths: { p1: 1 },
+      revives: { p1: 1 },
+      entries: [
+        { kind: 'won', atSimMs: 5_401_000, actorId: null, count: 12, reason: null },
+        { kind: 'death', atSimMs: 5_460_000, actorId: 'p1', count: 1, reason: null },
+        { kind: 'revive', atSimMs: 5_470_000, actorId: 'p1', count: 1, reason: 'idun-apple' },
+        { kind: 'drop-lost', atSimMs: 5_480_000, actorId: null, count: 3, reason: null },
+      ],
+      omitted: 2,
+    };
+    const partyState = withParty(before, [[1, 0], [1, 0], [1, 0]]);
+    const report = buildAwayReport(
+      input({
+        before: partyState,
+        after: withMetrics(partyState, {}, { nowMs: 5_400_000 + HOUR }),
+        digest,
+        window: { ...input().window, cappedBy: 'cap', capCutoffWall: W0 + HOUR - 1 },
+      }),
+    );
+    expect(report.timeline).toEqual([
+      { kind: 'won', atWallMs: W0 + 1_000, characterId: null, count: 12, reason: null },
+      { kind: 'death', atWallMs: W0 + 60_000, characterId: C[1], count: 1, reason: null },
+      { kind: 'revive', atWallMs: W0 + 70_000, characterId: C[1], count: 1, reason: 'idun-apple' },
+      { kind: 'drop-lost', atWallMs: W0 + 80_000, characterId: null, count: 3, reason: null },
+      { kind: 'cap', atWallMs: W0 + HOUR - 1, characterId: null, count: 1, reason: null },
+    ]);
+    expect(report.timelineOmitted).toBe(2);
+  });
+
+  test('the timeline stays within its bound when the cap entry is added', () => {
+    const entries = Array.from({ length: TIMELINE_LIMIT }, (_, index) => ({
+      kind: 'death' as const,
+      atSimMs: 5_400_000 + index,
+      actorId: 'p0',
+      count: 1,
+      reason: null,
+    }));
+    const report = buildAwayReport(
+      input({ digest: { ...emptyDigest(), deaths: { p0: TIMELINE_LIMIT }, entries }, window: { ...input().window, cappedBy: 'cap' } }),
+    );
+    expect(report.timeline).toHaveLength(TIMELINE_LIMIT);
+    expect(report.timeline.at(-1)!.kind).toBe('cap');
+    expect(report.timelineOmitted).toBe(1);
+  });
+
+  test('a stop is the engine’s own stop entry; no cap entry follows a stop', () => {
+    const digest: HuntDigest = {
+      ...emptyDigest(),
+      entries: [
+        { kind: 'wipe', atSimMs: 5_500_000, actorId: null, count: 1, reason: null },
+        { kind: 'stop', atSimMs: 5_500_000, actorId: null, count: 1, reason: 'wipe' },
+      ],
+    };
+    const report = buildAwayReport(
+      input({
+        digest,
+        stop: { reason: 'wipe', atSimMs: 5_500_000, atWallMs: W0 + 100_000 },
+        after: withMetrics(before, { wipes: 1 }, { nowMs: 5_500_000, phase: 'stopped', stopReason: 'wipe' }),
+        window: { ...input().window, cappedBy: 'cap' },
+      }),
+    );
+    expect(report.timeline.map((entry) => entry.kind)).toEqual(['wipe', 'stop']);
+    expect(report.timeline.at(-1)).toMatchObject({ atWallMs: report.accrualEndedAtWall, reason: 'wipe' });
   });
 });

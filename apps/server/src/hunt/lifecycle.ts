@@ -41,6 +41,7 @@ import { SegmentPool } from '../workers/pool';
 import type { SegmentResult } from '../workers/segment';
 import type { SettlementWindow } from './clock';
 import type { HuntConfig } from './config';
+import { emptyDigest, mergeDigests, type HuntDigest } from './digest';
 import {
   decodeCheckpoint,
   encodeCheckpoint,
@@ -678,6 +679,8 @@ export interface PersistOptions {
   readonly collect?: 'events' | 'summary';
   /** The wall instant to settle to: a command's recorded time, or `deps.now()`. */
   readonly atWall?: number;
+  /** Fold the settled events into a digest for an away report (ruling R192). Never changes state. */
+  readonly digest?: boolean;
 }
 
 export interface PersistResult {
@@ -699,6 +702,10 @@ export interface PersistResult {
   readonly rewards: readonly HuntReward[];
   /** Checkpoints committed: more than one when a full reward carrier forced a commit. */
   readonly commits: number;
+  /** The hunt's map. */
+  readonly mapId: string;
+  /** Every round's events folded, when `digest` asked for it; `null` otherwise (R192). */
+  readonly digest: HuntDigest | null;
 }
 
 /**
@@ -728,10 +735,13 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
       uncovered: { afterStopMs: 0, afterCapMs: 0 },
       rewards: [],
       commits: 0,
+      mapId: loaded.mapId,
+      digest: options.digest === true ? emptyDigest() : null,
     };
   }
 
   let creditedSimMs = 0;
+  let digest: HuntDigest | null = options.digest === true ? emptyDigest() : null;
   const events: SegmentResult['events'] = [];
   const rewards: HuntReward[] = [];
   let window: SettlementWindow | null = null;
@@ -744,6 +754,7 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
     for (const event of settlement.events) events.push(event);
     for (const reward of settlement.rewards) rewards.push(reward);
     window ??= settlement.window;
+    if (digest !== null && settlement.digest !== null) digest = mergeDigests(digest, settlement.digest);
 
     const stateVersion = loaded.stateVersion + 1;
     if (settlement.completion !== 'reward-cap') {
@@ -759,6 +770,8 @@ export async function persistHunt(deps: LifecycleDeps, accountId: string, option
         uncovered: settlement.uncovered,
         rewards,
         commits,
+        mapId: loaded.mapId,
+        digest,
       };
     }
     loaded = { ...loaded, envelope: settlement.envelope, stateVersion };
@@ -780,11 +793,19 @@ async function persistRound(
     envelope,
     nowWall,
     async (request) => {
-      const segment = await runOrFault(deps, accountId, `${jobKey(accountId, envelope)}:${collect}`, request, nowWall);
+      // Its own job slot when it folds a digest: a joiner must never be handed a result without one.
+      const slot = `${jobKey(accountId, envelope)}:${collect}${options.digest === true ? ':digest' : ''}`;
+      const segment = await runOrFault(deps, accountId, slot, request, nowWall);
       await deps.hooks?.afterSegment?.();
       return segment;
     },
-    { live: options.live, collect, accountStateVersion: loaded.stateVersion, rewardCap: deps.config.rewardCarrierCap },
+    {
+      live: options.live,
+      collect,
+      accountStateVersion: loaded.stateVersion,
+      rewardCap: deps.config.rewardCarrierCap,
+      digest: options.digest,
+    },
   );
 
   const updated = settlement.envelope;

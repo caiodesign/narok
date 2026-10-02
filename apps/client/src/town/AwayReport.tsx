@@ -3,58 +3,114 @@
  *
  * `codex-examples/realm-refined/away.html` is the shape: a report window over
  * the hushed world — the herald with time away and the simulated time against
- * the offline limit, the verdict, the totals and loot panes, and the actions.
- * Its stylesheet is `away.css`, mounted only while this screen is (R181).
+ * the offline limit, the verdict with its counts, the party's results, the
+ * totals and loot panes with the notable drops, the timeline, and the
+ * actions. Its stylesheet is `away.css`, mounted only while this screen is
+ * (R181).
  *
  * The whole screen is a read of progress the server already settled and
  * credited: it holds no command that grants anything, and opening, reopening
  * or refreshing it credits nothing. Its actions navigate; the order of the
  * first two is recomputed from the *current* inventory (`awayView`), so the
- * report stops asking for room once room exists.
+ * report stops asking for room once room exists. The actions sit in the
+ * report's footer, outside the scrolling body, so neither a notable find nor
+ * the timeline can cover the recovery action (part 4 §3.5 Never).
  *
- * Ruling R184: the screen shows the report's two wipe counts — this hunt's
- * and this absence's — and leaves out per-member deaths, per-member results,
- * notable drops, the time split and the timeline, because the report carries
- * none of them and inventing one is what R182 forbids. There is no wipe limit to draw
- * pips against: a full wipe ends the hunt (R154).
+ * Every figure is the report's own (R182). Report version 3 (Task 10 fix
+ * round 1) carries what part 4 §3.5 must show and version 2 left out — R184's
+ * waiver is withdrawn: the three counts (wipes this hunt, wipes this absence,
+ * member deaths over the absence) side by side; each member's level and EXP
+ * before and after with its deaths and revives; encounters won and lost; the
+ * notable kept equipment (R193); and the bounded timeline (R191), drawn on the
+ * reference's track from the moment the player left to the moment they came
+ * back. A version-2 report shows none of these (R194). There is no wipe limit
+ * to draw pips against: a full wipe ends the hunt (R154).
  */
 import { useTranslation } from 'react-i18next';
+import type { Content } from '@narok/data';
 import sheet from '../away.css?raw';
-import type { AwayAction, AwayReportRecord, InventoryResponse } from '../commands';
-import { classNames } from '../hud/model';
+import type { AwayAction, AwayReportRecord, AwayTimelineRecord, CharacterSummary, InventoryResponse } from '../commands';
+import { classGlyphId, classNames, medalModifier } from '../hud/model';
 import { SpriteSheet } from '../hud/SpriteSheet';
 import { WorldBackdrop } from '../hud/WorldBackdrop';
 import { formatDuration, formatNumber } from '../i18n';
-import { awayView, shareOf } from './model';
+import { definitionIconById, rarityRow } from './icons';
+import { awayView, markSide, shareOf } from './model';
 import { useRouteSheet } from './sheets';
 import { TownSprites } from './TownSprites';
 
 export interface AwayReportProps {
   readonly report: AwayReportRecord;
+  readonly content: Content;
+  /** The roster, to name the report's members. */
+  readonly characters: readonly CharacterSummary[];
   readonly inventory: InventoryResponse | null;
   readonly lootPresetName: string | null;
-  readonly zone: string | null;
   readonly onManageBag: () => void;
   readonly onReturnToHunt: () => void;
   readonly onStartHunt: () => void;
   readonly onReviewFilter: () => void;
 }
 
+/** The reference's mark classes, by what the entry records. */
+const MARK: Record<AwayTimelineRecord['kind'], string> = {
+  won: 'mark--level',
+  wipe: 'mark--death',
+  death: 'mark--death',
+  revive: 'mark--epic',
+  'drop-lost': 'mark--lost',
+  stop: 'mark--stop',
+  cap: 'mark--end',
+};
+
 export function AwayReport(props: AwayReportProps): React.JSX.Element {
   useRouteSheet('away', sheet);
-  const { report, inventory, lootPresetName, zone } = props;
+  const { report, content, characters, inventory, lootPresetName } = props;
   const { t, i18n } = useTranslation();
   const number = (value: number) => formatNumber(value, i18n.language);
   const duration = (ms: number) => formatDuration(ms, t, i18n.language);
   const view = awayView(report, inventory);
   const { outcomes } = report;
   const consumed = Object.entries(outcomes.consumed).filter(([, units]) => units > 0);
+  const sinceLeft = (atWallMs: number) => atWallMs - report.awayFromWall;
+  const at = (atWallMs: number) => `${shareOf(sinceLeft(atWallMs), report.timeAwayMs)}%`;
+
+  // A member is named from the roster; one no longer in it, by its class.
+  const nameOf = (characterId: string | null): string => {
+    const member = characters.find((entry) => entry.id === characterId);
+    if (member !== undefined) return member.name;
+    const result = report.party?.find((entry) => entry.characterId === characterId);
+    return result === undefined ? t('away.timeline.member') : t(`class.${result.classId}`);
+  };
+
+  const entryLabel = (entry: AwayTimelineRecord): string => {
+    switch (entry.kind) {
+      case 'won':
+        return t('away.timeline.won', { count: entry.count });
+      case 'wipe':
+        return t('away.timeline.wipe');
+      case 'death':
+        return t('away.timeline.death', { name: nameOf(entry.characterId) });
+      case 'revive':
+        return entry.reason === null || entry.reason === 'revive'
+          ? t('away.timeline.revived', { name: nameOf(entry.characterId) })
+          : t('away.timeline.apple', { name: nameOf(entry.characterId), item: t(`consumable.${entry.reason}`) });
+      case 'drop-lost':
+        return t('away.timeline.dropLost', { count: entry.count });
+      case 'stop':
+        return t('away.timeline.stop', { reason: t(`stopReason.${entry.reason ?? 'operator'}`) });
+      case 'cap':
+        return t('away.timeline.cap');
+    }
+  };
 
   const handlers: Record<AwayAction, () => void> = {
     'view-hunt': props.onReturnToHunt,
     'start-hunt': props.onStartHunt,
     'manage-bag': props.onManageBag,
   };
+
+  const bagFilledAt = report.timeline?.find((entry) => entry.kind === 'drop-lost')?.atWallMs ?? null;
 
   return (
     <div className="realm">
@@ -103,10 +159,11 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
                   </div>
                 </dd>
               </div>
-              {zone !== null && (
+              {/* The report's own map, never whatever hunt runs when it is read (Minor 6). */}
+              {report.mapId !== null && (
                 <div className="fact fact--map">
                   <dt>{t('away.fact.map')}</dt>
-                  <dd>{t(`map.${zone}`)}</dd>
+                  <dd>{t(`map.${report.mapId}`)}</dd>
                 </div>
               )}
             </dl>
@@ -130,8 +187,76 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
               <div className="attempts" aria-label={t('away.wipes.label')}>
                 <span className="attempts-label">{t('away.wipes.thisHunt', { count: view.wipes.thisHunt })}</span>
                 <span className="attempts-note">{t('away.wipes.thisAbsence', { count: view.wipes.thisAbsence })}</span>
+                {report.memberDeaths !== null && (
+                  <span className="attempts-note">{t('away.wipes.memberDeaths', { count: report.memberDeaths })}</span>
+                )}
               </div>
             </div>
+
+            {report.party !== null && report.party.length > 0 && (
+              <section aria-labelledby="party-title">
+                <h2 className="section-title" id="party-title">
+                  {t('away.party.title')} <small>{t('away.party.outcomes', { won: outcomes.wins, lost: outcomes.wipes })}</small>
+                </h2>
+                <div className="party-results">
+                  {report.party.map((member) => {
+                    const up = member.levelAfter > member.levelBefore;
+                    return (
+                      <article className={classNames('unit win result', up && 'result--up')} key={member.characterId}>
+                        <div className={classNames('medal', medalModifier(member.classId))}>
+                          <svg aria-hidden="true">
+                            <use href={`#${classGlyphId(member.classId)}`} />
+                          </svg>
+                          <span className="lvl num">{number(member.levelAfter)}</span>
+                        </div>
+                        <div>
+                          <header className="unit-head">
+                            <h3 className="unit-name">{nameOf(member.characterId)}</h3>
+                            <span className="unit-class">{t(`class.${member.classId}`)}</span>
+                            <span className="lvl-change">
+                              {up ? (
+                                <>
+                                  <span className="levelup-flag">
+                                    <svg aria-hidden="true">
+                                      <use href="#i-star" />
+                                    </svg>
+                                    {t('away.party.levelUp')}
+                                  </span>
+                                  <span className="from num">{number(member.levelBefore)}</span>
+                                  <span aria-label={t('away.party.to')}>→</span>
+                                  <b className="num">{number(member.levelAfter)}</b>
+                                </>
+                              ) : (
+                                t('away.party.level', { level: member.levelAfter })
+                              )}
+                            </span>
+                          </header>
+                        </div>
+                        <dl className="result-stats">
+                          <div className="exp">
+                            <dt>{t('away.party.expLabel')}</dt>
+                            <dd className="num">{t('away.party.exp', { from: number(member.expBefore), to: number(member.expAfter) })}</dd>
+                          </div>
+                          <div className="deaths">
+                            <dt>{t('away.party.deaths')}</dt>
+                            <dd className="num">
+                              <svg aria-hidden="true">
+                                <use href="#i-skull" />
+                              </svg>
+                              {number(member.deaths)}
+                            </dd>
+                          </div>
+                          <div className="revives">
+                            <dt>{t('away.party.revives')}</dt>
+                            <dd className="num">{number(member.revives)}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             <div className="ledger-grid">
               <section className="pane win" aria-labelledby="totals-title">
@@ -189,6 +314,27 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
                     <dd>{t('away.loot.ignored', { count: outcomes.drops.ignored })}</dd>
                   </div>
                 </dl>
+                {report.notable !== null && report.notable.length > 0 && (
+                  <ul className="notable" aria-label={t('away.notable.label')}>
+                    {report.notable.map((drop) => (
+                      <li className={classNames('drop', rarityRow(drop.rarity))} key={drop.rewardId}>
+                        <span className="drop-icon">
+                          <svg aria-hidden="true">
+                            <use href={`#${definitionIconById(drop.definitionId, content)}`} />
+                          </svg>
+                        </span>
+                        <span className="drop-name">{t(`item.${drop.definitionId}`)}</span>
+                        <span className="drop-age">{duration(sinceLeft(drop.atWallMs))}</span>
+                        <span className="drop-note">
+                          {t('away.notable.note', { rarity: t(`rarity.${drop.rarity}`), count: drop.bonusCount, level: number(drop.itemLevel) })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {report.notable !== null && report.notableTotal !== null && report.notableTotal > report.notable.length && (
+                  <p className="drop-note">{t('away.notable.more', { count: report.notableTotal - report.notable.length })}</p>
+                )}
                 {outcomes.drops.autoSold > 0 && (
                   <p className="sold-line">
                     <svg aria-hidden="true">
@@ -207,6 +353,47 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
                 )}
               </section>
             </div>
+
+            {report.timeline !== null && (
+              <section className="chronicle win" aria-labelledby="chron-title">
+                <h2 className="section-title" id="chron-title">
+                  {t('away.timeline.title')}{' '}
+                  {report.timelineOmitted !== null && report.timelineOmitted > 0 && (
+                    <small>{t('away.timeline.omitted', { count: report.timelineOmitted })}</small>
+                  )}
+                </h2>
+                <div className="track-wrap">
+                  {/* The track is the absence; past the first lost drop it is hatched, as the reference draws a full bag. */}
+                  <div className="track" aria-hidden="true">
+                    <span className="track-looting" style={{ width: `calc(${bagFilledAt === null ? '100%' : at(bagFilledAt)} - 4px)` }} />
+                    {bagFilledAt !== null && <span className="track-dry" style={{ left: at(bagFilledAt) }} />}
+                  </div>
+                  <ol aria-label={t('away.timeline.label')}>
+                    {report.timeline.map((entry, index) => (
+                      <li
+                        className={classNames('mark', `mark--${markSide(index)}`, MARK[entry.kind])}
+                        key={`${entry.kind}:${entry.atWallMs}:${index}`}
+                        style={{ '--at': at(entry.atWallMs) } as React.CSSProperties}
+                      >
+                        <span className="mark-label">
+                          <time>{duration(sinceLeft(entry.atWallMs))}</time>
+                          {entryLabel(entry)}
+                        </span>
+                      </li>
+                    ))}
+                    <li
+                      className={classNames('mark', `mark--${markSide(report.timeline.length)}`, 'mark--end')}
+                      style={{ '--at': at(report.returnedAtWall) } as React.CSSProperties}
+                    >
+                      <span className="mark-label">
+                        <time>{duration(report.timeAwayMs)}</time>
+                        {t('away.timeline.returned')}
+                      </span>
+                    </li>
+                  </ol>
+                </div>
+              </section>
+            )}
           </div>
 
           <footer className="actions">
@@ -223,7 +410,7 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
             {inventory !== null && (
               <p className="actions-note">
                 {view.bagFullNow
-                  ? t('away.note.full', { used: number(inventory.usedSlots), capacity: number(inventory.capacity), lost: number(outcomes.drops.lost) })
+                  ? t('away.note.full', { used: number(inventory.usedSlots), capacity: number(inventory.capacity), count: outcomes.drops.lost })
                   : t('away.note.room', { used: number(inventory.usedSlots), capacity: number(inventory.capacity) })}
               </p>
             )}

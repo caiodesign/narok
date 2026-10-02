@@ -12,6 +12,7 @@ import {
   type AwayReportRecord,
   type HuntResponse,
   type InventoryResponse,
+  type LootPresetRecord,
   type PresetRef,
   type PresetsResponse,
   type SavePresetResponse,
@@ -188,6 +189,9 @@ export function stoppedHunt(reason: NonNullable<PublicStateWire['stopReason']>, 
   return { ...record, state: { ...record.state, stopReason: reason }, status: 'stopped', mapId: 'prototype' };
 }
 
+/** The fakes' one loot preset, as `GET /api/presets` lists it. */
+export const DEFAULT_LOOT: LootPresetRecord = { id: '30000000-0000-4000-8000-000000000001', name: 'Default', presetVersion: 1 };
+
 export function huntResponse(generation: number, phase: PublicStateWire['phase'], active: PresetRef, pending: PresetRef | null = null): HuntResponse {
   return {
     huntId: '20000000-0000-4000-8000-000000000001',
@@ -196,6 +200,8 @@ export function huntResponse(generation: number, phase: PublicStateWire['phase']
     state: wireState(0, phase),
     activeStrategy: active,
     pendingStrategy: pending,
+    activeLoot: { presetId: DEFAULT_LOOT.id, presetVersion: DEFAULT_LOOT.presetVersion },
+    pendingLoot: null,
   };
 }
 
@@ -209,6 +215,8 @@ export interface FakeApi extends Api {
   inventoryResponse: InventoryResponse | null;
   /** What `GET /api/presets` answers now; a test may replace it, as another tab's save would. */
   strategyPresets: readonly StrategyPresetRecord[];
+  /** The loot presets `GET /api/presets` lists. */
+  lootPresets: readonly LootPresetRecord[];
   /** How many times the preset list was read. */
   presetReads: number;
   /** What `GET /api/reports/:id` answers, by id. */
@@ -228,6 +236,7 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
     current: null,
     inventoryResponse: null,
     strategyPresets: presets,
+    lootPresets: [DEFAULT_LOOT],
     presetReads: 0,
     reports: {},
     reportReads: [],
@@ -245,7 +254,7 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
       api.presetReads += 1;
       return {
         strategy: api.strategyPresets,
-        loot: [{ id: '30000000-0000-4000-8000-000000000001', name: 'Default', presetVersion: 1 }],
+        loot: api.lootPresets,
         stateVersion: 7,
       };
     },

@@ -40,15 +40,11 @@ export function useFigure(): (value: number | null, unit: StatLine['unit'], sign
   };
 }
 
-/** The label of a compared line: a base figure or a bonus identity. */
-export function lineLabel(t: (key: string) => string, key: string): string {
-  return t(key);
-}
-
 /** A longer attack interval is slower: its sign is read the other way round. */
 const better = (line: StatLine): number => (line.unit === 'ms' ? -line.delta : line.delta);
 
-function blockText(t: (key: string, options?: Record<string, unknown>) => string, block: EquipBlock, name: string): string {
+/** Why an item cannot be equipped, in words (both levels for an under-level item). */
+export function blockText(t: (key: string, options?: Record<string, unknown>) => string, block: EquipBlock, name: string): string {
   switch (block.reason) {
     case 'class':
       return t('bag.block.class', { classes: block.classes.map((id) => t(`class.${id}`)).join(', ') });
@@ -100,7 +96,7 @@ export function ItemCompare({ item, current, slot, character, characters, block,
         <tbody>
           {lines.map((line) => (
             <tr key={line.key}>
-              <th>{lineLabel(t, line.key)}</th>
+              <th>{t(line.key)}</th>
               <td>{figure(line.before, line.unit)}</td>
               <td>{figure(line.after, line.unit)}</td>
               <td className={classNames(better(line) > 0 && 'gain', better(line) < 0 && 'loss')}>
@@ -114,5 +110,3 @@ export function ItemCompare({ item, current, slot, character, characters, block,
     </>
   );
 }
-
-export { blockText };

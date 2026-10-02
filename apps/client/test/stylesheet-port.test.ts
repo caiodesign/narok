@@ -12,10 +12,11 @@
  *
  * They are evaluated in Node rather than shelled to `bash`, which a Windows
  * runner may not have (or may resolve to WSL): the same line ranges are cut
- * from both files and compared line by line. The mockups are checked out with
- * the platform's line endings (`core.autocrlf`), so a trailing CR is removed
- * before comparing, which is what `diff` on such a checkout reports as no
- * difference either. Any other byte that differs fails.
+ * from both files and compared byte for byte — no line ending is normalised
+ * here. Line endings are normalised in one place only, `.gitattributes`,
+ * which checks the mockups and the sheets out with LF on every platform
+ * (Task 10 fix round 1, Minor 9); a CR in either file fails. After each town
+ * sheet's frozen range comes its labelled Additions block and nothing else.
  *
  * Ruling R181 (route-scoped loading; `docs/realm-town-port.md`): the three town
  * sheets share selectors with `styles.css:1-754` and some of those rule bodies
@@ -35,12 +36,9 @@ import { useRouteSheet } from '../src/town/sheets';
 const ROOT = resolve(__dirname, '../../..');
 const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8');
 
-/** `sed -n 'from,top'` over `text`, one entry per line, a trailing CR removed. */
+/** `sed -n 'from,top'` over `text`, one entry per line, exactly as stored. */
 function lines(text: string, from: number, to: number): string[] {
-  return text
-    .split('\n')
-    .slice(from - 1, to)
-    .map((line) => line.replace(/\r$/, ''));
+  return text.split('\n').slice(from - 1, to);
 }
 
 interface Port {
@@ -80,9 +78,34 @@ describe('B-01: the five ported sheets are byte-identical to their references', 
     });
   }
 
+  test('no line ending is normalised away: neither a reference nor a sheet holds a CR', () => {
+    for (const port of PORTS) {
+      expect(read(`codex-examples/realm-refined/${port.mockup}`).includes('\r'), port.mockup).toBe(false);
+      expect(read(`apps/client/src/${port.sheet}`).includes('\r'), port.sheet).toBe(false);
+    }
+  });
+
+  test('the frozen range is the sheet’s exact leading bytes', () => {
+    for (const port of PORTS) {
+      const reference = lines(read(`codex-examples/realm-refined/${port.mockup}`), port.from, port.to).join('\n') + '\n';
+      expect(read(`apps/client/src/${port.sheet}`).startsWith(reference), port.sheet).toBe(true);
+    }
+  });
+
+  test('after each town sheet’s frozen range comes its labelled Additions block, and nothing before it', () => {
+    for (const port of PORTS.slice(2)) {
+      const rest = read(`apps/client/src/${port.sheet}`).split('\n').slice(port.length).join('\n');
+      const label = `/* ---- Additions (product-side, Task 10). Everything above this line is the\n   frozen port of codex-examples/realm-refined/${port.mockup}'s first <style> block`;
+      expect(rest.trimStart().startsWith(label), port.sheet).toBe(true);
+      // Only blank lines between the frozen range and the label.
+      expect(rest.slice(0, rest.indexOf('/* ---- Additions')).trim(), port.sheet).toBe('');
+      expect(rest.split('/* ---- Additions').length - 1, port.sheet).toBe(1);
+    }
+  });
+
   test('each town range is exactly the mockup’s first <style> block', () => {
     for (const port of PORTS.slice(2)) {
-      const all = read(`codex-examples/realm-refined/${port.mockup}`).split('\n').map((line) => line.replace(/\r$/, ''));
+      const all = read(`codex-examples/realm-refined/${port.mockup}`).split('\n');
       expect(all[port.from - 2]).toBe('<style>');
       expect(all[port.to]).toBe('</style>');
       expect(all.slice(0, port.from - 2).some((line) => line.includes('<style'))).toBe(false);
