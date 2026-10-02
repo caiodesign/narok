@@ -7,6 +7,36 @@ implementable until they are recorded. [Layer 1 design](../../layer-1-design.md)
 
 Section numbers below are local to this part; cross-part references name the part. Requirement ids in this part are `B-Lnn`.
 
+> **Superseded passages (milestone B Task 11 sweep, 2026-10-02).** The owner decision of 2026-09-30
+> (Task 7c, rulings R151–R156; [part 3 §5.6's superseded block](03-town.md)) removed the wipe limit
+> and the respawn, and made every return to town a full heal. The text below is kept as written and
+> marked where it no longer holds:
+>
+> - §2's checkpoint table — `input.wipeLimit` and "wipe limit" in *Inputs*, "respawn state" in
+>   *Encounter*: no such input or state exists. A full wipe ends the hunt with stop reason `wipe`
+>   (R154).
+> - §2's `stopContext` row and §4's / §9 #5's **stop reason vocabulary** — A's `'wipe-limit'` is gone;
+>   the shipped union is `'wipe' | 'stalemate' | 'operator' | 'retreat' | 'potion-floor'`
+>   (`packages/sim`, Task 7c).
+> - §3's worked example — the engine stop at `46,000,000` would carry reason `wipe`, not `wipe-limit`;
+>   the arithmetic is unchanged.
+> - §4's and §9 #4's **pending activation boundary** — "wipe limit" is no longer a party-scope
+>   setting, and the consequence "activating a `wipeLimit` at or below `metrics.wipes` stops the hunt"
+>   has nothing left to govern.
+> - §5's transition table — the *Stop* row's "never grants: heal" and the *Retreat* row's "recovery
+>   of any kind on arrival" no longer hold: every return to town heals the whole party, living or
+>   dead, to full HP and MP (R155). The *Wipe → respawn* row is struck: there is no respawn. The
+>   *Resume* row and §9 #6 were already superseded by the owner's 2026-09-21 decision recorded in §5
+>   (Stop returns to town; there is no Resume).
+> - Shipped, for the record: a new hunt's first generation is one past the account's last
+>   (ruling R198, Task 11), not a literal `generation=1` as §1 step 1 states — `1` holds only for an
+>   account's first hunt. §2 already makes `generation` monotonic; this keeps it so across hunts.
+> - Shipped, for the record: §7's maintenance sequence runs as an offline operator command,
+>   `apps/server/src/ops/maintenance.ts` (`freeze`, `settle`, `resume`; ruling R199, Task 11). Steps
+>   2, 3 (settle under the pinned artifacts, persist) and 5 (resume with new anchors, downtime not
+>   billed) are wired; step 1's command refusal while frozen is not — the freeze is a stopped `api`
+>   process — and step 4's content transform has no migration to run in B.
+
 Milestone A built a pure, deterministic engine with no clock and no I/O (contracts §1). This section adds the authoritative envelope around it: who calls `advance`, with which target, what is written, what is sent, and in which order. It extends the A contracts and must not break them — every rule here is expressible as an envelope field, a call order, or a transaction boundary, never as a change to a transition A already proved.
 
 Vocabulary used throughout. **Sim time** is `state.nowMs`, integer milliseconds from the hunt's own origin (`startState` sets `nowMs: 0` and `rng: input.seed`, `packages/sim/src/state.ts`). **Wall time** is integer milliseconds UTC, read only by `apps/server`. **Segment** is one committed `advance` interval. **Generation** is the hunt's intervention counter; it increments on every authoritative mutation of hunt rules or lifecycle state, never on a plain settlement. `packages/sim` still reads no wall clock, no `Math.random()`, and no database (layer-1 §4.1); all wall arithmetic in this section belongs to the server.
@@ -99,7 +129,7 @@ Re-anchoring to `nowWall` — not to `eligibleCutoffWall` — is precisely what 
 
 - `capCutoffWall = W0 + 43,200,000`; `eligibleCutoffWall = min(W1, that) = W0 + 43,200,000`.
 - `simTarget = 5,400,000 + 43,200,000 = 48,600,000`.
-- The engine wipes out at `nowMs = 46,000,000`, phase `stopped`, reason `wipe-limit`.
+- The engine wipes out at `nowMs = 46,000,000`, phase `stopped`, reason ~~`wipe-limit`~~ `wipe` (R154).
 - `creditedSimMs = 46,000,000 - 5,400,000 = 40,600,000` (11 h 16 m 40 s). Stop wall instant `= W0 + 40,600,000`.
 - Uncovered: `2,600,000 ms` between the stop and the cap cutoff, plus `25,200,000 ms` (7 h) between the cap cutoff and `W1`. Neither is ever simulated.
 - After commit: `lastSeenAt = wallAnchorMs = W1`, `simAnchorMs = 46,000,000`.
@@ -179,7 +209,7 @@ What each transition preserves, and what must never be free (layer-1 §4.5):
 | Resume | Everything stop preserved, plus the scheduled queue | A fresh decision for an actor whose action was already scheduled | yes |
 | Retreat (abandon encounter for town) | Party HP/MP, `rng`, cooldowns, pity, wipe count | Recovery of any kind on arrival; a re-entry that resamples a group | yes |
 | Travel (map change) | Account-scoped state: pity, inventory, gold, characters | Same as retreat | ends the hunt |
-| Wipe → respawn | Only this transition grants the full HP/MP restore (A spec §10, `completeRespawn`) | — | no (engine transition) |
+| ~~Wipe → respawn~~ | ~~Only this transition grants the full HP/MP restore (A spec §10, `completeRespawn`)~~ — superseded: no respawn; a full wipe ends the hunt and the town return heals (R154, R155) | — | no (engine transition) |
 
 A's `Simulation.stop` sets phase `stopped` and reason `operator`, clears the queue, and preserves everything else — proven by `packages/sim/test/advance.test.ts` "stop() sets operator phase/reason, clears the queue, and preserves everything else". **That is terminal, and B needs Resume**, so B cannot reuse it literally: a cleared queue loses the pending cast, the scheduled regen tick and every scheduled decision.
 

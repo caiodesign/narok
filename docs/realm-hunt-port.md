@@ -40,6 +40,15 @@ that draw a spatial view. Nothing else may, and `PositionId` remains opaque ever
 > laboratory's `BattlefieldView` (now `apps/lab`). R164: `apps/lab` may import `@narok/client`;
 > `apps/client` may never import `apps/lab`; the frozen stylesheets and `apps/client/src/hud/**`
 > never move.
+>
+> **R165 (milestone B Task 8; recorded here by the Task 11 sweep, where it was missing).** Because
+> `@narok/data` cannot import `SimError`, `gridCoordinates` throws `PositionError` from
+> `@narok/data` on a malformed id — same code (`INVALID_INPUT`), same field (`position`), same
+> message. The engine translates it back into exactly the old `SimError` at the two places raw input
+> reaches the codec (`createGrid`'s `validatePlacement` and `createSimulation`'s guard), so every
+> error the simulation raises is byte-identical; only a direct caller of `gridCoordinates` sees
+> `PositionError`, and no caller in the repository depends on the old type
+> (`packages/sim/test/position-codec.test.ts`).
 
 ### R107 — the ported stylesheet is not editable
 No rule inside `styles.css` lines 1–754 may be changed, reordered or deleted. Anything the
@@ -52,6 +61,8 @@ The reference depicts loot, a wallet, a zone, an XP curve, buffs, a threat table
 Milestone A publishes none of them. Each such panel is either bound to a real measured figure of
 the same shape (`.loot` → retained comparisons, `.orders` → run controls, compass `.zone` →
 recipe and grid dimensions, compass death pips → wipes against the wipe limit) or left out.
+*(Since the owner decision of 2026-09-30, R154: no wipe limit exists; the compass shows the wipe
+count alone — Task 11 sweep.)*
 Inventing a number to fill a frame is forbidden, including "for now".
 
 ### R109 — a published frame that carries no events must not change the events array's identity

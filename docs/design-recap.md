@@ -165,6 +165,16 @@ Derived formulas 🟡:
 - Auto-spend covers **stats only**; skill points are always manual 🟡.
 
 ### 5.6 Death ✅
+
+> **Superseded in part (milestone B Task 11 sweep, 2026-10-02).** The bullets below record the
+> recap as agreed; three no longer hold. *EXP loss and de-levelling* were already corrected for beta
+> (layer-1 §5.6: no EXP loss, no de-levelling). The *death attempts 1–5*, the *respawn after 30 s*
+> and the *10% revive after a won fight* were replaced by the owner decision of 2026-09-30 (milestone
+> B Task 7c, rulings R151–R156): a dead member stays dead unless an Idun's Apple or a living Cleric's
+> Revive restores them at 50% HP with MP as at death; a full wipe ends the hunt and returns the party
+> to town; every return to town fully heals the whole party; there is no wipe limit and no respawn.
+> Details: `docs/milestone-b/03-town.md` §5.6.
+
 - **Wipe** = all party members dead.
 - Each wipe: every party member loses **20% of current level's EXP requirement** (**10% for premium**); **de-level possible**.
 - **Death attempts: 1–5**, configured before the hunt; **hard cap 5 for everyone**. Owner's reasoning: 5 × 20% ≈ at most ~1 level lost — the cap *is* the safeguard.
