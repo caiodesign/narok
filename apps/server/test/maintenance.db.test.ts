@@ -1,17 +1,18 @@
 /**
- * The maintenance settlement path (part 2 §7; P-31; rulings R119, R199):
+ * The maintenance settlement path (part 2 §7; P-31; rulings R119, R199, R206):
  * freeze at a cutoff, settle every running hunt to it under the pinned
  * artifacts, resume with new anchors. The arithmetic is `settle.test.ts`'s;
  * this is the wiring over a real database.
  */
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import * as schema from '../src/db/schema';
+import { withAccountTx } from '../src/db/tx';
 import { persistHunt, startHunt } from '../src/hunt/lifecycle';
 import { freeze, resumeAll, settleAll } from '../src/ops/maintenance';
 import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
 import { sim } from './hunt-fixtures';
-import { checkpointOf, plan, rig, T0 } from './hunt-db-harness';
+import { accountVersion, checkpointOf, plan, rig, T0 } from './hunt-db-harness';
 
 let db: Db;
 
@@ -103,6 +104,43 @@ describe('maintenance: freeze, settle to the cutoff, resume (R199)', () => {
     expect(forced.lifted).toBe(true);
     const [lifted] = await db.select().from(schema.maintenance).where(eq(schema.maintenance.id, 1));
     expect(lifted.frozen).toBe(false);
+  });
+
+  test('freeze waits out a write already past the check, reads its cutoff after it, and every later write answers MAINTENANCE (R206)', async () => {
+    const account = await insertAccount(db);
+    const r = rig(db);
+
+    let entered!: () => void;
+    const inside = new Promise<void>((resolve) => (entered = resolve));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const inFlight = withAccountTx(db, { accountId: account.id, expectedStateVersion: 0, operation: 'test.in-flight' }, async () => {
+      entered();
+      await gate;
+    });
+    await inside;
+
+    let cutoff: number | undefined;
+    const freezing = freeze(r.lifecycle, () => Date.now(), 'test').then((at) => (cutoff = at));
+    // The freeze is queued behind the write's shared lock, not finished.
+    for (;;) {
+      const [waiting] = await db.execute<{ n: number }>(
+        sql`select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted and database = (select oid from pg_database where datname = current_database())`,
+      );
+      if (waiting.n > 0) break;
+    }
+    expect(cutoff).toBeUndefined();
+
+    const releasedAt = Date.now();
+    release();
+    await Promise.all([inFlight, freezing]);
+    expect(await accountVersion(db, account.id), 'the write already past the check commits').toBe(1);
+    expect(cutoff!, 'the cutoff is read after the write it waited for').toBeGreaterThanOrEqual(releasedAt);
+
+    await expect(
+      withAccountTx(db, { accountId: account.id, expectedStateVersion: 1, operation: 'test.after' }, async () => undefined),
+    ).rejects.toMatchObject({ code: 'MAINTENANCE', field: 'maintenance' });
+    expect(await accountVersion(db, account.id)).toBe(1);
   });
 
   test('settle and resume refuse to run unless maintenance is frozen', async () => {

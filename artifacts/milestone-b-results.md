@@ -321,7 +321,7 @@ The figures in §6.1 must not be quoted as capacity.
 | B-21 (human half) | keyboard-only traversal of all five screens, stated; the colour-alone review | a human tester |
 | B-22 (human half) | a person looks at the 20 screenshots and the §4.3 overflows | owner |
 | B-27 | the load run on the target VPS with its hardware recorded | operator with VPS access |
-| B-28 (rest) | refusal of commands while frozen; a real content migration through step 4 | implementer, then operator |
+| B-28 (rest) | a real content migration through step 4 (refusal of commands while frozen: done, R206) | operator |
 | B-29 (client half) | refetch / invalidate on a version change | implementer (after the owner confirms part 4 §7 option (a) is enough) |
 | B-30 (client half) | a recovery route and the one control the client offers | implementer |
 | B-25 (drop half) | a drill run in which a drop lands between the committed checkpoint and the SIGKILL | implementer |
@@ -405,6 +405,19 @@ commands), `artifacts/b27-load.log`, `artifacts/b28-backup.dump`, `artifacts/pla
   `POST /api/hunts` answers `HUNT_FAULTED` before it simulates the plan. Stop, wipe and stalemate
   already heal through the engine's `returnToTown`, committed by `commitProgression`; the maintenance
   `settle` reaches town only through those same engine paths.
+- **R206 — the freeze is the `maintenance` row, checked inside every account transaction** (B-28
+  step 1, post-merge). `withAccountTx` takes a shared transaction-scoped advisory lock and reads
+  `maintenance.frozen` after the account lock and before the idempotency replay; set, it answers
+  `MAINTENANCE` (503, retryable), so every REST command, socket connect/heartbeat settlement and
+  feed tick refuses alike while every read keeps answering. `ops/maintenance freeze` takes the
+  same lock exclusively and reads `T_c` from the clock only once it holds it, so it returns after
+  every write already past the check and nothing a player did commits after the cutoff. Only the
+  operator's own `settle`/`resume` writes pass (`LifecycleDeps.maintenanceOperator`,
+  `whileFrozen`). *Why:* the spec names the flag "visible to every process" (part 1 §5 table,
+  §6 step 1) and a per-request route check would let a command already in flight commit after
+  the cutoff. *Cost if wrong:* one extra lock and one-row read per gameplay commit; drop the lock
+  and read the row if the cost shows up. Tests: `maintenance.db.test.ts`,
+  `maintenance-routes.db.test.ts`.
 
 ## 12. Recommendation: **retain the authoritative server design; do not invite players yet**
 

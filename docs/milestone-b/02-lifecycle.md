@@ -34,8 +34,9 @@ Section numbers below are local to this part; cross-part references name the par
 > - Shipped, for the record: §7's maintenance sequence runs as an offline operator command,
 >   `apps/server/src/ops/maintenance.ts` (`freeze`, `settle`, `resume`; ruling R199, Task 11). Steps
 >   2, 3 (settle under the pinned artifacts, persist) and 5 (resume with new anchors, downtime not
->   billed) are wired; step 1's command refusal while frozen is not — the freeze is a stopped `api`
->   process — and step 4's content transform has no migration to run in B. Ruling R201 (Task 11 fix
+>   billed) are wired; step 1's command refusal while frozen is wired since ruling R206 (every
+>   account transaction reads `maintenance.frozen` and answers `MAINTENANCE`) — and step 4's content
+>   transform has no migration to run in B. Ruling R201 (Task 11 fix
 >   round): `resume` keeps the freeze while any running hunt was not settled to the cutoff (it is
 >   reported `skipped`, left untouched, and the command exits 2); `resume --force` is the operator's
 >   explicit override. Lifting the freeze over an unsettled hunt would bill the outage to that
