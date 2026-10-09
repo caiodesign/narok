@@ -24,7 +24,10 @@
  *
  * Both controls are always in the document, each enabled exactly while its
  * action is legal, so their names stay reachable by `getByRole`. A faulted hunt
- * offers no normal Start (part 4 §2): it needs an explicit recovery.
+ * offers no normal Start (part 4 §2): it needs an explicit recovery. While it
+ * is faulted the sealed control is that recovery —
+ * `POST /api/hunts/current/recover` (B-30) — the one action a faulted hunt
+ * accepts; Start stays beside it, disabled, and Stop is not offered.
  *
  * Ruling R177: the stopped helper is chosen by the wire's `stopReason`, one
  * localised key per reason the protocol defines plus `unknown` for a stopped
@@ -45,7 +48,7 @@ import { useTranslation } from 'react-i18next';
 import type { ExperimentStatus } from '../status';
 import type { StopReason } from '../useHunt';
 
-export type OrdersPending = 'start' | 'stop' | null;
+export type OrdersPending = 'start' | 'stop' | 'recover' | null;
 
 export interface OrdersPanelProps {
   status: ExperimentStatus;
@@ -62,6 +65,8 @@ export interface OrdersPanelProps {
   strategyName: string | null;
   onStart: () => void;
   onStop: () => void;
+  /** The faulted hunt's explicit recovery (B-30). Omitted, a faulted hunt offers no control. */
+  onRecover?: () => void;
   onOpenStrategy: () => void;
   /**
    * The town screens (milestone B Task 10): the reference's second preset
@@ -76,7 +81,7 @@ export interface OrdersPanelProps {
 }
 
 interface Control {
-  readonly key: 'start' | 'stop';
+  readonly key: 'start' | 'stop' | 'recover';
   readonly label: string;
   readonly disabled: boolean;
   readonly busy: boolean;
@@ -109,6 +114,7 @@ export function OrdersPanel({
   strategyName,
   onStart,
   onStop,
+  onRecover,
   onOpenStrategy,
   lootFilterName = null,
   onOpenBag,
@@ -146,9 +152,21 @@ export function OrdersPanel({
         onClick: onStop,
       };
 
+  // A faulted hunt's one action: its explicit recovery (part 4 §2, B-30).
+  const recovery: Control | null =
+    faulted && onRecover !== undefined
+      ? {
+          key: 'recover',
+          label: pending === 'recover' ? t('hunt.recoverPending') : t('hunt.recover'),
+          disabled: waiting,
+          busy: pending === 'recover',
+          onClick: onRecover,
+        }
+      : null;
+
   // The reference seals the one action that is next; the other stays compact.
-  const sealed = running || stopped ? second : first;
-  const compact = sealed === first ? second : first;
+  const sealed = recovery ?? (running || stopped ? second : first);
+  const compact = recovery !== null || sealed === second ? first : second;
 
   const help = faulted
     ? t('hunt.faultedHelp')

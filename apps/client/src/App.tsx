@@ -234,6 +234,7 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
           strategyName={strategyName}
           onStart={hunt.start}
           onStop={hunt.stop}
+          onRecover={hunt.recover}
           onOpenStrategy={() => setStrategyOpen(true)}
           lootFilterName={lootFilterName}
           onOpenBag={() => setRoute('bag')}

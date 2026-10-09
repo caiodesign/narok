@@ -19,6 +19,7 @@ import {
   equipRequestSchema,
   guardedSchema,
   loginRequestSchema,
+  recoverHuntCommandSchema,
   registerRequestSchema,
   sellRequestSchema,
   startHuntSchema,
@@ -26,7 +27,7 @@ import {
 
 describe('the route table', () => {
   test('lists every row of part 1 §3 with its method, auth, guard and idempotency', () => {
-    expect(ROUTES.length).toBe(25);
+    expect(ROUTES.length).toBe(26);
     const paths = ROUTES.map((route) => `${route.method} ${route.path}`);
     expect(paths).toContain('POST /api/auth/register');
     expect(paths).toContain('POST /api/auth/login');
@@ -35,6 +36,8 @@ describe('the route table', () => {
     expect(paths).toContain('POST /api/presets/loot/preview');
     // Ruling R143: the town-only auto-spend template edit (part 3 §4, §5.2).
     expect(paths).toContain('PUT /api/characters/:id/auto-spend');
+    // B-30: a faulted hunt's explicit recovery (P-38).
+    expect(paths).toContain('POST /api/hunts/current/recover');
   });
 
   test('the preview route mutates nothing, so it takes no idempotency key and no guard', () => {
@@ -138,6 +141,13 @@ describe('request schemas', () => {
     expect(applyLootCommandSchema.safeParse(request).success).toBe(false);
     // The cutoff is the server's: a client-sent instant is refused, not read.
     expect(applyLootCommandSchema.safeParse({ ...guarded, cutoffMs: 5 }).success).toBe(false);
+  });
+
+  test('recovering a faulted hunt names only the guard, never a state or a time (P-38)', () => {
+    expect(recoverHuntCommandSchema.parse({ expectedStateVersion: 4 })).toEqual({ expectedStateVersion: 4 });
+    expect(recoverHuntCommandSchema.safeParse({}).success).toBe(false);
+    expect(recoverHuntCommandSchema.safeParse({ expectedStateVersion: 4, checkpoint: 'x' }).success).toBe(false);
+    expect(recoverHuntCommandSchema.safeParse({ expectedStateVersion: 4, atWallMs: 5 }).success).toBe(false);
   });
 });
 

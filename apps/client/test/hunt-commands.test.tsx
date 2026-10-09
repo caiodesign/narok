@@ -179,6 +179,108 @@ describe('the Orders window and the hunt it is running', () => {
   });
 });
 
+describe('a faulted hunt offers the explicit recovery action, and only it (B-30; part 4 §2)', () => {
+  /** A running hunt the server then reports faulted: the error, then the close it always sends. */
+  async function mountFaulted() {
+    const mounted = await mountApp();
+    const { api, start, sockets } = mounted;
+    // An account whose reads all succeed, so the only faults are the hunt's.
+    api.inventoryResponse = { capacity: 40, usedSlots: 0, gold: 0, stateVersion: 7 };
+    fireEvent.click(start);
+    await waitFor(() => expect(api.starts).toHaveLength(1));
+    api.current = { ...huntResponse(1, 'fighting', ACTIVE), status: 'running', mapId: 'prototype' };
+    await act(async () => api.starts[0]!.resolve(huntResponse(1, 'walking', ACTIVE)));
+    act(() => sockets[0]!.open());
+    act(() => sockets[0]!.deliver({ type: 'snapshot', generation: 1, seq: 1, state: wireState(0) }));
+    act(() => sockets[0]!.deliver({ type: 'error', generation: 1, code: 'HUNT_FAULTED', field: 'hunt.status' }));
+    act(() => sockets[0]!.closeWith('HUNT_FAULTED'));
+    return mounted;
+  }
+
+  test('the one control sends the guard, is pending until acknowledged, then the hunt reads back in town', async () => {
+    const { api, sockets } = await mountFaulted();
+    const orders = screen.getByRole('region', { name: en.hunt.orders });
+    const recover = await within(orders).findByRole('button', { name: en.hunt.recover });
+    // The fault survives the close that follows it: the control stays offered.
+    expect(recover).toBeEnabled();
+    expect(within(orders).getAllByRole('button', { name: /recover/i })).toHaveLength(1);
+    expect(within(orders).getByRole('button', { name: 'Start hunt' })).toBeDisabled();
+    expect(within(orders).queryByRole('button', { name: 'Stop' })).toBeNull();
+    expect(screen.getByTestId('orders-help')).toHaveTextContent(en.hunt.faultedHelp);
+
+    fireEvent.click(recover);
+    const recovering = await within(orders).findByRole('button', { name: en.hunt.recoverPending });
+    await waitFor(() => expect(api.recovers).toHaveLength(1));
+    expect(api.recovers[0]!.body, 'the guard is the account version as it stands, and nothing else').toEqual({ expectedStateVersion: 7 });
+    expect(recovering).toHaveAttribute('aria-busy', 'true');
+    expect(recovering).toBeDisabled();
+
+    // The server's recovered hunt keeps its generation and its last valid,
+    // unstopped engine state; its record says it is in town.
+    api.current = { ...huntResponse(1, 'fighting', ACTIVE), status: 'stopped', mapId: 'prototype' };
+    const socketsBefore = sockets.length;
+    await act(async () => api.recovers[0]!.gate.resolve(huntResponse(1, 'fighting', ACTIVE)));
+
+    const again = await within(orders).findByRole('button', { name: 'Start a new hunt' });
+    await waitFor(() => expect(again).toBeEnabled());
+    expect(within(orders).queryByRole('button', { name: en.hunt.recover })).toBeNull();
+    expect(screen.getByTestId('orders-help')).toHaveTextContent(en.hunt.stoppedHelp.unknown);
+    expect(screen.queryByTestId('hunt-fault')).toBeNull();
+    // The stream is reopened at once for a fresh snapshot, not left to the backoff.
+    expect(sockets.length).toBe(socketsBefore + 1);
+    act(() => sockets.at(-1)!.open());
+    expect(sockets.at(-1)!.sent[0]).toEqual({ type: 'hello' });
+    act(() => sockets.at(-1)!.deliver({ type: 'snapshot', generation: 1, seq: 1, state: wireState(0) }));
+    expect(within(orders).getByRole('button', { name: 'Start a new hunt' })).toBeEnabled();
+    expect(paused()).toBe('true');
+  });
+
+  test('a refused recovery renders the server code, and the control is offered again', async () => {
+    const { api } = await mountFaulted();
+    fireEvent.click(await screen.findByRole('button', { name: en.hunt.recover }));
+    await waitFor(() => expect(api.recovers).toHaveLength(1));
+    await act(async () => api.recovers[0]!.gate.reject(new CommandError('CONFLICT_STATE_VERSION', 'expectedStateVersion', 9)));
+    expect(await screen.findByTestId('hunt-fault')).toHaveTextContent(en.serverError.CONFLICT_STATE_VERSION);
+    expect(screen.getByRole('button', { name: en.hunt.recover })).toBeEnabled();
+  });
+
+  test('a hunt read answering HUNT_FAULTED on load offers the same control', async () => {
+    const api = fakeApi();
+    api.currentHunt = async () => {
+      throw new CommandError('HUNT_FAULTED', 'hunt.status');
+    };
+    render(<App huntOptions={huntHarness(api).options} />);
+    expect(await screen.findByRole('button', { name: en.hunt.recover })).toBeEnabled();
+    expect(screen.getByTestId('orders-help')).toHaveTextContent(en.hunt.faultedHelp);
+    expect(screen.getByRole('button', { name: 'Start hunt' })).toBeDisabled();
+  });
+
+  test('the control and its pending state are localised in EN and PT-BR', () => {
+    for (const locale of [en, ptBR] as const) {
+      expect(locale.hunt.recover).not.toBe('');
+      expect(locale.hunt.recoverPending).not.toBe('');
+    }
+    expect(ptBR.hunt.recover).not.toBe(en.hunt.recover);
+  });
+
+  test('the API posts the guard to the recovery route with an idempotency key', async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const api = createApi({
+      newKey: () => 'k-1',
+      fetch: async (input, init) => {
+        calls.push({ url: String(input), init: init! });
+        return new Response(JSON.stringify(huntResponse(1, 'fighting', ACTIVE)), { status: 200 });
+      },
+    });
+    await api.recoverHunt({ expectedStateVersion: 3 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('/api/hunts/current/recover');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect((calls[0]!.init.headers as Record<string, string>)['idempotency-key']).toBe('k-1');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ expectedStateVersion: 3 });
+  });
+});
+
 describe('a terminal socket close (part 4 §2)', () => {
   test.each(['UNAUTHENTICATED', 'FORBIDDEN_ORIGIN'] as const)(
     '%s is shown as closed, not as reconnecting, and no reconnect is attempted',
