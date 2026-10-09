@@ -465,6 +465,39 @@ export function markSide(index: number): 'up' | 'down' {
   return index % 2 === 0 ? 'up' : 'down';
 }
 
+/**
+ * Marks closer than this share of the track (percent) share one label. Labels
+ * alternate sides, so two on the same side are at least twice this apart:
+ * 30% of the 860 px the track keeps at its narrowest is about 258 px, wider
+ * than the longest single-line label either locale draws.
+ */
+export const MARK_CLUSTER_SHARE = 15;
+
+/** Entries a clustered label lists before it counts the rest. */
+export const MARK_CLUSTER_LINES = 3;
+
+export interface MarkCluster<T> {
+  /** Where the cluster's label hangs: its first entry's share of the track. */
+  readonly share: number;
+  readonly items: readonly T[];
+}
+
+/**
+ * Groups timeline marks, in order, so that no two labels on the track hang
+ * closer than `gap` percent: a mark within `gap` of its cluster's first mark
+ * joins that cluster. An absence whose events crowd one end of a long track
+ * then draws one readable label listing them instead of an overprinted pile.
+ */
+export function clusterMarks<T>(marks: readonly { share: number; item: T }[], gap = MARK_CLUSTER_SHARE): MarkCluster<T>[] {
+  const out: { share: number; items: T[] }[] = [];
+  for (const mark of marks) {
+    const last = out.at(-1);
+    if (last !== undefined && mark.share - last.share < gap) last.items.push(mark.item);
+    else out.push({ share: mark.share, items: [mark.item] });
+  }
+  return out;
+}
+
 /** A basis-point value as a percentage figure, e.g. 650 → 6.5. */
 export function percentOf(bp: number): number {
   return bp / 100;

@@ -35,7 +35,7 @@ import { SpriteSheet } from '../hud/SpriteSheet';
 import { WorldBackdrop } from '../hud/WorldBackdrop';
 import { formatDuration, formatNumber } from '../i18n';
 import { definitionIconById, rarityRow } from './icons';
-import { awayView, markSide, shareOf } from './model';
+import { awayView, clusterMarks, MARK_CLUSTER_LINES, markSide, shareOf } from './model';
 import { useRouteSheet } from './sheets';
 import { TownSprites } from './TownSprites';
 
@@ -62,6 +62,21 @@ const MARK: Record<AwayTimelineRecord['kind'], string> = {
   stop: 'mark--stop',
   cap: 'mark--end',
 };
+
+/** A clustered label takes the mark of its gravest entry. */
+const GRAVITY: readonly (AwayTimelineRecord['kind'] | 'end')[] = ['stop', 'wipe', 'death', 'drop-lost', 'revive', 'won', 'cap', 'end'];
+
+/** One entry on the track: a report entry, or the player's return. */
+interface TrackItem {
+  readonly kind: AwayTimelineRecord['kind'] | 'end';
+  readonly atWallMs: number;
+  readonly label: string;
+}
+
+const markOf = (kind: TrackItem['kind']): string => (kind === 'end' ? 'mark--end' : MARK[kind]);
+
+/** Lines a label takes: a single mark's time and label, or a cluster's listed entries and its count. */
+const linesOf = (count: number): number => (count === 1 ? 2 : count > MARK_CLUSTER_LINES + 1 ? MARK_CLUSTER_LINES + 1 : count);
 
 export function AwayReport(props: AwayReportProps): React.JSX.Element {
   useRouteSheet('away', sheet);
@@ -111,6 +126,18 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
   };
 
   const bagFilledAt = report.timeline?.find((entry) => entry.kind === 'drop-lost')?.atWallMs ?? null;
+
+  // Marks that would overprint one another share a label (B-22, the 1100 px probe).
+  const trackItems: TrackItem[] =
+    report.timeline === null
+      ? []
+      : [
+          ...report.timeline.map((entry) => ({ kind: entry.kind, atWallMs: entry.atWallMs, label: entryLabel(entry) })),
+          { kind: 'end' as const, atWallMs: report.returnedAtWall, label: t('away.timeline.returned') },
+        ];
+  const clusters = clusterMarks(trackItems.map((item) => ({ share: shareOf(sinceLeft(item.atWallMs), report.timeAwayMs), item })));
+  const sideLines = (side: 'up' | 'down') =>
+    Math.max(2, ...clusters.filter((_, index) => markSide(index) === side).map((cluster) => linesOf(cluster.items.length)));
 
   return (
     <div className="realm">
@@ -362,34 +389,66 @@ export function AwayReport(props: AwayReportProps): React.JSX.Element {
                     <small>{t('away.timeline.omitted', { count: report.timelineOmitted })}</small>
                   )}
                 </h2>
-                <div className="track-wrap">
+                <div
+                  className="track-wrap"
+                  style={{ '--up-lines': sideLines('up'), '--down-lines': sideLines('down') } as React.CSSProperties}
+                >
                   {/* The track is the absence; past the first lost drop it is hatched, as the reference draws a full bag. */}
                   <div className="track" aria-hidden="true">
                     <span className="track-looting" style={{ width: `calc(${bagFilledAt === null ? '100%' : at(bagFilledAt)} - 4px)` }} />
                     {bagFilledAt !== null && <span className="track-dry" style={{ left: at(bagFilledAt) }} />}
+                    {/* A clustered entry past the first still marks its own moment on the track. */}
+                    {clusters.flatMap((cluster) =>
+                      cluster.items.slice(1).map((item, index) => (
+                        <i
+                          className={classNames('track-tick', markOf(item.kind))}
+                          key={`${item.kind}:${item.atWallMs}:${index}`}
+                          style={{ left: at(item.atWallMs) }}
+                        />
+                      )),
+                    )}
                   </div>
                   <ol aria-label={t('away.timeline.label')}>
-                    {report.timeline.map((entry, index) => (
-                      <li
-                        className={classNames('mark', `mark--${markSide(index)}`, MARK[entry.kind])}
-                        key={`${entry.kind}:${entry.atWallMs}:${index}`}
-                        style={{ '--at': at(entry.atWallMs) } as React.CSSProperties}
-                      >
-                        <span className="mark-label">
-                          <time>{duration(sinceLeft(entry.atWallMs))}</time>
-                          {entryLabel(entry)}
-                        </span>
-                      </li>
-                    ))}
-                    <li
-                      className={classNames('mark', `mark--${markSide(report.timeline.length)}`, 'mark--end')}
-                      style={{ '--at': at(report.returnedAtWall) } as React.CSSProperties}
-                    >
-                      <span className="mark-label">
-                        <time>{duration(report.timeAwayMs)}</time>
-                        {t('away.timeline.returned')}
-                      </span>
-                    </li>
+                    {clusters.map((cluster, index) => {
+                      const first = cluster.items[0]!;
+                      const single = cluster.items.length === 1;
+                      const grave = GRAVITY.find((kind) => cluster.items.some((item) => item.kind === kind)) ?? first.kind;
+                      // A fourth line is better spent on the fourth entry than on "1 more".
+                      const listed = cluster.items.length > MARK_CLUSTER_LINES + 1 ? cluster.items.slice(0, MARK_CLUSTER_LINES) : cluster.items;
+                      const rest = cluster.items.slice(listed.length);
+                      return (
+                        <li
+                          className={classNames('mark', `mark--${markSide(index)}`, markOf(grave), !single && 'mark--cluster')}
+                          key={`${first.kind}:${first.atWallMs}:${index}`}
+                          style={{ '--at': `${cluster.share}%`, '--at-n': cluster.share } as React.CSSProperties}
+                        >
+                          {single ? (
+                            <span className="mark-label">
+                              <time>{duration(sinceLeft(first.atWallMs))}</time>
+                              {first.label}
+                            </span>
+                          ) : (
+                            <span className="mark-label">
+                              {listed.map((item, line) => (
+                                <span className={classNames('mark-line', `mark-line--${item.kind}`)} key={line}>
+                                  <time>{duration(sinceLeft(item.atWallMs))}</time> {item.label}
+                                </span>
+                              ))}
+                              {rest.length > 0 && (
+                                <span className="mark-line mark-more">
+                                  {t('away.timeline.more', { count: rest.length })}
+                                  {rest.map((item, line) => (
+                                    <span className="sr-only" key={line}>
+                                      {`, ${duration(sinceLeft(item.atWallMs))} ${item.label}`}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ol>
                 </div>
               </section>

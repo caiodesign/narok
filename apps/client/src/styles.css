@@ -850,3 +850,12 @@ button:disabled { cursor: not-allowed; }
   line-height: 1.25;
   color: var(--vellum-dim);
 }
+
+/* The return journey after a Stop (milestone B §4.3). Start a new hunt stays
+   in place but disabled, described by this note, until the party is in town;
+   it takes the ember accent the orders window already uses for its next
+   action, so the wait reads as the reason rather than as more helper copy. */
+.orders .travel { margin: 0; font-size: 12px; line-height: 1.3; color: var(--ember-hot); }
+/* The sealed action looked the same disabled as enabled; it now dims the way
+   the compact run actions already do. */
+.orders .stop:disabled { opacity: .55; filter: saturate(.6); }

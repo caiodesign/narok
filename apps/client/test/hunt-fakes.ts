@@ -340,18 +340,23 @@ export function huntHarness(api: Api): {
   sockets: FakeSocket[];
   timers: ReturnType<typeof manualTimers>;
   clock: ReturnType<typeof manualDriver>;
+  /** The wall clock the return journey's countdown reads; the test moves it. */
+  wall: { now: number };
 } {
   const sockets: FakeSocket[] = [];
   const timers = manualTimers();
   const clock = manualDriver();
+  const wall = { now: 1_700_000_000_000 };
   return {
     sockets,
     timers,
     clock,
+    wall,
     options: {
       api,
       driver: clock.driver,
       timers,
+      wallClock: () => wall.now,
       url: 'ws://narok.test/ws',
       createSocket: (url) => {
         const socket = new FakeSocket(url);

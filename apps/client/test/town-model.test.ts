@@ -20,6 +20,7 @@ import {
   bagEntries,
   bulkSaleSelection,
   categoryCounts,
+  clusterMarks,
   compareItems,
   draftCost,
   dropOf,
@@ -382,5 +383,27 @@ describe('B-17: the away view', () => {
     expect(freed.bagFullNow).toBe(false);
     expect(freed.primary).toBe('view-hunt');
     expect(freed.secondary).toEqual(['manage-bag']);
+  });
+});
+
+describe('clusterMarks: timeline labels never hang closer than the gap', () => {
+  const marks = (shares: number[]) => shares.map((share, index) => ({ share, item: index }));
+
+  test('marks spread along the track keep a label each', () => {
+    expect(clusterMarks(marks([0, 20, 40, 100]), 15).map((cluster) => cluster.items)).toEqual([[0], [1], [2], [3]]);
+  });
+
+  test('marks crowding one end share the label of the first, in order', () => {
+    const clusters = clusterMarks(marks([0.1, 0.2, 0.3, 0.3, 14.9, 15.1, 100]), 15);
+    expect(clusters.map((cluster) => cluster.items)).toEqual([[0, 1, 2, 3, 4], [5], [6]]);
+    expect(clusters.map((cluster) => cluster.share)).toEqual([0.1, 15.1, 100]);
+  });
+
+  test('a cluster is measured from its first mark, so a steady trickle still breaks into labels', () => {
+    expect(clusterMarks(marks([0, 10, 20, 30, 40]), 15).map((cluster) => cluster.items)).toEqual([[0, 1], [2, 3], [4]]);
+  });
+
+  test('no marks, no clusters', () => {
+    expect(clusterMarks([], 15)).toEqual([]);
   });
 });

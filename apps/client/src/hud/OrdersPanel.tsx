@@ -29,6 +29,12 @@
  * `POST /api/hunts/current/recover` (B-30) — the one action a faulted hunt
  * accepts; Start stays beside it, disabled, and Stop is not offered.
  *
+ * After a Stop the party travels home for the content's return journey, and
+ * the server refuses a start until it is in town (`hunt.travel`). Meanwhile
+ * Start a new hunt keeps its name but is disabled, and a note it is described
+ * by says the party is returning and when it arrives — so the refusal is never
+ * the first the player hears of the journey.
+ *
  * Ruling R177: the stopped helper is chosen by the wire's `stopReason`, one
  * localised key per reason the protocol defines plus `unknown` for a stopped
  * state that carries none, and only `operator` says "abandoned" — because
@@ -44,6 +50,7 @@
  * Stop that way (index §4.0), and a pause on a server-owned clock would be the
  * client asserting time (part 4 §1).
  */
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ExperimentStatus } from '../status';
 import type { StopReason } from '../useHunt';
@@ -57,6 +64,8 @@ export interface OrdersPanelProps {
   /** The hunt is faulted: no normal Start (part 4 §2). */
   faulted?: boolean;
   canStart: boolean;
+  /** Milliseconds until a stopped party reaches town; `0` once it is there. */
+  returningMs?: number;
   pending: OrdersPending;
   /**
    * The strategy by its saved name: the active one while a hunt runs, the one a
@@ -86,6 +95,7 @@ interface Control {
   readonly disabled: boolean;
   readonly busy: boolean;
   readonly onClick: () => void;
+  readonly describedBy?: string;
 }
 
 function SealedButton({ control }: { control: Control }): React.JSX.Element {
@@ -95,6 +105,7 @@ function SealedButton({ control }: { control: Control }): React.JSX.Element {
       type="button"
       disabled={control.disabled}
       aria-busy={control.busy}
+      aria-describedby={control.describedBy}
       onClick={control.onClick}
     >
       <span className="stop-seal" aria-hidden="true">
@@ -110,6 +121,7 @@ export function OrdersPanel({
   stopReason = null,
   faulted = false,
   canStart,
+  returningMs = 0,
   pending,
   strategyName,
   onStart,
@@ -126,6 +138,8 @@ export function OrdersPanel({
   const running = status === 'running';
   const stopped = status === 'stopped';
   const waiting = pending !== null;
+  const returning = stopped && !faulted && returningMs > 0;
+  const travelId = useId();
 
   const first: Control = {
     key: 'start',
@@ -140,9 +154,10 @@ export function OrdersPanel({
     ? {
         key: 'start',
         label: pending === 'start' ? t('hunt.startPending') : t('hunt.newHunt'),
-        disabled: faulted || waiting || !canStart,
+        disabled: faulted || waiting || returning || !canStart,
         busy: pending === 'start',
         onClick: onStart,
+        describedBy: returning ? travelId : undefined,
       }
     : {
         key: 'stop',
@@ -172,8 +187,10 @@ export function OrdersPanel({
     ? t('hunt.faultedHelp')
     : running
       ? t('hunt.runningHelp')
-      : stopped
-        ? t(`hunt.stoppedHelp.${stopReason ?? 'unknown'}`)
+      : returning
+        ? t('hunt.returningHelp')
+        : stopped
+          ? t(`hunt.stoppedHelp.${stopReason ?? 'unknown'}`)
         : canStart || waiting
           ? t('hunt.idleHelp')
           : t('hunt.unavailable');
@@ -233,6 +250,11 @@ export function OrdersPanel({
       <p className="hint" data-testid="orders-help">
         {help}
       </p>
+      {returning && (
+        <p className="hint travel" id={travelId} data-testid="orders-travel">
+          {t('hunt.returning', { seconds: Math.ceil(returningMs / 1000) })}
+        </p>
+      )}
     </section>
   );
 }

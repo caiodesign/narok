@@ -711,3 +711,46 @@ body[data-screen="away"] { min-width: 360px; }
 /* A combat stop is marked in the verdict's frame as well as its copy; a cap
    or a full bag never takes this class (part 4 §3.5). */
 .verdict--failure { box-shadow: inset 0 0 0 1px #8a3a2c; }
+
+/* The timeline at any width (milestone B §4.3, the 1100 px probe). Marks that
+   would overprint share one label (`clusterMarks`), and every label is clamped
+   inside the track: it hangs centred under its mark until that would cross an
+   end, then slides along so its edge meets the track's. `cqi` is the track's
+   width, so the clamp needs no measuring. Labels that list several entries
+   grow the track's margins by the lines they add, so nothing spills out of
+   the chronicle (which scrolls sideways at 1100 px and would clip it). */
+.track-wrap {
+  --up-extra: calc(var(--up-lines, 2) - 2);
+  --down-extra: calc(var(--down-lines, 2) - 2);
+  container-type: inline-size;
+  /* 14px a line, and 8px of air under the section title once a label lists.
+     The reference's bottom margin left a below-track label 8px past the
+     chronicle's edge, which its 1100 px scroll box clipped: 12px more. */
+  margin-top: calc(28px + var(--up-extra) * 14px + min(8px, var(--up-extra) * 8px));
+  margin-bottom: calc(52px + var(--down-extra) * 14px);
+}
+.track-wrap .mark-label {
+  transform: translateX(max(calc(var(--at-n, 50) * -1cqi), min(-50%, calc((100 - var(--at-n, 50)) * 1cqi - 100%))));
+}
+/* Under 1100 px the reference makes the chronicle scroll sideways; a scroll
+   container's automatic minimum height is zero, so in the height-capped report
+   body its grid row collapsed to the title strip and the track was cut off.
+   It keeps its content's height, and the report body scrolls to it. */
+.report-body > .chronicle { min-height: max-content; }
+.mark--cluster .mark-label { text-align: left; }
+.mark-line { display: block; font-weight: 600; }
+.mark-line time { display: inline; margin-right: 2px; }
+.mark-line--won { color: #f6d98a; }
+.mark-line--wipe, .mark-line--death, .mark-line--stop { color: #ffb4a8; }
+.mark-line--revive { color: #dcc0f8; }
+.mark-line--drop-lost { color: #c5a9dd; font-style: italic; }
+.mark-line--cap, .mark-line--end, .mark-more { color: var(--vellum); font-weight: 400; }
+.mark-more { color: #a3988a; font-style: italic; }
+.track-tick { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--mc); opacity: .85; }
+.track-tick.mark--lost { background: var(--r-epic); }
+@media (max-height: 860px) {
+  .track-wrap {
+    margin-top: calc(27px + var(--up-extra) * 14px + min(8px, var(--up-extra) * 8px));
+    margin-bottom: calc(48px + var(--down-extra) * 14px);
+  }
+}
