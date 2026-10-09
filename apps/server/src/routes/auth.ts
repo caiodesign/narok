@@ -36,7 +36,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): voi
   const decoy = hasher.hash(randomBytes(32).toString('base64url')).then((hashed) => hashed.hash);
 
   app.post('/api/auth/register', async (request, reply) => {
-    limiters.auth.check(sourceKey(request.headers, request.ip), now());
+    limiters.auth.check(sourceKey(request.headers, request.ip, config.trustProxy), now());
     const body = parse(registerRequestSchema, request.body);
 
     if ((await stores.accounts.byEmail(body.email)) !== undefined) {
@@ -55,7 +55,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: RouteContext): voi
   });
 
   app.post('/api/auth/login', async (request, reply) => {
-    limiters.auth.check(sourceKey(request.headers, request.ip), now());
+    limiters.auth.check(sourceKey(request.headers, request.ip, config.trustProxy), now());
     const body = parse(loginRequestSchema, request.body);
 
     const account = await stores.accounts.byEmail(body.email);

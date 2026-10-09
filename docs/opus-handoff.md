@@ -39,6 +39,11 @@ Written gameplay rules override sample copy/numbers. In particular: no beta EXP 
 
 After A, present its real test/benchmark/human-placement evidence and the retain/simplify recommendation. The milestone B technical specification is now drafted — [the index](../2026-09-21-milestone-b-spec.md) and [its four parts](milestone-b/) — and is a draft, not an accepted design: its §4 collects 51 open decisions, and nothing in it is implementable until the owner records them. Do not start pending strategy versions, persistent inventory or offline state from it before then.
 
+## Provisional decisions
+
+Open owner decisions after milestone B are recorded with the defaults in force in
+[provisional-decisions.md](provisional-decisions.md). Treat them as defaults, not as accepted design.
+
 ## Suggested kickoff instruction
 
 > Read README.md and docs/opus-handoff.md, then docs/realm-hunt-port.md and the linked product, UI, milestone A and simulation specifications. Implement milestone A following its plan. Realm Refined is the primary visual direction; adapt only the screens/features in A’s scope, with the corrections in the UI spec. Preserve all mockups and historical designs. Do not substitute mockup values for the simulation contracts. Report actual verification evidence and any unresolved gate.

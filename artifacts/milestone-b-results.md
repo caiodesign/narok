@@ -320,6 +320,10 @@ The figures in §6.1 must not be quoted as capacity.
 
 ## 8. Gates that are open, and who closes them
 
+The owner deferred the open decisions on 2026-10-09; the provisional calls development continues on are in
+[`docs/provisional-decisions.md`](../docs/provisional-decisions.md) (D-01 … D-08). The `X-Forwarded-For`
+gate is closed in code by D-02 (`NAROK_TRUST_PROXY`), pending the deploy setting.
+
 | Gate | What is missing | Who can close it |
 |---|---|---|
 | B-15 | prices, the sale route and its reconciliation test | owner (prices), then an implementer |

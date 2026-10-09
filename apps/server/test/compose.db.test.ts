@@ -84,5 +84,7 @@ describe('compose', () => {
     expect(config.allowedOrigins).toEqual(['https://a.example', 'https://b.example']);
     expect(config.secureCookies).toBe(true);
     expect(configFromEnvironment({ NAROK_INSECURE_COOKIES: '1' }).secureCookies).toBe(false);
+    expect(config.trustProxy, 'X-Forwarded-For is ignored unless a proxy is declared (D-02)').toBe(false);
+    expect(configFromEnvironment({ NAROK_TRUST_PROXY: '1' }).trustProxy).toBe(true);
   });
 });

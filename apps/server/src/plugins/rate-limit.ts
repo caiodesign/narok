@@ -61,9 +61,15 @@ export function fixedWindow(limit: RateLimit): Limiter {
   };
 }
 
-/** The source a credential attempt is charged to. */
-export function sourceKey(headers: Record<string, unknown>, fallback: string): string {
+/**
+ * The source a credential attempt is charged to (provisional decision D-02).
+ * Without a trusted proxy, the socket's address: the header is the client's to
+ * write. Behind one, the rightmost `X-Forwarded-For` entry, the one our proxy
+ * appended; entries left of it are again the client's to write.
+ */
+export function sourceKey(headers: Record<string, unknown>, socketAddress: string, trustProxy: boolean): string {
+  if (!trustProxy) return socketAddress;
   const forwarded = headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.length > 0) return forwarded.split(',')[0].trim();
-  return fallback;
+  if (typeof forwarded !== 'string' || forwarded.length === 0) return socketAddress;
+  return forwarded.split(',').at(-1)!.trim() || socketAddress;
 }

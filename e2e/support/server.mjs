@@ -92,6 +92,8 @@ export async function startServer({ url, port, origin, extraEnv = {}, log = () =
       PORT: String(port),
       NAROK_ALLOWED_ORIGINS: origin,
       NAROK_INSECURE_COOKIES: '1',
+      // The harnesses charge each test account to its own TEST-NET address.
+      NAROK_TRUST_PROXY: '1',
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

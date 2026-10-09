@@ -9,7 +9,7 @@
  * bound that fails on the long-running server it was written for.
  */
 import { afterEach, describe, expect, test } from 'vitest';
-import { fixedWindow } from '../src/plugins/rate-limit';
+import { fixedWindow, sourceKey } from '../src/plugins/rate-limit';
 import { harness, ORIGIN, type Harness } from './helpers';
 import type { Hasher } from '../src/auth/password';
 
@@ -105,5 +105,22 @@ describe('the fixed window does not grow without bound', () => {
     // A different key far in the future sweeps, but 'a' is still inside its window.
     limiter.check('b', 5_000);
     expect(() => limiter.check('a', 5_000)).toThrow();
+  });
+});
+
+describe('D-02: the source a credential attempt is charged to', () => {
+  const headers = { 'x-forwarded-for': '198.51.100.1, 203.0.113.9' };
+
+  test('without a trusted proxy the header is ignored: any client could write it', () => {
+    expect(sourceKey(headers, '192.0.2.4', false)).toBe('192.0.2.4');
+  });
+
+  test('behind a trusted proxy, the rightmost entry: the one the proxy appended', () => {
+    expect(sourceKey(headers, '127.0.0.1', true)).toBe('203.0.113.9');
+    expect(sourceKey({ 'x-forwarded-for': '203.0.113.9' }, '127.0.0.1', true)).toBe('203.0.113.9');
+  });
+
+  test('behind a trusted proxy with no header, the socket address', () => {
+    expect(sourceKey({}, '127.0.0.1', true)).toBe('127.0.0.1');
   });
 });

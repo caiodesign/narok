@@ -47,6 +47,7 @@ export function configFromEnvironment(env: NodeJS.ProcessEnv): ServerConfig {
     ...base,
     allowedOrigins: origins === undefined ? base.allowedOrigins : origins.split(',').map((value) => value.trim()),
     secureCookies: env.NAROK_INSECURE_COOKIES !== '1',
+    trustProxy: env.NAROK_TRUST_PROXY === '1',
   };
 }
 

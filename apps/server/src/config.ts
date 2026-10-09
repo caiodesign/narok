@@ -40,6 +40,12 @@ export interface ServerConfig {
   readonly features: { readonly shop: boolean };
   /** Whether the session cookie is marked `Secure`; false only for plain-HTTP local runs. */
   readonly secureCookies: boolean;
+  /**
+   * Whether a reverse proxy we run sits in front and appends the client's
+   * address to `X-Forwarded-For` (provisional decision D-02). Off, the header
+   * is ignored: any client could write it.
+   */
+  readonly trustProxy: boolean;
 }
 
 export function defaultConfig(): ServerConfig {
@@ -59,6 +65,7 @@ export function defaultConfig(): ServerConfig {
     },
     features: { shop: false },
     secureCookies: true,
+    trustProxy: false,
   };
 }
 
