@@ -15,6 +15,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, test } from 'vitest';
 import { ERROR_CODES, stopReasonSchema } from '@narok/protocol';
 import { App } from '../src/App';
+import { TOWN_RETURN_TRAVEL_MS } from '../src/useHunt';
 import { CommandError, createApi } from '../src/commands';
 import en from '../src/locales/en.json';
 import ptBR from '../src/locales/pt-BR.json';
@@ -68,7 +69,7 @@ describe('Start hunt and Stop are commands, pending until acknowledged (R166)', 
   });
 
   test('Stop is pending until acknowledged; then the second control starts a new hunt and says what the stop cost', async () => {
-    const { api, start } = await mountApp();
+    const { api, start, wall, timers } = await mountApp();
     fireEvent.click(start);
     await waitFor(() => expect(api.starts).toHaveLength(1));
     await act(async () => api.starts[0]!.resolve(huntResponse(1, 'walking', ACTIVE)));
@@ -86,16 +87,85 @@ describe('Start hunt and Stop are commands, pending until acknowledged (R166)', 
     await act(async () => api.stops[0]!.resolve(stoppedHunt('operator', ACTIVE)));
     const again = await screen.findByRole('button', { name: 'Start a new hunt' });
     expect(paused()).toBe('true');
-    // The helper names the abandoned encounter and the travel the return cost.
     const help = screen.getByTestId('orders-help');
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+
+    // The party is travelling home: the server would refuse a start (`hunt.travel`),
+    // so Start a new hunt is disabled and described by the journey's countdown.
+    expect(help).toHaveTextContent(en.hunt.returningHelp);
+    expect(en.hunt.returningHelp).toMatch(/abandoned/);
+    expect(again).toBeDisabled();
+    expect(again).toHaveAccessibleDescription(en.hunt.returning.replace('{{seconds}}', '10'));
+    wall.now += TOWN_RETURN_TRAVEL_MS;
+    act(() => timers.fireIntervals());
+    await waitFor(() => expect(again).toBeEnabled());
+    expect(screen.queryByTestId('orders-travel')).toBeNull();
+
+    // In town, the helper names the abandoned encounter and the travel the return cost.
     expect(help).toHaveTextContent(en.hunt.stoppedHelp.operator);
     expect(en.hunt.stoppedHelp.operator).toMatch(/abandoned/);
     expect(en.hunt.stoppedHelp.operator).toMatch(/travel time/);
-    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
-
-    await waitFor(() => expect(again).toBeEnabled());
     fireEvent.click(again);
     await waitFor(() => expect(api.starts).toHaveLength(2));
+  });
+
+  test('the return journey counts down from the server’s arrival time, capped at the content’s journey', async () => {
+    const { api, start, wall, timers } = await mountApp();
+    fireEvent.click(start);
+    await waitFor(() => expect(api.starts).toHaveLength(1));
+    await act(async () => api.starts[0]!.resolve(huntResponse(1, 'walking', ACTIVE)));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled());
+
+    // The server says the party arrives 4 s from now.
+    api.current = { ...stoppedHunt('operator', ACTIVE), inTownAtWallMs: wall.now + 4_000 };
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    await waitFor(() => expect(api.stops).toHaveLength(1));
+    await act(async () => api.stops[0]!.resolve(stoppedHunt('operator', ACTIVE)));
+    await waitFor(() => expect(screen.getByTestId('orders-travel')).toHaveTextContent('arrives in 4 s'));
+    const again = screen.getByRole('button', { name: 'Start a new hunt' });
+    expect(again).toBeDisabled();
+
+    wall.now += 2_500;
+    act(() => timers.fireIntervals());
+    expect(screen.getByTestId('orders-travel')).toHaveTextContent('arrives in 2 s');
+    wall.now += 1_500;
+    act(() => timers.fireIntervals());
+    await waitFor(() => expect(again).toBeEnabled());
+  });
+
+  test('a clock far behind the server never holds Start back longer than the journey', async () => {
+    const api = fakeApi();
+    const harness = huntHarness(api);
+    api.current = { ...stoppedHunt('operator', ACTIVE), inTownAtWallMs: harness.wall.now + 3_600_000 };
+    render(<App huntOptions={harness.options} />);
+    await waitFor(() => expect(screen.getByTestId('orders-travel')).toHaveTextContent('arrives in 10 s'));
+    harness.wall.now += TOWN_RETURN_TRAVEL_MS;
+    act(() => harness.timers.fireIntervals());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start a new hunt' })).toBeEnabled());
+  });
+
+  test('a start the server refuses for the return journey says why, and re-reads the arrival time', async () => {
+    const api = fakeApi();
+    const harness = huntHarness(api);
+    // A read that already says the party is in town (a clock ahead of the server's).
+    api.current = { ...stoppedHunt('operator', ACTIVE), inTownAtWallMs: harness.wall.now - 1_000 };
+    render(<App huntOptions={harness.options} />);
+    const again = await screen.findByRole('button', { name: 'Start a new hunt' });
+    await waitFor(() => expect(again).toBeEnabled());
+
+    api.current = { ...stoppedHunt('operator', ACTIVE), inTownAtWallMs: harness.wall.now + 2_000 };
+    fireEvent.click(again);
+    await waitFor(() => expect(api.starts).toHaveLength(1));
+    await act(async () => api.starts[0]!.reject(new CommandError('RULE_VIOLATION', 'hunt.travel')));
+    expect(await screen.findByTestId('hunt-fault')).toHaveTextContent(en.hunt.travelRefused);
+    await waitFor(() => expect(screen.getByTestId('orders-travel')).toHaveTextContent('arrives in 2 s'));
+    expect(again).toBeDisabled();
+
+    // Once the party arrives the refusal no longer applies.
+    harness.wall.now += 2_000;
+    act(() => harness.timers.fireIntervals());
+    await waitFor(() => expect(again).toBeEnabled());
+    expect(screen.queryByTestId('hunt-fault')).toBeNull();
   });
 
   test('a refused command renders the server code through i18n, never the server text', async () => {

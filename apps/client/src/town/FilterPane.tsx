@@ -173,9 +173,11 @@ export function FilterPane({ content, presets, items, hunting, activeId, pending
                             type="button"
                             role="radio"
                             aria-checked={current === action}
+                            aria-label={t(`loot.action.${action}`)}
+                            title={t(`loot.action.${action}`)}
                             onClick={() => choose(rarity, action)}
                           >
-                            {t(`loot.action.${action}`)}
+                            {t(`bag.filter.choice.${action}`)}
                           </button>
                         ))}
                       </div>

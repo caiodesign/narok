@@ -761,3 +761,24 @@ button:disabled {opacity:.5;cursor:not-allowed}
 .verdict--ignore { color: var(--vellum-dim); background: #20242a; box-shadow: inset 0 0 0 1px #4a5260; }
 /* The comparison's character chooser, in the tip's own vocabulary. */
 .tip-compare select { font: inherit; color: var(--vellum); background: #15181d; border: 1px solid #5a4733; border-radius: 2px; padding: 2px 4px; }
+
+/* Focus on the search field (milestone B §4.3, B-21's walk). The reference
+   clears the input's own outline and only recolours the field's frame, which
+   the walk measured as no indicator at all. The field now takes the same
+   ember outline every other stop on this screen draws (`:focus-visible`
+   above), on the frame the player sees as the control. */
+.field:has(input:focus-visible) { outline: 2px solid var(--ember-hot); outline-offset: 3px; }
+
+/* The rarity ramp's verdict buttons at 1100 px (milestone B §4.3). A tier is
+   about 80 px wide there, and PT-BR's "Vender automaticamente" overran it by
+   15 px. The buttons show the short verdict (`bag.filter.choice`) and keep
+   the full one as their accessible name and tooltip; a word that still does
+   not fit wraps instead of spilling into the next tier. */
+.choice button { height: auto; min-height: 19px; padding: 1px 3px; line-height: 1.15; overflow-wrap: anywhere; }
+
+/* The filter's footer at 1100 px: the tally was squeezed to a sliver and ran
+   under Revert (by 33 px in EN, 123 px in PT-BR). It now keeps a readable
+   width, and the two buttons move to their own row, right-aligned, when the
+   pane is too narrow for all three. */
+.filter-foot { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+.tally { flex: 1 1 220px; }

@@ -53,7 +53,7 @@ import { StrategyScreen } from './hud/strategy/StrategyScreen';
 import { SHOP_ENABLED } from './features';
 import type { BagCommands } from './town/BagScreen';
 import { SALE_KIT } from './town/SaleControls';
-import { useHunt, type UseHuntOptions } from './useHunt';
+import { isTravelRefusal, useHunt, type UseHuntOptions } from './useHunt';
 
 export type Route = 'hunt' | 'bag' | 'character' | 'away';
 
@@ -230,6 +230,7 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
           stopReason={hunt.stopReason}
           faulted={hunt.faulted}
           canStart={hunt.canStart}
+          returningMs={hunt.returningMs}
           pending={hunt.pending}
           strategyName={strategyName}
           onStart={hunt.start}
@@ -242,7 +243,7 @@ export function App({ huntOptions }: AppProps = {}): React.JSX.Element {
         />
         {fault !== null && (
           <p className="hint" role="alert" data-testid="hunt-fault">
-            {t(`serverError.${fault.code}`)}
+            {isTravelRefusal(fault) ? t('hunt.travelRefused') : t(`serverError.${fault.code}`)}
           </p>
         )}
         {hunt.reportId !== null && (

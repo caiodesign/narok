@@ -384,7 +384,10 @@
     "openBag": "Bolsa",
     "party": "Grupo",
     "openCharacter": "Personagem",
-    "openReport": "Relatório de ausência"
+    "openReport": "Relatório de ausência",
+    "returningHelp": "Você parou a caçada. O encontro em andamento foi abandonado, e o grupo está viajando de volta à cidade, onde chegará com a vida restaurada.",
+    "returning": "Voltando à cidade: o grupo chega em {{seconds}} s. Uma nova caçada pode começar quando ele chegar.",
+    "travelRefused": "O grupo ainda está voltando à cidade. Uma nova caçada pode começar quando ele chegar."
   },
   "playbackState": {
     "label": "Reprodução",
@@ -681,6 +684,11 @@
       "bonuses_many": "{{count}} bônus",
       "bonuses_other": "{{count}} bônus",
       "alwaysKept": "Sempre mantido",
+      "choice": {
+        "keep": "Manter",
+        "auto-sell": "Vender",
+        "ignore": "Ignorar"
+      },
       "precedence": "Proteção primeiro: itens trancados nunca são vendidos em lote e drops Lendários são sempre mantidos. Depois as exceções, a primeira que corresponder vence; as regras de raridade por último.",
       "exceptions": "Exceções",
       "firstMatch": "após a proteção · a primeira correspondência vence",
@@ -857,6 +865,9 @@
       "omitted_one": "{{count}} evento anterior não mostrado",
       "omitted_many": "{{count}} eventos anteriores não mostrados",
       "omitted_other": "{{count}} eventos anteriores não mostrados",
+      "more_one": "+{{count}} outro evento",
+      "more_many": "+{{count}} outros eventos",
+      "more_other": "+{{count}} outros eventos",
       "won_one": "{{count}} encontro vencido",
       "won_many": "{{count}} encontros vencidos",
       "won_other": "{{count}} encontros vencidos",

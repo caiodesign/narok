@@ -384,7 +384,10 @@
     "openBag": "Bag",
     "party": "Party",
     "openCharacter": "Character",
-    "openReport": "Away report"
+    "openReport": "Away report",
+    "returningHelp": "You stopped the hunt. The encounter in progress was abandoned, and the party is travelling back to town, where it will arrive fully healed.",
+    "returning": "Returning to town: the party arrives in {{seconds}} s. A new hunt can start once it is there.",
+    "travelRefused": "The party is still returning to town. A new hunt can start once it arrives."
   },
   "playbackState": {
     "label": "Playback",
@@ -678,6 +681,11 @@
       "bonuses_one": "{{count}} bonus",
       "bonuses_other": "{{count}} bonuses",
       "alwaysKept": "Always kept",
+      "choice": {
+        "keep": "Keep",
+        "auto-sell": "Auto-sell",
+        "ignore": "Ignore"
+      },
       "precedence": "Protection first: locked items are never sold in bulk and Legendary drops are always kept. Then exceptions, first match wins; rarity rules last.",
       "exceptions": "Exceptions",
       "firstMatch": "after protection · first match wins",
@@ -839,6 +847,8 @@
       "label": "Events while away",
       "omitted_one": "{{count}} earlier event not shown",
       "omitted_other": "{{count}} earlier events not shown",
+      "more_one": "+{{count}} more event",
+      "more_other": "+{{count}} more events",
       "won_one": "{{count}} encounter won",
       "won_other": "{{count}} encounters won",
       "wipe": "Party wipe",

@@ -21,7 +21,7 @@
  * authoritative time is derived from it, and it is never sent anywhere.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { SkillId, Slot } from '@narok/data';
+import { content, type SkillId, type Slot } from '@narok/data';
 import type { DomainEvent, PublicState } from '@narok/sim';
 import { STRATEGY_PAYLOAD_SCHEMA_VERSION, type PublicStateWire, type StrategyPresetPayload } from '@narok/protocol';
 import {
@@ -43,6 +43,7 @@ import type { ProtocolFault } from './protocol';
 import type { ExperimentStatus } from './status';
 import {
   createTransport,
+  DEFAULT_TIMERS,
   isTerminalClose,
   socketUrl,
   type Cursor,
@@ -53,6 +54,20 @@ import {
 
 /** The one map milestone B ships (spec §2.2; `apps/server/src/routes/hunts.ts` MAPS). */
 export const HUNT_MAP_ID = 'prototype';
+
+/**
+ * The return journey a player's Stop costs (spec §4.0.1), from the bundled
+ * content. The server refuses a start until the party is in town
+ * (`RULE_VIOLATION` / `hunt.travel`); the client uses this only as the ceiling
+ * on how long it shows the party returning, so a skewed local clock can never
+ * hold Start back longer than the journey itself.
+ */
+export const TOWN_RETURN_TRAVEL_MS = content.townReturnTravelMs ?? 0;
+
+/** The server's refusal of a start while the party is still travelling home. */
+export function isTravelRefusal(fault: ProtocolFault | null): boolean {
+  return fault !== null && fault.code === 'RULE_VIOLATION' && fault.field === 'hunt.travel';
+}
 
 export interface ClockDriver {
   now: () => number;
@@ -74,6 +89,8 @@ export interface UseHuntOptions {
   url?: string;
   timers?: Timers;
   heartbeatMs?: number;
+  /** Wall-clock milliseconds, for the return journey's countdown; `Date.now` by default. */
+  wallClock?: () => number;
 }
 
 export type HuntCommandPending = 'start' | 'stop' | null;
@@ -139,6 +156,11 @@ export interface UseHuntResult {
   start: () => void;
   stop: () => void;
   canStart: boolean;
+  /**
+   * Milliseconds until a stopped party reaches town, `0` once it is there. A
+   * start is refused (`hunt.travel`) until then, so `canStart` is false meanwhile.
+   */
+  returningMs: number;
   pending: HuntCommandPending;
   /** The last refused command or read, as the server's code. */
   commandError: ProtocolFault | null;
@@ -192,6 +214,11 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
   /** The newest account version any read returned: what a town command was formed against (R189). */
   const accountVersion = useRef<number | null>(null);
   const mounted = useRef(true);
+  const wallClock = config.wallClock ?? Date.now;
+  const timers = config.timers ?? DEFAULT_TIMERS;
+  /** When the stopped party reaches town, on the local wall clock; `null` when it is there or no stop is known. */
+  const [inTownAt, setInTownAt] = useState<number | null>(null);
+  const [wallNow, setWallNow] = useState(() => wallClock());
 
   const apply = useCallback(
     (message: unknown) => {
@@ -341,6 +368,40 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     if (hasPending && latestPhase !== null) void refreshHunt();
   }, [hasPending, latestPhase, refreshHunt]);
 
+  // -- the return journey -------------------------------------------------
+
+  // A hunt read names when the party reaches town (server wall time). It is
+  // turned into a local deadline once, clamped to the content's journey, so a
+  // skewed clock shortens or caps the wait but never invents a longer one.
+  // Command answers carry no `inTownAtWallMs` (undefined): they keep it.
+  useEffect(() => {
+    const at = hunt?.inTownAtWallMs;
+    if (at === undefined) return;
+    if (at === null || hunt?.status !== 'stopped') {
+      setInTownAt(null);
+      return;
+    }
+    const now = wallClock();
+    setWallNow(now);
+    setInTownAt(now + Math.min(Math.max(at - now, 0), TOWN_RETURN_TRAVEL_MS));
+  }, [hunt, wallClock]);
+
+  // A countdown tick while the party travels; it stops once the party arrives.
+  useEffect(() => {
+    if (inTownAt === null || inTownAt <= wallClock()) return;
+    const handle = timers.setInterval(() => {
+      if (mounted.current) setWallNow(wallClock());
+    }, 250);
+    return () => timers.clearInterval(handle);
+  }, [inTownAt, timers, wallClock]);
+
+  const returningMs = inTownAt === null ? 0 : Math.max(0, inTownAt - wallNow);
+
+  // Once the party is in town, a travel refusal it caused no longer applies.
+  useEffect(() => {
+    if (returningMs === 0) setCommandError((current) => (isTravelRefusal(current) ? null : current));
+  }, [returningMs]);
+
   // -- commands ------------------------------------------------------------
 
   const begin = (kind: Exclude<HuntCommandPending, null>): boolean => {
@@ -373,22 +434,36 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
           lootPresetId: lootPreset.id,
           expectedStateVersion: me.stateVersion,
         });
-        if (mounted.current) setHunt({ ...started, status: 'running', mapId: HUNT_MAP_ID });
+        if (mounted.current) {
+          setHunt({ ...started, status: 'running', mapId: HUNT_MAP_ID, inTownAtWallMs: null });
+          setInTownAt(null);
+        }
         void refreshAccount();
       } catch (error) {
-        if (mounted.current) setCommandError(faultOf(error));
+        const fault = faultOf(error);
+        if (mounted.current) setCommandError(fault);
+        // Still travelling home (a clock behind the server's, or another tab's
+        // stop): re-read when the party arrives so the countdown is the server's.
+        if (isTravelRefusal(fault)) void refreshHunt();
       } finally {
         finish();
       }
     })();
-  }, [api, characters, lootPreset, strategyPreset, refreshAccount]);
+  }, [api, characters, lootPreset, strategyPreset, refreshAccount, refreshHunt]);
 
   const stop = useCallback(() => {
     if (!begin('stop')) return;
     void (async () => {
       try {
         const stopped = await api.stopHunt();
-        if (mounted.current) setHunt((current) => ({ ...current, ...stopped, status: 'stopped' }));
+        if (mounted.current) {
+          // The stop's answer does not say when the party arrives; until the
+          // re-read below does, it is the content's whole journey from now.
+          setHunt((current) => ({ ...current, ...stopped, status: 'stopped', inTownAtWallMs: undefined }));
+          const now = wallClock();
+          setWallNow(now);
+          setInTownAt(TOWN_RETURN_TRAVEL_MS > 0 ? now + TOWN_RETURN_TRAVEL_MS : null);
+        }
         void refreshHunt();
         void refreshAccount();
       } catch (error) {
@@ -397,7 +472,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
         finish();
       }
     })();
-  }, [api, refreshAccount, refreshHunt]);
+  }, [api, refreshAccount, refreshHunt, wallClock]);
 
   const strategy = useMemo<StrategyCommands>(
     () => ({
@@ -512,6 +587,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     !faulted &&
     pending === null &&
     status !== 'running' &&
+    returningMs === 0 &&
     strategyPreset !== null &&
     lootPreset !== null &&
     characters.length > 0;
@@ -527,6 +603,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     start,
     stop,
     canStart,
+    returningMs,
     pending,
     commandError,
     playback: view.status,

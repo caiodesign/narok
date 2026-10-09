@@ -273,7 +273,7 @@ export function CharacterScreen(props: CharacterScreenProps): React.JSX.Element 
                   </svg>
                   <span className="lvl num">{number(entry.level)}</span>
                 </span>
-                <span>
+                <span className="member-who" title={entry.name}>
                   <span className="member-name">{entry.name}</span>
                   <span className="member-class">{t(`class.${entry.classId}`)}</span>
                 </span>

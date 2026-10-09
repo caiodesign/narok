@@ -169,19 +169,50 @@ describe('B-17: the report reads settled progress', () => {
     mount(RUNNING);
     const chronicle = document.querySelector('.chronicle') as HTMLElement;
     const marks = [...chronicle.querySelectorAll('ol > li.mark')];
-    expect(marks).toHaveLength(RUNNING.timeline!.length + 1);
+    // The death and the apple a minute later would overprint: they share one label.
+    expect(marks).toHaveLength(RUNNING.timeline!.length);
     const span = (ms: number) => formatDuration(ms, i18n.t, 'en');
     expect(marks.map((mark) => mark.querySelector('.mark-label')!.textContent)).toEqual([
       span(60_000) + i18n.t('away.timeline.won', { count: 6 }),
-      span(HOUR) + i18n.t('away.timeline.death', { name: 'Sigrun' }),
-      span(HOUR + 60_000) + i18n.t('away.timeline.apple', { name: 'Sigrun', item: i18n.t('consumable.idun-apple') }),
+      `${span(HOUR)} ${i18n.t('away.timeline.death', { name: 'Sigrun' })}` +
+        `${span(HOUR + 60_000)} ${i18n.t('away.timeline.apple', { name: 'Sigrun', item: i18n.t('consumable.idun-apple') })}`,
       span(2 * HOUR) + i18n.t('away.timeline.dropLost', { count: 2 }),
       span(3 * HOUR) + en.away.timeline.returned,
     ]);
+    expect(marks[1]).toHaveClass('mark--cluster', 'mark--death');
+    // The clustered apple still marks its own moment on the track.
+    expect(chronicle.querySelectorAll('.track .track-tick')).toHaveLength(1);
     const at = (mark: Element) => (mark as HTMLElement).style.getPropertyValue('--at');
     expect(at(marks[0]!)).toBe(`${(60_000 / (3 * HOUR)) * 100}%`);
     expect(at(marks.at(-1)!)).toBe('100%');
     expect(chronicle).toHaveTextContent(i18n.t('away.timeline.omitted', { count: 3 }));
+  });
+
+  test('events crowding the start of a long absence share one label, listing three and counting the rest', () => {
+    const crowded: AwayReportRecord = {
+      ...RUNNING,
+      timeline: [
+        { kind: 'death', atWallMs: 1_000 + 7_100, characterId: BJORN, count: 1, reason: null },
+        { kind: 'death', atWallMs: 1_000 + 16_600, characterId: SIGRUN, count: 1, reason: null },
+        { kind: 'death', atWallMs: 1_000 + 24_800, characterId: KAIO, count: 1, reason: null },
+        { kind: 'wipe', atWallMs: 1_000 + 24_800, characterId: null, count: 1, reason: null },
+        { kind: 'stop', atWallMs: 1_000 + 24_800, characterId: null, count: 1, reason: 'wipe' },
+      ],
+      timelineOmitted: 0,
+    };
+    mount(crowded);
+    const marks = [...document.querySelectorAll('.chronicle ol > li.mark')] as HTMLElement[];
+    expect(marks).toHaveLength(2);
+    const [first, last] = marks as [HTMLElement, HTMLElement];
+    expect(first).toHaveClass('mark--up', 'mark--cluster', 'mark--stop');
+    expect(first.style.getPropertyValue('--at-n')).toBe(`${(7_100 / (3 * HOUR)) * 100}`);
+    expect(first.querySelectorAll('.mark-line:not(.mark-more)')).toHaveLength(3);
+    expect(first.querySelector('.mark-more')).toHaveTextContent(i18n.t('away.timeline.more', { count: 2 }));
+    // What is counted rather than listed is still read out.
+    expect(first.querySelector('.mark-more')).toHaveTextContent(i18n.t('away.timeline.wipe'));
+    expect(last).toHaveClass('mark--down', 'mark--end');
+    // The track grows to fit the four lines above it.
+    expect((document.querySelector('.track-wrap') as HTMLElement).style.getPropertyValue('--up-lines')).toBe('4');
   });
 
   test('the map is the report’s own', () => {
