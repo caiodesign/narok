@@ -32,10 +32,12 @@ import { backdate, onboardPage, prepareDatabase, sqlFor, startPreview, startServ
 const target = new URL(process.argv[2] ?? 'http://127.0.0.1:4173/');
 const outDir = process.argv[3] ?? 'artifacts/town';
 mkdirSync(outDir, { recursive: true });
-const API_PORT = 8797;
+// A second run beside another (another worktree, another agent) names its own
+// harness database and API port; the preview port is the URL's.
+const API_PORT = Number(process.env.SHOTS_API_PORT ?? 8797);
 const origin = `http://127.0.0.1:${target.port}`;
 
-const url = await prepareDatabase('narok_shots');
+const url = await prepareDatabase(process.env.SHOTS_DATABASE ?? 'narok_shots');
 const sql = sqlFor(url);
 const server = await startServer({ url, port: API_PORT, origin });
 const preview = await startPreview({ port: Number(target.port), apiUrl: `http://127.0.0.1:${API_PORT}` });
@@ -78,10 +80,14 @@ async function focusWalk(page, stops = 40) {
     const entry = await page.evaluate(() => {
       const el = document.activeElement;
       if (el === null || el === document.body) return null;
-      const look = () => {
-        const style = getComputedStyle(el);
+      // A text input's indicator may be drawn on the label that frames it
+      // (the Bag's search field): that frame is compared as well.
+      const frame = el.matches('input') ? el.closest('label') : null;
+      const lookOf = (node) => {
+        const style = getComputedStyle(node);
         return `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor} | ${style.boxShadow} | ${style.borderColor} | ${style.backgroundColor}`;
       };
+      const look = () => (frame === null ? lookOf(el) : `${lookOf(el)} || ${lookOf(frame)}`);
       const focusVisible = el.matches(':focus-visible');
       const focused = look();
       // The same element unfocused, then focus restored, so Tab continues from it.
@@ -101,7 +107,7 @@ async function focusWalk(page, stops = 40) {
   };
 }
 
-const report = { ranAt: new Date().toISOString(), viewports: ['1440x900', '1280x800', '1100x800 (probe)'], languages: {}, files: [] };
+const report = { ranAt: new Date().toISOString(), viewports: ['1440x900', '1280x800', '1100x800 (shot and probe)'], languages: {}, files: [] };
 try {
   for (const language of ['en', 'pt-BR']) {
     const s = STRINGS[language];
@@ -118,7 +124,8 @@ try {
     await page.waitForFunction(() => document.querySelectorAll('.log li').length > 3);
     const entry = { screens: {}, a11y: {} };
     const shoot = async (screen) => {
-      for (const [w, h] of [[1440, 900], [1280, 800]]) {
+      // 1100×800 is shot as well as probed: the probe's overflows are judged on it.
+      for (const [w, h] of [[1440, 900], [1280, 800], [1100, 800]]) {
         await page.setViewportSize({ width: w, height: h });
         await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const file = `${outDir}/${language}-${screen}-${w}x${h}.png`;
@@ -146,6 +153,16 @@ try {
     await page.goto('/');
     await page.getByRole('heading', { level: 1, name: s.away }).waitFor({ timeout: 60_000 });
     await shoot('away');
+    // At 1100×800 the timeline is below the report's fold: shot scrolled into view.
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.evaluate(() => {
+      const body = document.querySelector('.report-body');
+      if (body !== null) body.scrollTop = body.scrollHeight;
+    });
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.screenshot({ path: `${outDir}/${language}-away-timeline-1100x800.png` });
+    report.files.push(`${outDir}/${language}-away-timeline-1100x800.png`);
+    await page.setViewportSize({ width: 1440, height: 900 });
     // The absence ended the hunt (a level-1 party wipes within minutes), so the
     // report's actions are Start a new hunt and the loot filter's Review, which opens Bag.
     await page.getByRole('button', { name: new RegExp(`${s.review}$`) }).click();
