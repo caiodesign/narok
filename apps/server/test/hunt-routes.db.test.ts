@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { content, validateContent } from '@narok/data';
 import { STARTER_LOOT_PRESET } from '@narok/loot';
+import { huntViewSchema } from '@narok/protocol';
 import { characterMaxima, defaultPlacement, defaultStrategy } from '@narok/sim';
 import { createApp } from '../src/app';
 import { compose } from '../src/compose';
@@ -249,6 +250,7 @@ describe('GET /api/hunts/current and POST /api/hunts/current/stop', () => {
       ['GET', '/api/hunts/current'],
       ['POST', '/api/hunts/current/stop'],
       ['POST', '/api/hunts/current/loot'],
+      ['POST', '/api/hunts/current/recover'],
     ] as const) {
       const response = await app.inject({ method, url, headers: { origin }, payload: method === 'POST' ? {} : undefined });
       expect(response.json(), url).toMatchObject({ code: 'UNAUTHENTICATED' });
@@ -443,6 +445,125 @@ describe('I1: a faulted hunt’s recovery is a return to town, and it heals (own
   });
 });
 
+describe('POST /api/hunts/current/recover (B-30, P-38: the explicit recovery action)', () => {
+  /** A started hunt, marked faulted as `markFaulted` leaves one. */
+  async function faulted(me: Player) {
+    const refs = await setup(me);
+    const started = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(started.statusCode, started.body).toBe(200);
+    await db.update(schema.hunts).set({ status: 'faulted', faultedReason: '{"code":"TEST"}' }).where(eq(schema.hunts.accountId, me.accountId));
+    return { refs, started: started.json() as { generation: number; state: { nowMs: number } } };
+  }
+
+  function recover(who: Player, body: Record<string, unknown>, key: string = crypto.randomUUID()) {
+    return app.inject({
+      method: 'POST',
+      url: '/api/hunts/current/recover',
+      headers: { origin, cookie: who.cookie, 'idempotency-key': key },
+      payload: body,
+    });
+  }
+
+  async function status(accountId: string) {
+    const [row] = await db.select({ status: schema.hunts.status }).from(schema.hunts).where(eq(schema.hunts.accountId, accountId));
+    return row?.status;
+  }
+
+  test('returns a faulted hunt to town and answers with the hunt view; the hunt reads back, and a new one may start', async () => {
+    const me = await player();
+    const { refs, started } = await faulted(me);
+    const before = await version(me.accountId);
+
+    const response = await recover(me, { expectedStateVersion: before });
+
+    expect(response.statusCode, response.body).toBe(200);
+    const body = huntViewSchema.parse(response.json());
+    expect(body.stateVersion).toBe(before + 1);
+    expect(body.generation, 'the recovered hunt keeps its generation').toBe(started.generation);
+    expect(body.state.nowMs, 'the last valid state, not advanced').toBe(started.state.nowMs);
+    expect(await status(me.accountId)).toBe('stopped');
+    expect(await version(me.accountId)).toBe(before + 1);
+
+    const read = await app.inject({ method: 'GET', url: '/api/hunts/current', headers: { origin, cookie: me.cookie } });
+    expect(read.statusCode, read.body).toBe(200);
+    expect(read.json()).toMatchObject({ status: 'stopped', generation: started.generation });
+
+    const again = await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    expect(again.statusCode, again.body).toBe(200);
+  });
+
+  test('a hunt that is not faulted is refused with RULE_VIOLATION and nothing changes; no hunt at all is NOT_FOUND', async () => {
+    const me = await player();
+    expect((await recover(me, { expectedStateVersion: await version(me.accountId) })).json()).toMatchObject({
+      code: 'NOT_FOUND',
+      field: 'hunt',
+    });
+
+    const refs = await setup(me);
+    await start(me, { ...refs, mapId: 'prototype', expectedStateVersion: await version(me.accountId) });
+    const before = await version(me.accountId);
+    const refused = await recover(me, { expectedStateVersion: before });
+    expect(refused.statusCode).toBe(422);
+    expect(refused.json()).toMatchObject({ code: 'RULE_VIOLATION', field: 'hunt.status' });
+    expect(await status(me.accountId)).toBe('running');
+    expect(await version(me.accountId)).toBe(before);
+  });
+
+  test('a stale expected version is a conflict carrying the current version, and the hunt stays faulted', async () => {
+    const me = await player();
+    await faulted(me);
+    const current = await version(me.accountId);
+    const refused = await recover(me, { expectedStateVersion: current - 1 });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toMatchObject({ code: 'CONFLICT_STATE_VERSION', stateVersion: current });
+    expect(await status(me.accountId)).toBe('faulted');
+  });
+
+  test('a replay answers the same and recovers once; the same key with another body is IDEMPOTENCY_KEY_REUSED', async () => {
+    const me = await player();
+    await faulted(me);
+    const expectedStateVersion = await version(me.accountId);
+    const key = crypto.randomUUID();
+
+    const first = await recover(me, { expectedStateVersion }, key);
+    const second = await recover(me, { expectedStateVersion }, key);
+    expect(first.statusCode, first.body).toBe(200);
+    expect(second.statusCode, second.body).toBe(200);
+    expect(second.json()).toEqual(first.json());
+    expect(await version(me.accountId)).toBe(expectedStateVersion + 1);
+
+    const reused = await recover(me, { expectedStateVersion: expectedStateVersion + 1 }, key);
+    expect(reused.json()).toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
+  });
+
+  test('another account cannot recover my hunt: it can only name its own', async () => {
+    const me = await player();
+    const other = await player();
+    await faulted(me);
+    const refused = await recover(other, { expectedStateVersion: await version(other.accountId) });
+    expect(refused.json()).toMatchObject({ code: 'NOT_FOUND', field: 'hunt' });
+    expect(await status(me.accountId)).toBe('faulted');
+  });
+
+  test('it needs a session, an idempotency key and the guard, and refuses a smuggled state', async () => {
+    const me = await player();
+    await faulted(me);
+    const expectedStateVersion = await version(me.accountId);
+
+    const anonymous = await app.inject({
+      method: 'POST', url: '/api/hunts/current/recover', headers: { origin, 'idempotency-key': 'k' }, payload: { expectedStateVersion },
+    });
+    expect(anonymous.json()).toMatchObject({ code: 'UNAUTHENTICATED' });
+    const keyless = await app.inject({
+      method: 'POST', url: '/api/hunts/current/recover', headers: { origin, cookie: me.cookie }, payload: { expectedStateVersion },
+    });
+    expect(keyless.json()).toMatchObject({ code: 'VALIDATION', field: 'idempotency-key' });
+    expect((await recover(me, {})).json()).toMatchObject({ code: 'VALIDATION' });
+    expect((await recover(me, { expectedStateVersion, state: { nowMs: 0 } })).json()).toMatchObject({ code: 'VALIDATION' });
+    expect(await status(me.accountId)).toBe('faulted');
+  });
+});
+
 describe('I2 / P-13: gameplay commands are rate-limited per account', () => {
   /** The same app, with the configured command limiter shrunk so a test can reach it. */
   async function limitedApp(limit: number) {
@@ -463,6 +584,7 @@ describe('I2 / P-13: gameplay commands are rate-limited per account', () => {
       ['POST', '/api/hunts/current/stop'],
       ['POST', '/api/hunts/current/strategy'],
       ['POST', '/api/hunts/current/loot'],
+      ['POST', '/api/hunts/current/recover'],
       ['PUT', `/api/presets/${crypto.randomUUID()}`],
       ['POST', '/api/characters'],
       ['POST', `/api/characters/${crypto.randomUUID()}/attributes`],

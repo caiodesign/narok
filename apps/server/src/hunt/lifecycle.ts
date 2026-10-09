@@ -596,12 +596,13 @@ export interface RecoverCommand {
  * return to town it fully heals the party's characters rows, in the same
  * transaction (final review I1). The fault
  * reason stays on the row for the record; the archive row already holds the
- * reproduction inputs.
+ * reproduction inputs. The answer is the hunt as it now stands in town, which
+ * is also what a replay of the same key answers (B-30's route).
  */
-export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCommand): Promise<void> {
+export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCommand): Promise<HuntView> {
   const nowWall = deps.now();
 
-  await withAccountTx(
+  const result = await withAccountTx(
     deps.db,
     {
       accountId: command.accountId,
@@ -630,11 +631,12 @@ export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCo
       const partyIds = state.progression === null ? [] : Object.values(state.progression).map((member) => member.characterId);
       await healToMaxima(tx, deps.content, command.accountId, partyIds);
 
-      const encoded = encodeCheckpoint({
+      const recovered: CheckpointEnvelope = {
         ...envelope,
         // No journey: recovery is an operator action, not the player's stop.
         stopContext: { reason: 'operator', atSimMs, atWallMs: nowWall, inTownAtWallMs: nowWall },
-      });
+      };
+      const encoded = encodeCheckpoint(recovered);
 
       await saveCheckpoint(tx, {
         accountId: command.accountId,
@@ -652,10 +654,13 @@ export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCo
         faultedReason: loaded.faultedReason,
         maxBytes: deps.config.maxCheckpointBytes,
       });
+
+      return view(deps.sim, recovered, state, command.expectedStateVersion + 1);
     },
   );
 
   deps.precompute.discard(command.accountId);
+  return result;
 }
 
 /**

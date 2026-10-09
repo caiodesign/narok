@@ -1,6 +1,6 @@
 /**
- * The hunt routes (part 1 §3): start, read, stop, apply-next-encounter and
- * apply-loot-filter.
+ * The hunt routes (part 1 §3): start, read, stop, apply-next-encounter,
+ * apply-loot-filter and the faulted hunt's recovery.
  *
  * Every mutating route resolves the caller, then checks ownership of every
  * named object, then validates the business rule — in that order, so a
@@ -15,6 +15,7 @@ import { z } from 'zod';
 import {
   applyLootCommandSchema,
   applyStrategyCommandSchema,
+  recoverHuntCommandSchema,
   savePresetCommandSchema,
   startHuntCommandSchema,
   STRATEGY_PAYLOAD_SCHEMA_VERSION,
@@ -25,7 +26,14 @@ import { ConflictError } from '../db/tx';
 import { AppError, notOwned } from '../errors';
 import { applyCommand, CommandSequencer, type CommandDeps } from '../hunt/commands';
 import type { LifecycleFeed } from '../hunt/feed';
-import { readAccountVersion, readHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../hunt/lifecycle';
+import {
+  readAccountVersion,
+  readHunt,
+  recoverFaultedHunt,
+  startHunt,
+  type HuntPlan,
+  type LifecycleDeps,
+} from '../hunt/lifecycle';
 import { lootVersions, presetLoot, presetRules, strategyVersions } from '../hunt/pending';
 import { readDropProtection } from '../hunt/rewards';
 import { requireSession } from '../plugins/session';
@@ -197,6 +205,33 @@ export function registerHuntRoutes(app: FastifyInstance, ctx: RouteContext, serv
       });
       announce(account.id);
       return outcome.view;
+    } catch (error) {
+      throw asAppError(error);
+    }
+  });
+
+  /**
+   * Recover a faulted hunt (P-38, B-30; part 4 §2): the one command a faulted
+   * hunt accepts, an explicit, guarded return to town from the last valid
+   * checkpoint. It names nothing but the guard — the hunt is the caller's own,
+   * so there is no other account's object to probe. A hunt that is not
+   * faulted is refused with `RULE_VIOLATION` (`hunt.status`), none at all
+   * with `NOT_FOUND`. Nothing is settled first: a faulted hunt has no time to
+   * settle, and the recovery invents none.
+   */
+  app.post('/api/hunts/current/recover', async (request) => {
+    const { account } = await commander(request);
+    const key = requireIdempotencyKey(request);
+    const body = parse(recoverHuntCommandSchema, request.body);
+
+    try {
+      const view = await recoverFaultedHunt(lifecycle, {
+        accountId: account.id,
+        expectedStateVersion: body.expectedStateVersion,
+        idempotency: { key: `hunt.recover:${key}`, requestHash: await hashRequest(body) },
+      });
+      announce(account.id);
+      return view;
     } catch (error) {
       throw asAppError(error);
     }

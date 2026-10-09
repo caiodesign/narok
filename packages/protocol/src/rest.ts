@@ -17,6 +17,7 @@
  */
 import { z } from 'zod';
 import type { Slot } from '@narok/data';
+import { publicStateSchema } from './public-state';
 
 const uuid = z.uuid();
 const positiveInt = z.number().int().positive();
@@ -257,6 +258,38 @@ export const applyLootCommandSchema = applyLootSchema.extend({
   expectedGeneration: z.number().int().nonnegative(),
 });
 
+/**
+ * Recover a faulted hunt (P-38, B-30; part 4 §2's "explicit recovery action"):
+ * the one command a faulted hunt accepts. It names nothing but the account
+ * version the player saw the fault at. The hunt is the account's own, and the
+ * state it returns to town from is the last valid checkpoint, never one the
+ * client supplies, so `.strict()` refuses anything else.
+ */
+export const recoverHuntCommandSchema = z.object({ expectedStateVersion: version }).strict();
+
+const presetRefSchema = z.object({ presetId: uuid, presetVersion: positiveInt }).strict();
+
+/**
+ * What a hunt command answers with: the server's `HuntView`, the projection
+ * and the versions, active and pending separately (UI spec §5, §6). The
+ * recovery's answer is this view of the hunt back in town.
+ */
+export const huntViewSchema = z
+  .object({
+    huntId: uuid,
+    generation: version,
+    eventCursor: version,
+    stateVersion: version,
+    state: publicStateSchema,
+    activeStrategy: presetRefSchema,
+    pendingStrategy: presetRefSchema.nullable(),
+    activeLoot: presetRefSchema,
+    pendingLoot: presetRefSchema.nullable(),
+  })
+  .strict();
+export type HuntViewWire = z.infer<typeof huntViewSchema>;
+export const recoverHuntResponseSchema = huntViewSchema;
+
 export type RouteAuth = 'none' | 'session';
 
 export interface RouteSpec {
@@ -299,6 +332,9 @@ export const ROUTES: readonly RouteSpec[] = [
   // Task 6 (ruling R131): the loot filter's apply, "versioned with the hunt
   // state" (UI spec §6) — the command part 4 §3.3 lists and part 1 §3 lacked.
   { method: 'POST', path: '/api/hunts/current/loot', auth: 'session', guarded: true, idempotent: true },
+  // B-30: the explicit recovery a faulted hunt accepts (P-38; part 4 §2),
+  // guarded by the account version the fault was seen at.
+  { method: 'POST', path: '/api/hunts/current/recover', auth: 'session', guarded: true, idempotent: true },
   { method: 'GET', path: '/api/hunts/current', auth: 'session', guarded: false, idempotent: false },
   { method: 'GET', path: '/api/reports/:id', auth: 'session', guarded: false, idempotent: false },
 ];

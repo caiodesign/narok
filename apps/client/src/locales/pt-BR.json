@@ -377,7 +377,9 @@
       "potion-floor": "As poções de vida ficaram abaixo do mínimo definido, então o grupo voltou à cidade e chegou com a vida restaurada.",
       "unknown": "A caçada parou. O grupo está na cidade, com a vida restaurada."
     },
-    "faultedHelp": "A caçada está com falha. Ela precisa de uma recuperação explícita antes que uma nova caçada possa começar.",
+    "faultedHelp": "A caçada está com falha e não avançou além do último estado válido. Recupere-a para levar o grupo de volta à cidade, com a vida restaurada; depois, uma nova caçada pode começar.",
+    "recover": "Recuperar caçada",
+    "recoverPending": "Recuperando a caçada…",
     "unavailable": "Uma caçada precisa de um personagem, um preset de estratégia e um preset de saque nesta conta.",
     "report": "Um relatório de ausência está pronto.",
     "lootFilter": "Filtro de saque",

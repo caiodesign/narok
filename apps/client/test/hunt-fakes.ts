@@ -211,6 +211,8 @@ export interface FakeApi extends Api {
   readonly stops: Gate<HuntResponse>[];
   readonly saves: { presetId: string; body: unknown; gate: Gate<SavePresetResponse> }[];
   readonly applies: { body: unknown; gate: Gate<HuntResponse> }[];
+  /** Every faulted-hunt recovery sent (B-30), each held open until the test answers it. */
+  readonly recovers: { body: unknown; gate: Gate<HuntResponse> }[];
   current: HuntResponse | null;
   inventoryResponse: InventoryResponse | null;
   /** What `GET /api/presets` answers now; a test may replace it, as another tab's save would. */
@@ -233,6 +235,7 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
     stops: [],
     saves: [],
     applies: [],
+    recovers: [],
     current: null,
     inventoryResponse: null,
     strategyPresets: presets,
@@ -279,6 +282,11 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
     applyStrategy: (body) => {
       const held = gate<HuntResponse>();
       api.applies.push({ body, gate: held });
+      return held.promise;
+    },
+    recoverHunt: (body) => {
+      const held = gate<HuntResponse>();
+      api.recovers.push({ body, gate: held });
       return held.promise;
     },
     savePreset: (presetId, body) => {

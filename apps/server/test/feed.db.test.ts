@@ -25,7 +25,7 @@ import * as schema from '../src/db/schema';
 import { defaultHuntConfig } from '../src/hunt/config';
 import { decodeCheckpoint } from '../src/hunt/envelope';
 import { LifecycleFeed, type FeedScheduler } from '../src/hunt/feed';
-import { PrecomputeCache, persistHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../src/hunt/lifecycle';
+import { PrecomputeCache, persistHunt, recoverFaultedHunt, startHunt, type HuntPlan, type LifecycleDeps } from '../src/hunt/lifecycle';
 import { SegmentPool, inlineExecutor, type SegmentExecutor } from '../src/workers/pool';
 import { SocketSession, socketBounds } from '../src/ws/socket';
 import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
@@ -176,6 +176,26 @@ describe('connect: settle, commit, then presence (step 2)', () => {
     expect(closed.code).toBe('HUNT_FAULTED');
     expect(sent.at(-1)).toMatchObject({ type: 'error', code: 'HUNT_FAULTED' });
     expect((await huntRow(account.id)).status).toBe('faulted');
+  });
+
+  test('B-30: a recovered hunt is shown at its last valid instant; the engine is not run on it again', async () => {
+    const account = await insertAccount(db);
+    const { clock, lifecycle, feed } = rig(async () => {
+      throw new SimError('INVALID_STATE', 'x', 'injected');
+    });
+    await startHunt(lifecycle, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    clock.now = T0 + 1_000;
+    await expect(persistHunt(lifecycle, account.id, { live: true })).rejects.toMatchObject({ code: 'HUNT_FAULTED' });
+    await recoverFaultedHunt(lifecycle, { accountId: account.id, expectedStateVersion: await accountVersion(account.id) });
+
+    // An hour on, a socket opens: the faulting engine must not be asked to
+    // advance a hunt that is back in town.
+    clock.now = T0 + 3_600_000;
+    const { session, sent, closed } = socket(feed, account.id);
+    await session.receive(JSON.stringify({ type: 'hello' }));
+
+    expect(closed.code).toBeUndefined();
+    expect(sent.at(-1)).toMatchObject({ type: 'snapshot', generation: 1, state: { nowMs: 0 } });
   });
 });
 

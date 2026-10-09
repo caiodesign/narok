@@ -213,6 +213,22 @@ export class LifecycleFeed implements HuntFeed {
     if (window === undefined) return undefined;
 
     const { envelope } = window;
+
+    // A stopped hunt has no time left to show. A recovered one matters most:
+    // its state is the last valid checkpoint, which the engine never stopped
+    // (P-38), so advancing a copy would replay the very fault it was recovered
+    // from, or show a party still fighting in town (B-30).
+    if (envelope.stopContext !== null) {
+      const state = this.deps.sim.decode(envelope.state);
+      return {
+        generation: envelope.generation,
+        releaseSimMs: state.nowMs,
+        baseSeq: window.baseSeq,
+        events: [...window.events],
+        state: this.deps.sim.project(state),
+      };
+    }
+
     const target = settlementWindow(
       {
         wallAnchorMs: envelope.wallAnchorMs,

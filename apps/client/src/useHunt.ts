@@ -14,7 +14,9 @@
  *    that is buffering is still hunting;
  *  - `start` and `stop` are commands. Each shows pending until the server
  *    answers, and Stop is the owner's return-to-town: there is no resume
- *    (ruling R166).
+ *    (ruling R166);
+ *  - `recover` is the one command a faulted hunt accepts (P-38, B-30): the
+ *    explicit return to town from the last valid checkpoint.
  *
  * `driver.now()` (`performance.now()` in production) paces rendering only: it
  * is the `now` of `clock.ts`'s horizon and of nothing else. No elapsed or
@@ -76,7 +78,7 @@ export interface UseHuntOptions {
   heartbeatMs?: number;
 }
 
-export type HuntCommandPending = 'start' | 'stop' | null;
+export type HuntCommandPending = 'start' | 'stop' | 'recover' | null;
 
 /** Why a hunt stopped, as the wire names it. */
 export type StopReason = NonNullable<PublicStateWire['stopReason']>;
@@ -138,6 +140,8 @@ export interface UseHuntResult {
   faulted: boolean;
   start: () => void;
   stop: () => void;
+  /** The explicit recovery of a faulted hunt (B-30); offered only while `faulted`. */
+  recover: () => void;
   canStart: boolean;
   pending: HuntCommandPending;
   /** The last refused command or read, as the server's code. */
@@ -187,6 +191,13 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [pending, setPending] = useState<HuntCommandPending>(null);
   const [commandError, setCommandError] = useState<ProtocolFault | null>(null);
+  /**
+   * The server has said HUNT_FAULTED — on the socket, a hunt read or a start —
+   * and no recovery has been acknowledged since. Held here rather than read
+   * off the playback view, because the socket closes right after its error and
+   * the view moves on to reconnecting, while the hunt stays faulted (B-30).
+   */
+  const [faulted, setFaulted] = useState(false);
   const pendingRef = useRef<HuntCommandPending>(null);
   const [report, setReport] = useState<AwayReportRecord | null>(null);
   /** The newest account version any read returned: what a town command was formed against (R189). */
@@ -259,6 +270,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
       const fault = faultOf(error);
       if (fault.code === 'NOT_FOUND') setHunt(null);
       else setCommandError(fault);
+      if (fault.code === 'HUNT_FAULTED') setFaulted(true);
     }
   }, [api]);
 
@@ -307,6 +319,10 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
       live = false;
     };
   }, [reportId, api]);
+
+  useEffect(() => {
+    if (view.status === 'faulted') setFaulted(true);
+  }, [view.status]);
 
   // A new generation (start, stop, apply, recovery) or a reconnect's snapshot:
   // re-read the hunt record for the active and pending strategy versions.
@@ -376,7 +392,10 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
         if (mounted.current) setHunt({ ...started, status: 'running', mapId: HUNT_MAP_ID });
         void refreshAccount();
       } catch (error) {
-        if (mounted.current) setCommandError(faultOf(error));
+        if (!mounted.current) return;
+        const fault = faultOf(error);
+        setCommandError(fault);
+        if (fault.code === 'HUNT_FAULTED') setFaulted(true);
       } finally {
         finish();
       }
@@ -389,6 +408,30 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
       try {
         const stopped = await api.stopHunt();
         if (mounted.current) setHunt((current) => ({ ...current, ...stopped, status: 'stopped' }));
+        void refreshHunt();
+        void refreshAccount();
+      } catch (error) {
+        if (mounted.current) setCommandError(faultOf(error));
+      } finally {
+        finish();
+      }
+    })();
+  }, [api, refreshAccount, refreshHunt]);
+
+  const recover = useCallback(() => {
+    if (!begin('recover')) return;
+    void (async () => {
+      try {
+        // Guarded by the account version as it stands (P-23); the hunt is the
+        // account's own and the state is the server's, so nothing else is named.
+        const me = await api.me();
+        const recovered = await api.recoverHunt({ expectedStateVersion: me.stateVersion });
+        if (!mounted.current) return;
+        setFaulted(false);
+        setHunt((current) => ({ ...current, ...recovered, status: 'stopped' }));
+        // The socket closed on the fault; reopen it now for a fresh snapshot
+        // rather than waiting out the reconnect backoff.
+        transportRef.current?.resync();
         void refreshHunt();
         void refreshAccount();
       } catch (error) {
@@ -495,18 +538,19 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
   }, [view.generation, latest, hunt]);
 
   const status = useMemo<ExperimentStatus>(() => {
-    if (view.status === 'error' || view.status === 'faulted') return 'error';
-    const socketIsNewer = hunt === null || view.generation >= hunt.generation;
+    if (view.status === 'error' || faulted) return 'error';
+    // A stopped record the socket has not overtaken speaks for the hunt. That
+    // is also how a recovered hunt reads: it keeps its generation and its last
+    // valid engine state, which the engine never stopped (P-38).
+    if (hunt !== null && hunt.status === 'stopped' && hunt.generation >= view.generation) return 'stopped';
     const phase = spoken?.phase ?? null;
     if (phase === null && hunt === null) return 'idle';
     if (phase === 'stopped') return 'stopped';
-    if (!socketIsNewer && hunt.status === 'stopped') return 'stopped';
     if (view.status === 'idle' && hunt === null) return 'idle';
     return 'running';
-  }, [view.status, view.generation, spoken, hunt]);
+  }, [view.status, view.generation, spoken, hunt, faulted]);
 
   const stopReason = status === 'stopped' ? (spoken?.stopReason ?? null) : null;
-  const faulted = view.status === 'faulted';
 
   const canStart =
     !faulted &&
@@ -526,11 +570,14 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
     faulted,
     start,
     stop,
+    recover,
     canStart,
     pending,
     commandError,
     playback: view.status,
-    error: view.error,
+    // The socket's HUNT_FAULTED outlives an acknowledged recovery until the
+    // fresh snapshot replaces it; it no longer describes the hunt.
+    error: view.error?.code === 'HUNT_FAULTED' && !faulted ? null : view.error,
     reportId: view.reportId,
     report,
     hunt,

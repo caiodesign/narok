@@ -344,6 +344,11 @@ export interface ApplyStrategyBody extends PresetRef {
   readonly expectedGeneration: number;
 }
 
+/** The faulted hunt's recovery (B-30): the guard, and nothing else (`recoverHuntCommandSchema`). */
+export interface RecoverHuntBody {
+  readonly expectedStateVersion: number;
+}
+
 export interface SavePresetBody {
   readonly payload: StrategyPresetPayload;
   readonly payloadSchemaVersion: number;
@@ -361,6 +366,8 @@ export interface Api {
   startHunt(body: StartHuntBody): Promise<HuntResponse>;
   stopHunt(): Promise<HuntResponse>;
   applyStrategy(body: ApplyStrategyBody): Promise<HuntResponse>;
+  /** The one command a faulted hunt accepts: an explicit return to town (P-38, B-30). */
+  recoverHunt(body: RecoverHuntBody): Promise<HuntResponse>;
   savePreset(presetId: string, body: SavePresetBody): Promise<SavePresetResponse>;
   /** A read: it settles nothing and credits nothing (B-17). */
   report(reportId: string): Promise<AwayReportWire>;
@@ -436,6 +443,7 @@ export function createApi(options: ApiOptions = {}): Api {
     startHunt: (body) => call('POST', '/api/hunts', body),
     stopHunt: () => call('POST', '/api/hunts/current/stop', {}),
     applyStrategy: (body) => call('POST', '/api/hunts/current/strategy', body),
+    recoverHunt: (body) => call('POST', '/api/hunts/current/recover', body),
     savePreset: (presetId, body) => call('PUT', `/api/presets/${encodeURIComponent(presetId)}`, body),
     report: (reportId) => call('GET', `/api/reports/${encodeURIComponent(reportId)}`),
     equip: (body) => call('POST', '/api/inventory/equip', body),

@@ -377,7 +377,9 @@
       "potion-floor": "Health potions fell below the set minimum, so the party returned to town and arrived fully healed.",
       "unknown": "The hunt has stopped. The party is in town, fully healed."
     },
-    "faultedHelp": "The hunt is faulted. It needs an explicit recovery before a new hunt can start.",
+    "faultedHelp": "The hunt is faulted and was not advanced past its last valid state. Recover it to return the party to town, fully healed; then a new hunt can start.",
+    "recover": "Recover hunt",
+    "recoverPending": "Recovering the hunt…",
     "unavailable": "A hunt needs a character, a strategy preset and a loot preset on this account.",
     "report": "An away report is ready.",
     "lootFilter": "Loot filter",
