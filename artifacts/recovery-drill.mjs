@@ -33,10 +33,14 @@
  */
 import { writeFileSync } from 'node:fs';
 import {
+  ADMIN_URL,
   apiClient,
   backdate,
+  databaseUrl,
+  dropDatabase,
   onboard,
   openSocket,
+  postgres,
   prepareDatabase,
   provisionPresets,
   readHuntRow,
@@ -60,7 +64,7 @@ function check(name, ok, detail = '') {
 }
 
 const url = await prepareDatabase('narok_drill_recovery');
-const sql = sqlFor(url);
+let sql = sqlFor(url);
 t.log(`database narok_drill_recovery migrated (${url.replace(/:[^:@]*@/, ':***@')})`);
 
 async function boot(label) {
@@ -111,10 +115,129 @@ for (let round = 0; round < 40 && (round < 3 || (await rewards(accountId)).lengt
 const afterAbsence = await rewards(accountId);
 t.log(`rewards committed by the absence settlements: ${afterAbsence.length} drop audit rows`);
 
-// The live hunt the crash interrupts.
-const live = await startHunt(api);
-if (live.status !== 200) throw new Error(`start ${live.status} ${JSON.stringify(live.body)}`);
+// The live hunt the crash interrupts, aimed so a drop is in flight at the crash.
+// Drops are rare (about one per hour of sim), and the released-but-uncommitted
+// window is a few seconds, so a crash at a random moment almost never catches
+// one. The engine is deterministic from a checkpoint, so the drill finds the
+// hunt's first drop on throwaway clones of this database (each probe settles
+// the clone's copy to a chosen sim time and reads `nextRewardSeq`), bisects it
+// to a few seconds, then backdates the real hunt to just before it. The real
+// hunt is never settled past the drop before the crash.
+const PROBE_DB = 'narok_drill_recovery_probe';
+const PROBE_PORT = 8793;
+const PROBE_BASE = `http://127.0.0.1:${PROBE_PORT}`;
+
+/** Clones the drill database (no other session may hold it) and returns the clone's url. */
+async function cloneForProbe() {
+  await sql.end({ timeout: 5 });
+  await dropDatabase(PROBE_DB);
+  const admin = postgres(ADMIN_URL, { max: 1, onnotice: () => {} });
+  try {
+    await admin.unsafe(`create database ${PROBE_DB} template narok_drill_recovery`);
+  } finally {
+    await admin.end({ timeout: 5 });
+  }
+  sql = sqlFor(url);
+  return databaseUrl(PROBE_DB);
+}
+
+/** Sim time a hunt would reach if settled now. */
+const simNow = (envelope) => envelope.simAnchorMs + (Date.now() - envelope.wallAnchorMs);
+
+/** Settles a clone's copy of the hunt to about `targetSimMs`; returns the sim reached and the drops rolled. */
+async function probe(targetSimMs, startSeq) {
+  const probeUrl = await cloneForProbe();
+  const probeSql = sqlFor(probeUrl);
+  const probeServer = await startServer({ url: probeUrl, port: PROBE_PORT, origin: ORIGIN });
+  try {
+    const before = await readHuntRow(probeSql, accountId);
+    const shift = Math.max(0, targetSimMs - simNow(before.envelope));
+    await backdate(probeSql, accountId, shift);
+    const ws = openSocket(PROBE_BASE, ORIGIN, api.cookie);
+    await ws.opened;
+    ws.send({ type: 'hello' });
+    await ws.next((m) => m.type === 'snapshot', 120_000);
+    ws.close();
+    await sleep(300);
+    const after = await readHuntRow(probeSql, accountId);
+    return { reachedSimMs: after.envelope.simAnchorMs, drops: after.state.nextRewardSeq - startSeq, status: after.row.status };
+  } finally {
+    await probeServer.kill();
+    await probeSql.end({ timeout: 5 });
+  }
+}
+
+/** Settles hour-long absences, as the rounds above do, until the hunt has stopped (a wipe). */
+async function settleUntilStopped() {
+  for (let hour = 0; hour < 24 && (await readHuntRow(sql, accountId)).row.status === 'running'; hour += 1) {
+    await backdate(sql, accountId, ABSENCE_MS);
+    const ws = openSocket(BASE, ORIGIN, api.cookie);
+    await ws.opened;
+    ws.send({ type: 'hello' });
+    await ws.next((m) => m.type === 'snapshot', 120_000);
+    ws.close();
+    await sleep(300);
+  }
+}
+
+/** Ends an unusable candidate the way the rounds above end theirs. */
+async function discard(attempt) {
+  server = await boot(`#1 (aim attempt ${attempt})`);
+  await settleUntilStopped();
+}
+
+// Lead the drop by a few seconds: the catch-up on connect commits just before
+// it, and the release window then carries it past the committed checkpoint.
+const LEAD_MS = 3_000;
+await settleUntilStopped();
+let live;
+let target = null;
+for (let attempt = 0; attempt < 60 && target === null; attempt += 1) {
+  live = await startHunt(api);
+  if (live.status !== 200) throw new Error(`start ${live.status} ${JSON.stringify(live.body)}`);
+  await server.kill();
+  const startRow = await readHuntRow(sql, accountId);
+  const startSeq = startRow.state.nextRewardSeq;
+  const far = await probe(ABSENCE_MS, startSeq);
+  if (far.drops === 0) {
+    t.log(`aim attempt ${attempt}: hunt ${live.body.huntId} rolls no drop before sim ${far.reachedSimMs} ms (${far.status}); settling it as an absence and trying another`);
+    await discard(attempt);
+    continue;
+  }
+  let lo = simNow(startRow.envelope);
+  let hi = far.reachedSimMs;
+  let probes = 1;
+  while (hi - lo > 2_500) {
+    const mid = Math.round((lo + hi) / 2);
+    const step = await probe(mid, startSeq);
+    probes += 1;
+    if (step.drops > 0) hi = Math.min(hi, step.reachedSimMs);
+    else lo = Math.max(lo, step.reachedSimMs);
+    // A probe that overshot its midpoint past `hi` cannot narrow; stop rather than loop.
+    if (step.reachedSimMs >= hi && step.drops === 0) break;
+  }
+  t.log(`aim attempt ${attempt}: hunt ${live.body.huntId}'s first drop lies in sim (${lo}, ${hi}] ms, bisected in ${probes} probes on clones`);
+  // The real hunt kept aging in wall time while the clones were probed; a drop
+  // it would already have reached by reconnect cannot be aimed at.
+  const ageNow = simNow((await readHuntRow(sql, accountId)).envelope);
+  if (hi - lo > 2_500 || ageNow + 5_000 > lo - LEAD_MS) {
+    t.log(`aim attempt ${attempt}: unusable (window ${hi - lo} ms, hunt already at sim ${ageNow} ms); settling it as an absence and trying another`);
+    await discard(attempt);
+    continue;
+  }
+  target = { lo, hi, probes };
+}
+await dropDatabase(PROBE_DB);
+if (target === null) throw new Error('no live hunt rolled a drop within 60 attempts');
 t.log(`live hunt ${live.body.huntId} started`);
+
+server = await boot('#1 (live)');
+{
+  const row = await readHuntRow(sql, accountId);
+  const shift = Math.max(0, target.lo - LEAD_MS - simNow(row.envelope) - 500);
+  await backdate(sql, accountId, shift);
+  t.log(`INJECT backdated the live hunt ${shift} ms so it resumes at about sim ${target.lo - LEAD_MS} ms, before the drop`);
+}
 const pinsBefore = (await readHuntRow(sql, accountId)).row;
 let socket = openSocket(BASE, ORIGIN, api.cookie);
 await socket.opened;
@@ -124,8 +247,9 @@ const firstSnapshot = await socket.next((m) => m.type === 'snapshot', 60_000);
 // Live play: the release ticks run; the server releases precomputed time ahead of the checkpoint.
 let released = firstSnapshot.state.nowMs;
 const framesAhead = [];
-const liveUntil = Date.now() + 26_000;
-while (Date.now() < liveUntil) {
+// Stop as soon as the release passes the drop; give up after 40 s of wall time.
+const liveUntil = Date.now() + 40_000;
+while (Date.now() < liveUntil && released <= target.hi) {
   const frame = await socket.next((m) => m.type === 'frame' && m.state.nowMs > released, 10_000).catch(() => null);
   if (frame === null) continue;
   released = frame.state.nowMs;
@@ -150,6 +274,14 @@ await socket.opened;
 socket.send({ type: 'hello' });
 const replayed = await socket.next((m) => m.type === 'snapshot', 60_000);
 await socket.next((m) => m.type === 'report', 5_000).catch(() => null);
+// The aimed drop is re-rolled by the replay but commits only once it has a
+// disposition, a few sim seconds later: play on (acking) until it lands, 30 s at most.
+const aimedId = `${live.body.huntId}:${committedAtKill.state.nextRewardSeq}`;
+const playUntil = Date.now() + 30_000;
+while (Date.now() < playUntil && !(await rewards(accountId)).some((row) => row.source_ref === aimedId)) {
+  const frame = await socket.next((m) => m.type === 'frame', 1_000).catch(() => null);
+  if (frame !== null) socket.send({ type: 'ack', generation: frame.generation, seq: frame.lastSeq });
+}
 socket.close();
 await sleep(500);
 const afterReplay = await readHuntRow(sql, accountId);
@@ -185,6 +317,11 @@ check('at the crash the database held exactly the rewards the committed checkpoi
 // exercised by this run: recorded, never claimed.
 const dropsInFlight = afterReplay.state.nextRewardSeq - committedAtKill.state.nextRewardSeq;
 t.log(`drops rolled past the committed checkpoint (in flight at the crash, replayed once): ${dropsInFlight}${dropsInFlight === 0 ? ' — item half not exercised by this run' : ''}`);
+check(
+  'B-25 item half: the aimed drop, released but not committed at the crash, was committed exactly once by the replay',
+  dropsInFlight > 0 && released >= target.hi && !beforeIds.has(aimedId) && ids.filter((id) => id === aimedId).length === 1,
+  `${aimedId}; aimed at sim (${target.lo}, ${target.hi}] ms, released ${released} ms, committed ${committedAtKill.envelope.simAnchorMs} ms; ${ids.filter((id) => id === aimedId).length} row(s) after replay`,
+);
 const expNow = Number((await sql`select sum(exp)::bigint as exp from characters where account_id = ${accountId}`)[0].exp);
 t.log(`EXP: ${expAtKill} at the crash (as committed), ${expNow} after replay`);
 const [{ exp: expColumn }] = await sql`select sum(exp)::bigint as exp from characters where account_id = ${accountId}`;
@@ -261,8 +398,17 @@ const stop = await api.post('/api/hunts/current/stop', {}, crypto.randomUUID());
 const restart = await startHunt(api);
 check('B-30 a normal stop is refused with HUNT_FAULTED', stop.body?.code === 'HUNT_FAULTED', `${stop.status} ${stop.body?.code}`);
 check('B-30 a normal start is refused with HUNT_FAULTED', restart.body?.code === 'HUNT_FAULTED', `${restart.status} ${restart.body?.code} ${restart.body?.field ?? ""}`);
-const recoverRoute = await api.post('/api/hunts/current/recover', { expectedStateVersion: 0 }, crypto.randomUUID());
-t.log(`POST /api/hunts/current/recover -> ${recoverRoute.status} ${JSON.stringify(recoverRoute.body)} (the explicit recovery has no route in this build)`);
+// B-30 client half: the explicit recovery route (ruling in the B-30 merge).
+const [{ state_version: faultedVersion }] = await sql`select state_version from accounts where id = ${accountId}`;
+const recoverRoute = await api.post('/api/hunts/current/recover', { expectedStateVersion: Number(faultedVersion) }, crypto.randomUUID());
+t.log(`POST /api/hunts/current/recover (expectedStateVersion ${faultedVersion}) -> ${recoverRoute.status} ${JSON.stringify(recoverRoute.body)}`);
+const recovered = await readHuntRow(sql, accountId);
+// The injected state is unreadable, so there is no valid checkpoint to return
+// to town from: the recovery removes the hunt, keeping its bytes in the archive.
+check('B-30 the recover route removes a hunt whose checkpoint no build can read', recoverRoute.status === 200 && recoverRoute.body?.removed === true && recovered === undefined, `${recoverRoute.status}; hunts row ${recovered === undefined ? 'gone' : recovered.row.status}`);
+const afterRecover = await startHunt(api);
+const lastArchived = (await sql`select max(generation)::int as g from hunt_checkpoint_archive where account_id = ${accountId}`)[0].g;
+check('B-30 a hunt starts after the recovery, one generation past the archived one (R198)', afterRecover.status === 200 && afterRecover.body.generation === lastArchived + 1, `${afterRecover.status}; generation ${afterRecover.body?.generation}, archived ${lastArchived}`);
 await server.kill();
 
 await sql.end({ timeout: 5 });

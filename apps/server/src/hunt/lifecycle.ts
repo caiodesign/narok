@@ -15,7 +15,7 @@
  * committed first, then the encounter is abandoned and the party travels to
  * town for the content's `townReturnTravelMs` (spec §4.0, §4.0.1).
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, max } from 'drizzle-orm';
 import type { Content } from '@narok/data';
 import {
   SimError,
@@ -46,6 +46,7 @@ import {
   decodeCheckpoint,
   encodeCheckpoint,
   ENVELOPE_VERSION,
+  EnvelopeError,
   type CheckpointEnvelope,
   type PresetRef,
 } from './envelope';
@@ -398,7 +399,17 @@ export async function startHunt(deps: LifecycleDeps, command: StartCommand): Pro
         throw new AppError('RULE_VIOLATION', 'hunt.travel');
       }
 
-      const generation = (existing?.generation ?? 0) + 1;
+      // With no row, the account's last generation may be an archived one: a
+      // recovery that removed an unreadable hunt keeps it only there.
+      let last = existing?.generation ?? 0;
+      if (existing === undefined) {
+        const [archived] = await tx
+          .select({ generation: max(schema.huntCheckpointArchive.generation) })
+          .from(schema.huntCheckpointArchive)
+          .where(eq(schema.huntCheckpointArchive.accountId, command.accountId));
+        last = Number(archived?.generation ?? 0);
+      }
+      const generation = last + 1;
       const envelope = envelopeAt(generation);
       const encoded = encodeCheckpoint(envelope);
       await saveCheckpoint(tx, {
@@ -607,7 +618,28 @@ export interface RecoverCommand {
  * reproduction inputs. The answer is the hunt as it now stands in town, which
  * is also what a replay of the same key answers (B-30's route).
  */
-export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCommand): Promise<HuntView> {
+/**
+ * What recovery answers when the faulted checkpoint itself cannot be read: the
+ * hunt is gone (its bytes are in the fault archive) and the party is in town.
+ */
+export interface RemovedHunt {
+  /** Null only when not even the envelope could be read. */
+  readonly huntId: string | null;
+  readonly removed: true;
+  readonly stateVersion: number;
+}
+
+/** The hunt id of a checkpoint that failed validation, if its JSON still names one. */
+function huntIdOf(encoded: string): string | null {
+  try {
+    const raw = JSON.parse(encoded) as { huntId?: unknown };
+    return typeof raw.huntId === 'string' ? raw.huntId : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCommand): Promise<HuntView | RemovedHunt> {
   const nowWall = deps.now();
 
   const result = await withAccountTx(
@@ -629,8 +661,26 @@ export async function recoverFaultedHunt(deps: LifecycleDeps, command: RecoverCo
       }
       if (loaded.status !== 'faulted') throw new AppError('RULE_VIOLATION', 'hunt.status');
 
-      const envelope = decodeCheckpoint(loaded.encoded);
-      const state = deps.sim.decode(envelope.state);
+      let envelope: CheckpointEnvelope;
+      let state: SimState;
+      try {
+        envelope = decodeCheckpoint(loaded.encoded);
+        state = deps.sim.decode(envelope.state);
+      } catch (error) {
+        if (!(error instanceof SimError || error instanceof EnvelopeError)) throw error;
+        // No last valid state to return to town from: the fault was the stored
+        // checkpoint itself. Its bytes and generation are already in the fault
+        // archive, so the row goes and the next start counts past the archived
+        // generation (R198). Its party is unknown, so every character of the
+        // account is healed: one hunt per account, none of them is elsewhere.
+        const characters = await tx
+          .select({ id: schema.characters.id })
+          .from(schema.characters)
+          .where(eq(schema.characters.accountId, command.accountId));
+        await healToMaxima(tx, deps.content, command.accountId, characters.map((row) => row.id));
+        await tx.delete(schema.hunts).where(eq(schema.hunts.accountId, command.accountId));
+        return { huntId: huntIdOf(loaded.encoded), removed: true as const, stateVersion: command.expectedStateVersion + 1 };
+      }
       const atSimMs = state.nowMs;
 
       // The return to town heals the whole party, as every engine return does

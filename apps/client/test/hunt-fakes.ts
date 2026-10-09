@@ -11,6 +11,7 @@ import {
   type Api,
   type AwayReportRecord,
   type HuntResponse,
+  type RemovedHuntResponse,
   type InventoryResponse,
   type LootPresetRecord,
   type PresetRef,
@@ -212,7 +213,7 @@ export interface FakeApi extends Api {
   readonly saves: { presetId: string; body: unknown; gate: Gate<SavePresetResponse> }[];
   readonly applies: { body: unknown; gate: Gate<HuntResponse> }[];
   /** Every faulted-hunt recovery sent (B-30), each held open until the test answers it. */
-  readonly recovers: { body: unknown; gate: Gate<HuntResponse> }[];
+  readonly recovers: { body: unknown; gate: Gate<HuntResponse | RemovedHuntResponse> }[];
   current: HuntResponse | null;
   inventoryResponse: InventoryResponse | null;
   /** What `GET /api/presets` answers now; a test may replace it, as another tab's save would. */
@@ -285,7 +286,7 @@ export function fakeApi(presets: readonly StrategyPresetRecord[] = [presetRecord
       return held.promise;
     },
     recoverHunt: (body) => {
-      const held = gate<HuntResponse>();
+      const held = gate<HuntResponse | RemovedHuntResponse>();
       api.recovers.push({ body, gate: held });
       return held.promise;
     },

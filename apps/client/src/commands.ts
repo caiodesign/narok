@@ -349,6 +349,17 @@ export interface RecoverHuntBody {
   readonly expectedStateVersion: number;
 }
 
+/**
+ * The recovery's answer when the faulted checkpoint itself was unreadable: the
+ * hunt was removed (its bytes are in the server's fault archive) and the party
+ * is in town with no hunt, as a new account is.
+ */
+export interface RemovedHuntResponse {
+  readonly huntId: string | null;
+  readonly removed: true;
+  readonly stateVersion: number;
+}
+
 export interface SavePresetBody {
   readonly payload: StrategyPresetPayload;
   readonly payloadSchemaVersion: number;
@@ -367,7 +378,7 @@ export interface Api {
   stopHunt(): Promise<HuntResponse>;
   applyStrategy(body: ApplyStrategyBody): Promise<HuntResponse>;
   /** The one command a faulted hunt accepts: an explicit return to town (P-38, B-30). */
-  recoverHunt(body: RecoverHuntBody): Promise<HuntResponse>;
+  recoverHunt(body: RecoverHuntBody): Promise<HuntResponse | RemovedHuntResponse>;
   savePreset(presetId: string, body: SavePresetBody): Promise<SavePresetResponse>;
   /** A read: it settles nothing and credits nothing (B-17). */
   report(reportId: string): Promise<AwayReportWire>;

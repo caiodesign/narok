@@ -305,6 +305,19 @@ describe('a faulted hunt offers the explicit recovery action, and only it (B-30;
     expect(paused()).toBe('true');
   });
 
+  test('an unreadable checkpoint is removed by the recovery: no hunt, and Start is offered as to a new account', async () => {
+    const { api } = await mountFaulted();
+    const orders = screen.getByRole('region', { name: en.hunt.orders });
+    fireEvent.click(await within(orders).findByRole('button', { name: en.hunt.recover }));
+    await waitFor(() => expect(api.recovers).toHaveLength(1));
+    api.current = null;
+    await act(async () => api.recovers[0]!.gate.resolve({ huntId: 'h-1', removed: true, stateVersion: 8 }));
+
+    await waitFor(() => expect(within(orders).getByRole('button', { name: 'Start hunt' })).toBeEnabled());
+    expect(within(orders).queryByRole('button', { name: en.hunt.recover })).toBeNull();
+    expect(screen.queryByTestId('hunt-fault')).toBeNull();
+  });
+
   test('a refused recovery renders the server code, and the control is offered again', async () => {
     const { api } = await mountFaulted();
     fireEvent.click(await screen.findByRole('button', { name: en.hunt.recover }));

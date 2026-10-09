@@ -502,7 +502,15 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
         const recovered = await api.recoverHunt({ expectedStateVersion: me.stateVersion });
         if (!mounted.current) return;
         setFaulted(false);
-        setHunt((current) => ({ ...current, ...recovered, status: 'stopped' }));
+        // An unreadable checkpoint is removed rather than returned to town: no hunt, as a new account.
+        // The stream's last view was of that hunt; it is dropped with it.
+        if ('removed' in recovered) {
+          setHunt(null);
+          viewRef.current = initialView(driver.now());
+          setView(viewRef.current);
+        } else {
+          setHunt((current) => ({ ...current, ...recovered, status: 'stopped' }));
+        }
         // The socket closed on the fault; reopen it now for a fresh snapshot
         // rather than waiting out the reconnect backoff.
         transportRef.current?.resync();
@@ -514,7 +522,7 @@ export function useHunt(options: UseHuntOptions = {}): UseHuntResult {
         finish();
       }
     })();
-  }, [api, refreshAccount, refreshHunt]);
+  }, [api, driver, refreshAccount, refreshHunt]);
 
   const strategy = useMemo<StrategyCommands>(
     () => ({

@@ -37,7 +37,7 @@ import {
 import { defaultHuntConfig, validateHuntConfig } from '../src/hunt/config';
 import { SegmentPool, inlineExecutor, type SegmentExecutor } from '../src/workers/pool';
 import { runSegment } from '../src/workers/segment';
-import { connect, databaseReachable, disconnect, insertAccount, truncateAll, type Db } from './db-helpers';
+import { connect, databaseReachable, disconnect, insertAccount, insertCharacter, truncateAll, type Db } from './db-helpers';
 
 let db: Db;
 
@@ -672,6 +672,41 @@ describe('P-38: recovery from a fault is explicit and validated', () => {
       // One past the recovered hunt's generation 1 (R198), never a reuse of it.
     ).resolves.toMatchObject({ generation: 2 });
     expect((await huntRow(account.id)).faultedReason).toBeNull();
+  });
+
+  test('a stored state no build can read: the hunt is removed, every character healed, and the next start is newer', async () => {
+    // The recovery drill's fault: the committed checkpoint itself is invalid,
+    // so there is no last valid state to return to town from. Without this
+    // path the recovery threw on decode and the account stayed faulted forever.
+    const account = await insertAccount(db);
+    const fallen = await insertCharacter(db, account.id, { hp: 0, mp: 0, dead: true });
+    const h = harness();
+    await startHunt(h.deps, { accountId: account.id, expectedStateVersion: 0, plan: plan() });
+    const started = await huntRow(account.id);
+    const envelope = decodeCheckpoint(Buffer.from(started.checkpoint).toString('utf8'));
+    const state = JSON.parse(envelope.state) as { actors: Record<string, { definitionId: string }> };
+    Object.values(state.actors)[0]!.definitionId = 'no-such-class';
+    const corrupt = Buffer.from(JSON.stringify({ ...envelope, state: JSON.stringify(state) }), 'utf8');
+    await db.update(schema.hunts).set({ checkpoint: corrupt }).where(eq(schema.hunts.accountId, account.id));
+    h.clock.now = T0 + 60_000;
+    expect((await rejection(() => persistHunt(h.deps, account.id, { live: true }))).code).toBe('HUNT_FAULTED');
+
+    const version = await accountVersion(account.id);
+    const recovered = await recoverFaultedHunt(h.deps, { accountId: account.id, expectedStateVersion: version });
+
+    expect(recovered).toEqual({ huntId: envelope.huntId, removed: true, stateVersion: version + 1 });
+    expect(await huntRow(account.id), 'the archive keeps the unreadable checkpoint; the row goes').toBeUndefined();
+    const archived = await db.select().from(schema.huntCheckpointArchive).where(eq(schema.huntCheckpointArchive.accountId, account.id));
+    expect(archived.map((row) => [row.capturedFor, row.generation])).toEqual([['fault', 1]]);
+    const [healed] = await db.select().from(schema.characters).where(eq(schema.characters.id, fallen.id));
+    expect(healed.dead).toBe(false);
+    expect(healed.hp).toBeGreaterThan(0);
+    expect(await rejection(() => readHunt(h.deps, account.id))).toMatchObject({ code: 'NOT_FOUND' });
+
+    // R198: the archived generation is the account's last; the next is newer.
+    await expect(
+      startHunt(h.deps, { accountId: account.id, expectedStateVersion: version + 1, plan: plan() }),
+    ).resolves.toMatchObject({ generation: 2 });
   });
 
   test('it is refused for a hunt that is not faulted', async () => {

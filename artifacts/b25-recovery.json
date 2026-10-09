@@ -1,63 +1,61 @@
 {
   "drill": "recovery (B-25, B-29 server half, B-30 server half)",
-  "ranAt": "2026-10-02T13:48:06.993Z",
+  "ranAt": "2026-10-09T19:19:25.426Z",
   "database": "narok_drill_recovery",
   "absenceMs": 3600000,
   "absenceSettleWallMs": [
-    49,
-    31,
-    22,
+    36,
     27,
-    30,
-    22,
-    24,
-    23,
-    22,
-    28,
-    24,
-    35,
-    24,
-    25,
-    25,
-    33,
-    38,
-    22,
-    26,
-    59,
+    42,
     29,
-    23,
-    28,
+    27,
+    31,
     32,
     26,
-    35
+    28,
+    35,
+    30,
+    26,
+    42,
+    32,
+    29,
+    30,
+    33,
+    34,
+    26,
+    38,
+    37,
+    42,
+    30,
+    40
   ],
-  "dropRowsBeforeLiveHunt": 3,
-  "releasedAtKillSimMs": 30178,
+  "dropRowsBeforeLiveHunt": 4,
+  "releasedAtKillSimMs": 1170133,
   "committedAtKill": {
-    "checkpointSeq": 2,
-    "simAnchorMs": 20132,
-    "dropRows": 3
+    "checkpointSeq": 1,
+    "simAnchorMs": 1165099,
+    "dropRows": 4
   },
   "afterReplay": {
     "checkpointSeq": 3,
-    "simAnchorMs": 31130,
-    "dropRows": 3
+    "simAnchorMs": 1192086,
+    "dropRows": 5
   },
-  "framesObservedAhead": 24,
-  "dropsInFlightAtCrash": 0,
+  "framesObservedAhead": 5,
+  "dropsInFlightAtCrash": 1,
   "recoverRoute": {
-    "status": 404,
+    "status": 200,
     "body": {
-      "code": "NOT_FOUND",
-      "field": "route",
-      "retryable": false
+      "huntId": "e6638e88-9747-408a-b205-68a66e63d8c2",
+      "removed": true,
+      "stateVersion": 57
     }
   },
   "checks": [
     {
       "name": "the server had released time ahead of the committed checkpoint (precomputation existed)",
       "ok": true,
-      "detail": "released 30178 > committed 20132"
+      "detail": "released 1170133 > committed 1165099"
     },
     {
       "name": "the durable checkpoint is exactly what was committed before the crash",
@@ -77,12 +75,12 @@
     {
       "name": "every reward id is unique (no reward committed twice)",
       "ok": true,
-      "detail": "3 rows, 3 distinct"
+      "detail": "5 rows, 5 distinct"
     },
     {
       "name": "every hunt has a reward sequence is contiguous from 0 (none skipped, none repeated)",
       "ok": true,
-      "detail": "3 hunts, 3 rewards"
+      "detail": "4 hunts, 5 rewards"
     },
     {
       "name": "every reward committed before the crash survives unchanged",
@@ -92,17 +90,22 @@
     {
       "name": "kept-drop audit rows and reward-sourced items agree one to one",
       "ok": true,
-      "detail": "1 items, 1 kept audits"
+      "detail": "0 items, 0 kept audits"
     },
     {
       "name": "at the crash the database held exactly the rewards the committed checkpoint had rolled — nothing from the released precomputation",
       "ok": true,
-      "detail": "6 frames released past sim 20132; live-hunt rewards in the database 0, committed checkpoint nextRewardSeq 0 with 0 pending"
+      "detail": "5 frames released past sim 1165099; live-hunt rewards in the database 0, committed checkpoint nextRewardSeq 0 with 0 pending"
+    },
+    {
+      "name": "B-25 item half: the aimed drop, released but not committed at the crash, was committed exactly once by the replay",
+      "ok": true,
+      "detail": "e6638e88-9747-408a-b205-68a66e63d8c2:0; aimed at sim (1168543, 1169895] ms, released 1170133 ms, committed 1165099 ms; 1 row(s) after replay"
     },
     {
       "name": "character EXP columns equal the committed checkpoint progression (no double credit)",
       "ok": true,
-      "detail": "columns 4172, checkpoint 4172"
+      "detail": "columns 3523, checkpoint 3523"
     },
     {
       "name": "B-29 the read refuses with CONTENT_VERSION_MISMATCH",
@@ -143,6 +146,16 @@
       "name": "B-30 a normal start is refused with HUNT_FAULTED",
       "ok": true,
       "detail": "409 HUNT_FAULTED hunt.status"
+    },
+    {
+      "name": "B-30 the recover route removes a hunt whose checkpoint no build can read",
+      "ok": true,
+      "detail": "200; hunts row gone"
+    },
+    {
+      "name": "B-30 a hunt starts after the recovery, one generation past the archived one (R198)",
+      "ok": true,
+      "detail": "200; generation 26, archived 25"
     }
   ],
   "passed": true
