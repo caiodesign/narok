@@ -5,11 +5,15 @@
  * the smallest one: an offline operator CLI, never imported by the app and
  * reachable by no route.
  *
- *   freeze  — records the cutoff `T_c` in the single `maintenance` row. The
- *             operator's precondition is that no `api` process is running:
- *             in B the stopped process *is* the freeze, because the routes do
- *             not yet refuse commands while `maintenance.frozen` is set (open,
- *             named in `artifacts/milestone-b-results.md`).
+ *   freeze  — records the cutoff `T_c` in the single `maintenance` row. A
+ *             running `api` honours it (ruling R206): every gameplay write —
+ *             each REST command, each socket settlement — checks the row
+ *             inside its account transaction under a shared advisory lock and
+ *             answers `MAINTENANCE`, while reads keep answering. `freeze`
+ *             takes that lock exclusively, so it returns only after every
+ *             write already past the check has committed, and `T_c` is read
+ *             from the clock after that: nothing a player did commits after
+ *             the cutoff (part 1 §6 step 1's verification).
  *   settle  — settles every running hunt to `T_c` under the artifacts this
  *             build carries. A hunt pinned to any other version is refused
  *             and reported (`CONTENT_VERSION_MISMATCH`), never replayed under
@@ -33,10 +37,10 @@
  * Prints one JSON line per hunt and a summary line.
  */
 import { pathToFileURL } from 'node:url';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { saveCheckpoint } from '../db/repositories/hunts';
-import { withAccountTx } from '../db/tx';
+import { MAINTENANCE_LOCK_KEY, withAccountTx } from '../db/tx';
 import { AppError } from '../errors';
 import { compose } from '../compose';
 import { decodeCheckpoint, encodeCheckpoint, ENVELOPE_VERSION } from '../hunt/envelope';
@@ -49,14 +53,31 @@ export interface MaintenanceOutcome {
   readonly detail: string;
 }
 
-export async function freeze(deps: LifecycleDeps, cutoffWall: number, note: string): Promise<void> {
-  await deps.db
-    .insert(schema.maintenance)
-    .values({ id: 1, frozen: true, cutoffAt: new Date(cutoffWall), note, updatedBy: 'ops/maintenance' })
-    .onConflictDoUpdate({
-      target: schema.maintenance.id,
-      set: { frozen: true, cutoffAt: new Date(cutoffWall), note, updatedAt: new Date(), updatedBy: 'ops/maintenance' },
-    });
+/**
+ * Part 2 §7 step 1. `cutoff` is the wall instant, or a clock read once the
+ * lock is held — the operator command passes the clock, so `T_c` falls after
+ * every commit the lock waited for (R206). Returns the recorded cutoff.
+ */
+export async function freeze(deps: LifecycleDeps, cutoff: number | (() => number), note: string): Promise<number> {
+  return deps.db.transaction(async (tx) => {
+    // Exclusive: waits for every account transaction holding it shared, and
+    // holds every later one until this commit makes the flag visible to it.
+    await tx.execute(sql`select pg_advisory_xact_lock(${MAINTENANCE_LOCK_KEY})`);
+    const cutoffWall = typeof cutoff === 'function' ? cutoff() : cutoff;
+    await tx
+      .insert(schema.maintenance)
+      .values({ id: 1, frozen: true, cutoffAt: new Date(cutoffWall), note, updatedBy: 'ops/maintenance' })
+      .onConflictDoUpdate({
+        target: schema.maintenance.id,
+        set: { frozen: true, cutoffAt: new Date(cutoffWall), note, updatedAt: new Date(), updatedBy: 'ops/maintenance' },
+      });
+    return cutoffWall;
+  });
+}
+
+/** The operator's own deps: its settlements commit under the freeze (R206). */
+function operator(deps: LifecycleDeps): LifecycleDeps {
+  return { ...deps, maintenanceOperator: true };
 }
 
 async function frozenCutoff(deps: LifecycleDeps): Promise<number> {
@@ -76,7 +97,7 @@ export async function settleAll(deps: LifecycleDeps): Promise<MaintenanceOutcome
   const outcomes: MaintenanceOutcome[] = [];
   for (const accountId of await runningHunts(deps)) {
     try {
-      const settled = await persistHunt(deps, accountId, { live: false, atWall: cutoff });
+      const settled = await persistHunt(operator(deps), accountId, { live: false, atWall: cutoff });
       outcomes.push({ accountId, outcome: 'settled', detail: `simNowMs=${settled.envelope.simAnchorMs} wallAnchorMs=${settled.envelope.wallAnchorMs}` });
     } catch (error) {
       if (error instanceof AppError) outcomes.push({ accountId, outcome: 'refused', detail: `${error.code} ${error.field}` });
@@ -120,7 +141,7 @@ export async function resumeAll(
     const resumed = resumeAfterMaintenance(loaded.envelope, cutoff, resumeWall);
     await withAccountTx(
       deps.db,
-      { accountId, expectedStateVersion: loaded.stateVersion, operation: 'hunt.maintenance-resume' },
+      { accountId, expectedStateVersion: loaded.stateVersion, operation: 'hunt.maintenance-resume', whileFrozen: true },
       async (tx) => {
         const [row] = await tx.select().from(schema.hunts).where(eq(schema.hunts.accountId, accountId));
         if (row === undefined) throw new AppError('NOT_FOUND', 'hunt');
@@ -162,8 +183,8 @@ async function main(): Promise<void> {
   try {
     const now = Date.now();
     if (command === 'freeze') {
-      await freeze(lifecycle, now, process.argv[3] ?? 'maintenance');
-      console.log(JSON.stringify({ frozen: true, cutoffWall: now }));
+      const cutoffWall = await freeze(lifecycle, () => Date.now(), process.argv[3] ?? 'maintenance');
+      console.log(JSON.stringify({ frozen: true, cutoffWall }));
     } else if (command === 'settle') {
       const outcomes = await settleAll(lifecycle);
       for (const outcome of outcomes) console.log(JSON.stringify(outcome));

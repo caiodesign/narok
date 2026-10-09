@@ -6,6 +6,9 @@
  *
  *   1. `SELECT ... FOR UPDATE` on the account row. The lock is the writer
  *      token, and the order commands acquire it in *is* their total order.
+ *      Then the maintenance freeze (ruling R206): a shared advisory lock the
+ *      operator's `freeze` takes exclusively, and the `maintenance` row read
+ *      under it. A frozen database answers `MAINTENANCE` before anything else.
  *   2. The idempotency check, inside the lock, so two copies of one retry
  *      cannot both find the key absent.
  *   3. The caller's body.
@@ -23,6 +26,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { ErrorCode } from '@narok/protocol';
+import { AppError } from '../errors';
 import * as schema from './schema';
 
 export type Database = PostgresJsDatabase<typeof schema>;
@@ -61,6 +65,36 @@ export interface AccountTxOptions {
   /** Bounded internal retries (P-22). Configuration, not a constant here. */
   readonly maxAttempts?: number;
   readonly backoffMs?: (attempt: number) => number;
+  /**
+   * The maintenance operator's own writes — settling to the cutoff and
+   * re-anchoring at resume — proceed under the freeze they exist to serve.
+   * Nothing a player can reach sets it (R206).
+   */
+  readonly whileFrozen?: boolean;
+}
+
+/**
+ * The one advisory key the freeze serialises on (R206). Every account
+ * transaction holds it shared until it commits; `freeze` takes it exclusively,
+ * so it waits out every write already past the check and every later one reads
+ * the flag it set. An advisory lock rather than `FOR SHARE` on the row: it
+ * needs no row to exist and writes nothing to the row it guards.
+ */
+export const MAINTENANCE_LOCK_KEY = 0x6e61_726f_6b00n;
+
+/**
+ * Refuses with `MAINTENANCE` while the freeze is set (part 1 §6 step 1; part 2
+ * §7 step 1). Two statements, in this order: under READ COMMITTED each takes
+ * its snapshot when it starts, so the read must begin after the lock is held
+ * or it could miss a freeze that committed while it waited.
+ */
+export async function assertNotFrozen(tx: Tx): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock_shared(${MAINTENANCE_LOCK_KEY})`);
+  const [row] = await tx
+    .select({ frozen: schema.maintenance.frozen })
+    .from(schema.maintenance)
+    .where(eq(schema.maintenance.id, 1));
+  if (row?.frozen === true) throw new AppError('MAINTENANCE', 'maintenance');
 }
 
 const DEFAULT_MAX_ATTEMPTS = 1;
@@ -81,6 +115,10 @@ async function runOnce<T>(db: Database, options: AccountTxOptions, body: (tx: Tx
         .for('update');
 
       if (account === undefined) throw new ConflictError('NOT_OWNED', 'accountId');
+
+      // The freeze, before the replay and the guard: a frozen database answers
+      // every gameplay command alike (R206).
+      if (options.whileFrozen !== true) await assertNotFrozen(tx);
 
       // 2. A replay returns what the first attempt returned, without re-running
       //    the body — and without failing on a guard the first attempt moved.

@@ -101,6 +101,12 @@ export interface LifecycleDeps {
    * R132). Defaults to {@link commitRewards}; a test may observe or fail it.
    */
   readonly rewardSink?: RewardSink;
+  /**
+   * Set only by the maintenance operator command (`ops/maintenance`): its
+   * settlements, and a fault one of them records, commit under the freeze
+   * that refuses every other write (R206). The app never sets it.
+   */
+  readonly maintenanceOperator?: boolean;
 }
 
 /** What a client receives. Serialisable, because it is also the idempotent response. */
@@ -548,8 +554,10 @@ async function faultHunt(deps: LifecycleDeps, accountId: string, reason: FaultRe
   for (let attempt = 1; ; attempt++) {
     const stateVersion = await readAccountVersion(deps.db, accountId);
     try {
-      await withAccountTx(deps.db, { accountId, expectedStateVersion: stateVersion, operation: 'hunt.fault' }, (tx) =>
-        markFaulted(tx, accountId, reason),
+      await withAccountTx(
+        deps.db,
+        { accountId, expectedStateVersion: stateVersion, operation: 'hunt.fault', whileFrozen: deps.maintenanceOperator },
+        (tx) => markFaulted(tx, accountId, reason),
       );
       break;
     } catch (error) {
@@ -847,7 +855,7 @@ async function persistRound(
   try {
     await withAccountTx(
       deps.db,
-      { accountId, expectedStateVersion: loaded.stateVersion, operation: 'hunt.persist' },
+      { accountId, expectedStateVersion: loaded.stateVersion, operation: 'hunt.persist', whileFrozen: deps.maintenanceOperator },
       async (tx) => {
         await saveCheckpoint(tx, {
           accountId,
